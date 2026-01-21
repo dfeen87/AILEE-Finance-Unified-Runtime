@@ -492,26 +492,6 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-## License & Usage
-
-### Licensing Options
-
-**Evaluation License** (30 days)
-- Free for research and backtesting
-- Non-commercial use only
-- Full feature access
-
-**Commercial License**
-- Contact: [your-email@example.com]
-- Custom terms for trading desks
-- Support and integration assistance
-
-**Enterprise License**
-- Multi-desk deployment
-- Priority support
-- Custom feature development
-- SLA guarantees
-
 ### Citation
 
 If you use AILLE in academic research:
