@@ -24,6 +24,7 @@
 #include <deque>
 #include <cmath>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <string>
 #include <chrono>
@@ -31,7 +32,6 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
-#include <functional>
 
 namespace AILLE {
 
@@ -188,6 +188,7 @@ private:
     }
     
     float getFallbackValue() const {
+        if (fallback_buffer.empty()) return 0.0f;
         float fb = calculateFallbackValue();
         return ((fb >= 0) ? 1.0f : -1.0f) * config.fallback_position_scale;
     }
@@ -207,8 +208,22 @@ public:
             decision.reasoning = "No model inputs";
             return decision;
         }
-        
-        std::vector<ModelSignal> valid = applySafetyLayer(model_signals);
+
+        if (config.max_model_count <= 0) {
+            decision.reasoning = "Invalid max model count configuration";
+            return decision;
+        }
+
+        std::vector<ModelSignal> scoped_signals;
+        size_t max_models = static_cast<size_t>(config.max_model_count);
+        if (model_signals.size() > max_models) {
+            scoped_signals.assign(model_signals.begin(),
+                                  model_signals.begin() + max_models);
+        } else {
+            scoped_signals = model_signals;
+        }
+
+        std::vector<ModelSignal> valid = applySafetyLayer(scoped_signals);
         
         if (valid.empty()) {
             decision.status = REJECTED_LOW_CONFIDENCE;
@@ -268,6 +283,7 @@ struct AuditRecord {
     int models_agreed;
     bool fallback_used;
     std::string reasoning;
+    std::vector<int> contributing_models;
     std::string symbol;
     std::string strategy_id;
     std::string hash;
@@ -284,16 +300,163 @@ private:
     std::vector<AuditRecord> audit_trail;
     uint64_t next_decision_id;
     std::string last_hash;
-    
+
+    static uint32_t rotateRight(uint32_t value, uint32_t bits) {
+        return (value >> bits) | (value << (32 - bits));
+    }
+
+    static std::string sha256(const std::string& input) {
+        static constexpr std::array<uint32_t, 64> k = {
+            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+            0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+            0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+            0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+            0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+            0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+            0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+            0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+            0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+            0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+            0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+            0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+            0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+            0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+            0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+            0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+        };
+
+        std::array<uint32_t, 8> h = {
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+        };
+
+        std::vector<uint8_t> data(input.begin(), input.end());
+        uint64_t bit_len = static_cast<uint64_t>(data.size()) * 8;
+        data.push_back(0x80);
+        while ((data.size() % 64) != 56) {
+            data.push_back(0);
+        }
+        for (int i = 7; i >= 0; --i) {
+            data.push_back(static_cast<uint8_t>((bit_len >> (i * 8)) & 0xff));
+        }
+
+        for (size_t chunk = 0; chunk < data.size(); chunk += 64) {
+            std::array<uint32_t, 64> w{};
+            for (size_t i = 0; i < 16; ++i) {
+                size_t idx = chunk + i * 4;
+                w[i] = (static_cast<uint32_t>(data[idx]) << 24)
+                    | (static_cast<uint32_t>(data[idx + 1]) << 16)
+                    | (static_cast<uint32_t>(data[idx + 2]) << 8)
+                    | static_cast<uint32_t>(data[idx + 3]);
+            }
+            for (size_t i = 16; i < 64; ++i) {
+                uint32_t s0 = rotateRight(w[i - 15], 7) ^
+                              rotateRight(w[i - 15], 18) ^
+                              (w[i - 15] >> 3);
+                uint32_t s1 = rotateRight(w[i - 2], 17) ^
+                              rotateRight(w[i - 2], 19) ^
+                              (w[i - 2] >> 10);
+                w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+            }
+
+            uint32_t a = h[0];
+            uint32_t b = h[1];
+            uint32_t c = h[2];
+            uint32_t d = h[3];
+            uint32_t e = h[4];
+            uint32_t f = h[5];
+            uint32_t g = h[6];
+            uint32_t hh = h[7];
+
+            for (size_t i = 0; i < 64; ++i) {
+                uint32_t s1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+                uint32_t ch = (e & f) ^ (~e & g);
+                uint32_t temp1 = hh + s1 + ch + k[i] + w[i];
+                uint32_t s0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+                uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+                uint32_t temp2 = s0 + maj;
+
+                hh = g;
+                g = f;
+                f = e;
+                e = d + temp1;
+                d = c;
+                c = b;
+                b = a;
+                a = temp1 + temp2;
+            }
+
+            h[0] += a;
+            h[1] += b;
+            h[2] += c;
+            h[3] += d;
+            h[4] += e;
+            h[5] += f;
+            h[6] += g;
+            h[7] += hh;
+        }
+
+        std::ostringstream out;
+        out << std::hex << std::setfill('0');
+        for (uint32_t value : h) {
+            out << std::setw(8) << value;
+        }
+        return out.str();
+    }
+
+    std::string serializeRecord(const AuditRecord& record) const {
+        std::ostringstream ss;
+        ss << "timestamp_ns=" << record.timestamp_ns << '\x1f'
+           << "decision_id=" << record.decision_id << '\x1f'
+           << "status=" << static_cast<int>(record.status) << '\x1f'
+           << "final_value=" << std::setprecision(10) << record.final_value << '\x1f'
+           << "confidence=" << std::setprecision(10) << record.confidence << '\x1f'
+           << "models_agreed=" << record.models_agreed << '\x1f'
+           << "fallback_used=" << (record.fallback_used ? "1" : "0") << '\x1f'
+           << "reasoning=" << record.reasoning << '\x1f'
+           << "symbol=" << record.symbol << '\x1f'
+           << "strategy_id=" << record.strategy_id << '\x1f'
+           << "prev_hash=" << record.prev_hash << '\x1f'
+           << "contributing_models=" << "";
+        return ss.str();
+    }
+
     std::string computeHash(const AuditRecord& record) const {
-        std::stringstream ss;
-        ss << record.timestamp_ns << record.decision_id << record.final_value
-           << record.confidence << record.reasoning << record.prev_hash;
-        std::hash<std::string> hasher;
-        size_t h = hasher(ss.str());
-        std::stringstream hs;
-        hs << std::hex << std::setfill('0') << std::setw(16) << h;
-        return hs.str();
+        std::ostringstream ss;
+        ss << serializeRecord(record);
+        for (size_t i = 0; i < record.contributing_models.size(); ++i) {
+            if (i > 0) {
+                ss << ",";
+            }
+            ss << record.contributing_models[i];
+        }
+        return sha256(ss.str());
+    }
+
+    std::string getTimestamp(uint64_t ns) const {
+        time_t seconds = ns / 1000000000ULL;
+        struct tm timeinfo;
+#if defined(_WIN32)
+        gmtime_s(&timeinfo, &seconds);
+#else
+        gmtime_r(&seconds, &timeinfo);
+#endif
+        char buffer[80];
+        strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+        return std::string(buffer);
+    }
+
+    std::string csvEscape(const std::string& value) const {
+        std::string escaped = "\"";
+        for (char c : value) {
+            if (c == '"') {
+                escaped += "\"\"";
+            } else {
+                escaped += c;
+            }
+        }
+        escaped += "\"";
+        return escaped;
     }
     
     std::string statusToString(DecisionStatus s) const {
@@ -321,7 +484,7 @@ public:
         if (!log_file.is_open()) return false;
         if (log_file.tellp() == 0) {
             log_file << "timestamp,id,status,value,conf,models,fallback,"
-                    << "reasoning,symbol,strategy,hash,prev_hash\n";
+                    << "reasoning,contributing_models,symbol,strategy,hash,prev_hash\n";
         }
         return true;
     }
@@ -341,6 +504,7 @@ public:
         rec.models_agreed = d.models_agreed;
         rec.fallback_used = d.fallback_used;
         rec.reasoning = d.reasoning;
+        rec.contributing_models = d.contributing_models;
         rec.symbol = symbol;
         rec.strategy_id = strategy;
         rec.prev_hash = last_hash;
@@ -350,18 +514,25 @@ public:
         audit_trail.push_back(rec);
         
         if (log_file.is_open()) {
-            time_t sec = rec.timestamp_ns / 1000000000ULL;
-            struct tm* ti = gmtime(&sec);
-            char buf[80];
-            strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ti);
-            
-            log_file << buf << "," << rec.decision_id << ","
+            std::ostringstream model_list;
+            model_list << "[";
+            for (size_t i = 0; i < rec.contributing_models.size(); ++i) {
+                if (i > 0) {
+                    model_list << ",";
+                }
+                model_list << rec.contributing_models[i];
+            }
+            model_list << "]";
+
+            log_file << getTimestamp(rec.timestamp_ns) << "," << rec.decision_id << ","
                     << statusToString(rec.status) << "," << rec.final_value << ","
                     << rec.confidence << "," << rec.models_agreed << ","
-                    << (rec.fallback_used ? "true" : "false") << ",\""
-                    << rec.reasoning << "\"," << rec.symbol << ","
-                    << rec.strategy_id << "," << rec.hash << ","
-                    << rec.prev_hash << "\n";
+                    << (rec.fallback_used ? "true" : "false") << ","
+                    << csvEscape(rec.reasoning) << ","
+                    << csvEscape(model_list.str()) << ","
+                    << csvEscape(rec.symbol) << ","
+                    << csvEscape(rec.strategy_id) << ","
+                    << rec.hash << "," << rec.prev_hash << "\n";
             log_file.flush();
         }
     }
@@ -371,6 +542,7 @@ public:
         std::string expected = "0000000000000000";
         for (const auto& rec : audit_trail) {
             if (rec.prev_hash != expected) return false;
+            if (rec.hash != computeHash(rec)) return false;
             expected = rec.hash;
         }
         return true;
