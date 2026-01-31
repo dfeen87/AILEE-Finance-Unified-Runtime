@@ -208,6 +208,9 @@ public:
     // ========================================================================
 
     float getFallbackValue() const {
+        if (fallback_buffer.empty()) {
+            return 0.0f;
+        }
         float fb = calculateFallbackValue();
         // Direction-only fallback (intentionally conservative)
         float sign = (fb >= 0) ? 1.0f : -1.0f;
@@ -230,7 +233,21 @@ public:
             return decision;
         }
 
-        auto valid = applySafetyLayer(model_signals);
+        if (config.max_model_count <= 0) {
+            decision.reasoning = "Invalid max model count configuration";
+            return decision;
+        }
+
+        std::vector<ModelSignal> scoped_signals;
+        size_t max_models = static_cast<size_t>(config.max_model_count);
+        if (model_signals.size() > max_models) {
+            scoped_signals.assign(model_signals.begin(),
+                                  model_signals.begin() + max_models);
+        } else {
+            scoped_signals = model_signals;
+        }
+
+        auto valid = applySafetyLayer(scoped_signals);
 
         if (valid.empty()) {
             decision.status = REJECTED_LOW_CONFIDENCE;
