@@ -144,6 +144,7 @@ public:
         const std::vector<ModelSignal>& signals) const {
 
         std::vector<ModelSignal> valid;
+        valid.reserve(signals.size());
         for (const auto& sig : signals) {
             if (sig.confidence >= config.min_confidence_threshold) {
                 valid.push_back(sig);
@@ -170,11 +171,15 @@ public:
         }
 
         std::vector<float> values;
-        for (const auto& s : valid) values.push_back(s.value);
+        values.reserve(valid.size());
+        for (const auto& s : valid) {
+            values.push_back(s.value);
+        }
 
-        std::vector<float> sorted = values;
-        std::sort(sorted.begin(), sorted.end());
-        float median = sorted[sorted.size() / 2];
+        const size_t median_index = values.size() / 2;
+        std::nth_element(values.begin(), values.begin() + median_index,
+                         values.end());
+        float median = values[median_index];
         float median_sign = (median >= 0) ? 1.0f : -1.0f;
 
         int agree = 0;
@@ -239,15 +244,15 @@ public:
         }
 
         std::vector<ModelSignal> scoped_signals;
+        const std::vector<ModelSignal>* scoped_signals_ptr = &model_signals;
         size_t max_models = static_cast<size_t>(config.max_model_count);
         if (model_signals.size() > max_models) {
             scoped_signals.assign(model_signals.begin(),
                                   model_signals.begin() + max_models);
-        } else {
-            scoped_signals = model_signals;
+            scoped_signals_ptr = &scoped_signals;
         }
 
-        auto valid = applySafetyLayer(scoped_signals);
+        auto valid = applySafetyLayer(*scoped_signals_ptr);
 
         if (valid.empty()) {
             decision.status = REJECTED_LOW_CONFIDENCE;
@@ -276,6 +281,7 @@ public:
         decision.final_value = smoothPosition(consensus_value);
 
         float total_conf = 0.0f;
+        decision.contributing_models.reserve(valid.size());
         for (const auto& s : valid) {
             total_conf += s.confidence;
             decision.contributing_models.push_back(s.model_id);
