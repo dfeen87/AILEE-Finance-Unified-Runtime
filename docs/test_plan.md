@@ -40,6 +40,17 @@ This plan covers local verification steps for the demo, integration test, and be
    ./benchmark 1000000
    ```
 
+## Simulation Harness (Optional)
+
+1. Run the reproducible synthetic simulation:
+   ```bash
+   python3 simulations/aille_simulation.py
+   ```
+2. Optional: export results to CSV:
+   ```bash
+   python3 simulations/aille_simulation.py --output results.csv
+   ```
+
 ## Cleanup
 
 ```bash
