@@ -7,19 +7,22 @@ OPTFLAGS = -O3 -march=native -flto
 DEBUGFLAGS = -g -O0 -DDEBUG
 
 # Targets
+EXAMPLE_SRC = examples/example.cpp
+BENCHMARK_SRC = benchmarks/benchmark.cpp
+INCLUDES = -I.
 all: demo
 
 # Build the demo (default)
-demo: example.cpp aille.hpp
-	$(CXX) $(CXXFLAGS) $(OPTFLAGS) example.cpp -o demo
+demo: $(EXAMPLE_SRC) aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(EXAMPLE_SRC) -o demo
 	@echo ""
 	@echo "✓ Demo compiled successfully!"
 	@echo "  Run with: ./demo"
 	@echo ""
 
 # Debug build
-debug: example.cpp aille.hpp
-	$(CXX) $(CXXFLAGS) $(DEBUGFLAGS) example.cpp -o demo_debug
+debug: $(EXAMPLE_SRC) aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEBUGFLAGS) $(EXAMPLE_SRC) -o demo_debug
 	@echo ""
 	@echo "✓ Debug build ready"
 	@echo "  Run with: gdb ./demo_debug"
@@ -27,7 +30,7 @@ debug: example.cpp aille.hpp
 
 # Clean build artifacts
 clean:
-	rm -f demo demo_debug demo_audit.csv
+	rm -f demo demo_debug demo_audit.csv benchmark
 	@echo "✓ Cleaned build artifacts"
 
 # Run the demo
@@ -45,6 +48,14 @@ test: demo
 		exit 1; \
 	fi
 	@rm test_output.txt
+
+# Benchmark
+benchmark: $(BENCHMARK_SRC) aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(BENCHMARK_SRC) -o benchmark
+	@echo ""
+	@echo "✓ Benchmark compiled successfully!"
+	@echo "  Run with: ./benchmark [iterations]"
+	@echo ""
 
 # Install header (copy to /usr/local/include)
 install: aille.hpp
@@ -67,6 +78,7 @@ help:
 	@echo "  make debug    - Build with debug symbols"
 	@echo "  make run      - Build and run demo"
 	@echo "  make test     - Run integration tests"
+	@echo "  make benchmark- Build benchmark harness"
 	@echo "  make clean    - Remove build artifacts"
 	@echo "  make install  - Install header system-wide"
 	@echo "  make help     - Show this message"
@@ -75,4 +87,4 @@ help:
 	@echo "  make && ./demo"
 	@echo ""
 
-.PHONY: all demo debug clean run test install uninstall help
+.PHONY: all demo debug clean run test benchmark install uninstall help
