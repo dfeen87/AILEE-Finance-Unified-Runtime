@@ -394,6 +394,12 @@ Don Michael Feeney Jr., November 2025
 - Increasing catastrophic trade frequency
 
 ---
+## Test Plan & Benchmarking
+
+- **Test plan:** See `docs/test_plan.md` for build, functional, and cleanup steps.
+- **Benchmark harness:** Build with `make benchmark` and run `./benchmark [iterations]` to measure decision throughput.
+
+---
 
 ## Compliance & Regulatory
 

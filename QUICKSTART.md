@@ -103,6 +103,7 @@ config.fallback_position_scale = 0.15f;
 
 Build Commands
 CommandWhat It DoesmakeBuild optimized demomake debugBuild with debug symbolsmake runBuild and run immediatelymake testRun integration testsmake cleanRemove build artifactsmake installInstall header system-widemake helpShow all commands
+make benchmarkBuild benchmark harness
 
 Troubleshooting
 "No such file or directory: aille.hpp"
