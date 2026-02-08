@@ -1,0 +1,2 @@
+# Python dependencies for running the AILLE simulation harness.
+# This project currently relies only on the Python standard library.

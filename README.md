@@ -402,6 +402,12 @@ Don Michael Feeney Jr., November 2025
 
 ---
 
+## Continuous Integration
+
+CI runs a lightweight workflow that installs dependencies, checks that the simulation module imports, and executes the deterministic simulation harness in a clean environment. It validates buildability and repeatable execution, but **does not** assert economic correctness or forecasting accuracy. The goal is a stable, deterministic safety net that confirms the code runs without runtime errors. 
+
+---
+
 ## Compliance & Regulatory
 
 ### Built-In Compliance Features
