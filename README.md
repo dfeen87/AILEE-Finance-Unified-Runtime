@@ -398,6 +398,7 @@ Don Michael Feeney Jr., November 2025
 
 - **Test plan:** See `docs/test_plan.md` for build, functional, and cleanup steps.
 - **Benchmark harness:** Build with `make benchmark` and run `./benchmark [iterations]` to measure decision throughput.
+- **Simulation harness:** Run `python3 simulations/aille_simulation.py` for a reproducible synthetic comparison of AILLE vs a naive baseline. See `docs/simulation.md` for details.
 
 ---
 
