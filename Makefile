@@ -7,19 +7,21 @@ OPTFLAGS = -O3 -march=native -flto
 DEBUGFLAGS = -g -O0 -DDEBUG
 
 # Targets
+EXAMPLE_SRC = examples/example.cpp
+INCLUDES = -I.
 all: demo
 
 # Build the demo (default)
-demo: example.cpp aille.hpp
-	$(CXX) $(CXXFLAGS) $(OPTFLAGS) example.cpp -o demo
+demo: $(EXAMPLE_SRC) aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(EXAMPLE_SRC) -o demo
 	@echo ""
 	@echo "✓ Demo compiled successfully!"
 	@echo "  Run with: ./demo"
 	@echo ""
 
 # Debug build
-debug: example.cpp aille.hpp
-	$(CXX) $(CXXFLAGS) $(DEBUGFLAGS) example.cpp -o demo_debug
+debug: $(EXAMPLE_SRC) aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEBUGFLAGS) $(EXAMPLE_SRC) -o demo_debug
 	@echo ""
 	@echo "✓ Debug build ready"
 	@echo "  Run with: gdb ./demo_debug"
