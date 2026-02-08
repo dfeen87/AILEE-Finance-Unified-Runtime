@@ -31,45 +31,6 @@ python3 simulations/aille_simulation.py --steps 5000 --seed 42 --models 4
 python3 simulations/aille_simulation.py --output results.csv
 ```
 
-## Use real data
-
-You can provide real market returns and/or model signals via CSV files.
-
-### Market returns CSV
-
-Provide a CSV with a `return` column (decimal returns, e.g., 0.01 for 1%):
-
-```csv
-return
-0.0025
--0.0012
-0.0031
-```
-
-Run with:
-
-```bash
-python3 simulations/aille_simulation.py --market-csv path/to/market.csv
-```
-
-### Model signals CSV
-
-Provide a CSV with one row per model per timestep:
-
-```csv
-step,model_id,prediction,confidence
-0,0,0.0012,0.82
-0,1,0.0007,0.76
-1,0,-0.0020,0.64
-1,1,-0.0014,0.70
-```
-
-Run with:
-
-```bash
-python3 simulations/aille_simulation.py --market-csv path/to/market.csv --signals-csv path/to/signals.csv
-```
-
 ## Metrics reported
 
 - Total return

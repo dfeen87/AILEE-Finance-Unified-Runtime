@@ -50,10 +50,6 @@ This plan covers local verification steps for the demo, integration test, and be
    ```bash
    python3 simulations/aille_simulation.py --output results.csv
    ```
-3. Optional: run with real market returns and model signals:
-   ```bash
-   python3 simulations/aille_simulation.py --market-csv path/to/market.csv --signals-csv path/to/signals.csv
-   ```
 
 ## Cleanup
 

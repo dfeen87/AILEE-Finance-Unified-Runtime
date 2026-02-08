@@ -11,8 +11,7 @@ import math
 import random
 import statistics
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 @dataclass
@@ -183,41 +182,6 @@ def generate_model_signals(true_return: float, config: SimulationConfig) -> List
     return signals
 
 
-def load_market_returns(path: Path) -> List[float]:
-    with path.open("r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        if "return" not in reader.fieldnames:
-            raise ValueError("market CSV must include a 'return' column")
-        returns = []
-        for row in reader:
-            returns.append(float(row["return"]))
-    if not returns:
-        raise ValueError("market CSV contains no return rows")
-    return returns
-
-
-def load_signals(path: Path) -> Dict[int, List[ModelSignal]]:
-    with path.open("r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        required = {"step", "model_id", "prediction", "confidence"}
-        if not required.issubset(set(reader.fieldnames or [])):
-            raise ValueError(
-                "signals CSV must include columns: step, model_id, prediction, confidence"
-            )
-        signals: Dict[int, List[ModelSignal]] = {}
-        for row in reader:
-            step = int(row["step"])
-            signal = ModelSignal(
-                float(row["prediction"]),
-                float(row["confidence"]),
-                int(row["model_id"]),
-            )
-            signals.setdefault(step, []).append(signal)
-    if not signals:
-        raise ValueError("signals CSV contains no signal rows")
-    return signals
-
-
 def compute_metrics(returns: List[float], steps_per_year: int, catastrophic_threshold: float) -> dict:
     total_return = math.prod([1 + r for r in returns]) - 1
     annualized_return = (1 + total_return) ** (steps_per_year / len(returns)) - 1
@@ -248,28 +212,15 @@ def compute_metrics(returns: List[float], steps_per_year: int, catastrophic_thre
     }
 
 
-def run_simulation(
-    sim_config: SimulationConfig,
-    aille_config: AILLEConfig,
-    market_returns: Optional[List[float]] = None,
-    provided_signals: Optional[Dict[int, List[ModelSignal]]] = None,
-) -> dict:
-    if market_returns is None:
-        market_returns = generate_market_returns(sim_config)
-    if provided_signals is not None and not market_returns:
-        raise ValueError("market returns required when providing signals")
+def run_simulation(sim_config: SimulationConfig, aille_config: AILLEConfig) -> dict:
+    market_returns = generate_market_returns(sim_config)
     engine = AILLEEngine(aille_config)
 
     aille_returns: List[float] = []
     naive_returns: List[float] = []
 
-    for step, market_return in enumerate(market_returns):
-        if provided_signals is not None:
-            signals = provided_signals.get(step)
-            if not signals:
-                raise ValueError(f"missing signals for step {step}")
-        else:
-            signals = generate_model_signals(market_return, sim_config)
+    for market_return in market_returns:
+        signals = generate_model_signals(market_return, sim_config)
         decision = engine.make_decision(signals)
         aille_returns.append(decision.final_value * market_return)
 
@@ -301,20 +252,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--models", type=int, default=3)
     parser.add_argument("--output", type=str, default="")
-    parser.add_argument("--market-csv", type=str, default="")
-    parser.add_argument("--signals-csv", type=str, default="")
     args = parser.parse_args()
 
     sim_config = SimulationConfig(steps=args.steps, seed=args.seed, models=args.models)
     aille_config = AILLEConfig()
-    market_returns = None
-    provided_signals = None
-    if args.market_csv:
-        market_returns = load_market_returns(Path(args.market_csv))
-        sim_config.steps = len(market_returns)
-    if args.signals_csv:
-        provided_signals = load_signals(Path(args.signals_csv))
-    results = run_simulation(sim_config, aille_config, market_returns, provided_signals)
+    results = run_simulation(sim_config, aille_config)
 
     print("AILLE Simulation Results")
     print("=========================")
