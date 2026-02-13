@@ -3,6 +3,7 @@ demo
 demo_debug
 benchmark
 metrics_demo
+edge_test
 *.o
 *.out
 
