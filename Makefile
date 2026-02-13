@@ -8,6 +8,7 @@ DEBUGFLAGS = -g -O0 -DDEBUG
 
 # Targets
 EXAMPLE_SRC = examples/example.cpp
+BENCHMARK_SRC = benchmarks/benchmark.cpp
 INCLUDES = -I.
 all: demo
 

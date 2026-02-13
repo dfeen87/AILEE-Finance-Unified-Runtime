@@ -185,8 +185,10 @@ private:
                     count++;
                 }
             }
-            consensus_value = sum / count;
-            return true;
+            if (count > 0) {
+                consensus_value = sum / count;
+                return true;
+            }
         }
         return false;
     }
@@ -261,7 +263,7 @@ public:
             total_conf += sig.confidence;
             decision.contributing_models.push_back(sig.model_id);
         }
-        decision.confidence = total_conf / valid.size();
+        decision.confidence = valid.empty() ? 0.0f : (total_conf / valid.size());
         decision.models_agreed = models_agreed;
         decision.fallback_used = false;
         decision.reasoning = "Consensus: " + std::to_string(models_agreed) + " models";
