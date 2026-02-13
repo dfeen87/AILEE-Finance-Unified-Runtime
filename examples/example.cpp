@@ -123,7 +123,6 @@ int main() {
     
     // Verify audit trail
     std::cout << "=== Audit Verification ===\n";
-    std::cout << "Audit records: " << logger.verifyIntegrity() << "\n";
     std::cout << "Integrity check: " << (logger.verifyIntegrity() ? "PASSED ✓" : "FAILED ✗") << "\n";
     std::cout << "\nAudit log saved to: demo_audit.csv\n";
     

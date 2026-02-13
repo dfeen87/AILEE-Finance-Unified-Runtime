@@ -1,0 +1,20 @@
+# Build artifacts
+demo
+demo_debug
+benchmark
+metrics_demo
+*.o
+*.out
+
+# Audit logs
+demo_audit.csv
+*.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test outputs
+test_output.txt
