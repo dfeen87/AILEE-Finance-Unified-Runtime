@@ -1,15 +1,42 @@
 # AILLE Framework
+
+<div align="center">
+
 ## AI-Load Integrity and Layered Evaluation
 
 **The Algorithmic Safety System That Transforms Risk into Reliability**
 
-License: MIT,
-Language: C++,
-Status: Production Ready.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
+[![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
+
+[Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
+
+</div>
 
 ---
 
-## The Problem: Algorithmic Fragility
+## Table of Contents
+
+- [The Problem](#the-problem-algorithmic-fragility)
+- [The Solution](#the-solution-aille-framework)
+- [Proven Performance](#proven-performance)
+- [Architecture](#architecture-five-layers-of-safety)
+- [Technical Specifications](#technical-specifications)
+- [Use Cases](#use-cases)
+- [Integration Options](#integration-options)
+- [Integration Example](#integration-example)
+- [Why AILLE Works](#why-aille-works-the-science)
+- [Deployment Guide](#deployment-guide)
+- [Configuration Guide](#configuration-guide)
+- [Compliance & Regulatory](#compliance--regulatory)
+- [Support & Contact](#support--contact)
+
+---
+
+## ⚡ The Problem: Algorithmic Fragility
 
 Traditional AI and machine learning systems fail catastrophically under stress:
 
@@ -22,7 +49,7 @@ Traditional AI and machine learning systems fail catastrophically under stress:
 
 ---
 
-## The Solution: AILLE Framework
+## ✨ The Solution: AILLE Framework
 
 AILLE introduces a **five-stage decision architecture** that transforms algorithmic risk from an unpredictable liability into a managed, measurable advantage.
 
@@ -46,7 +73,7 @@ Model → Output                1. Model Layer (Multiple Sources)
 
 ---
 
-## Proven Performance
+## 📊 Proven Performance
 
 ### Simulation Results (2000 Timesteps, Market-Like Volatility)
 
@@ -70,7 +97,7 @@ Model → Output                1. Model Layer (Multiple Sources)
 
 ---
 
-## Architecture: Five Layers of Safety
+## 🏗️ Architecture: Five Layers of Safety
 
 ### 1. Model Layer - Multi-Source Prediction
 Generate initial signals from multiple independent models:
@@ -129,7 +156,7 @@ Every decision is logged with:
 
 ---
 
-## Technical Specifications
+## ⚙️ Technical Specifications
 
 ### Performance Characteristics
 
@@ -153,7 +180,7 @@ g++ -std=c++17 -O3 -march=native aille_framework.cpp -o aille_engine
 
 ---
 
-## Use Cases
+## 💼 Use Cases
 
 ### Quantitative Trading
 - High-frequency trading (HFT)
@@ -181,7 +208,7 @@ g++ -std=c++17 -O3 -march=native aille_framework.cpp -o aille_engine
 
 ---
 
-## Integration Options
+## 🔌 Integration Options
 
 ### Option 1: Direct C++ Integration
 
@@ -220,7 +247,7 @@ decision = response.json()
 
 ---
 
-## Integration Example
+## 💡 Integration Example
 
 ### Step 1: Initialize AILLE Engine
 
@@ -292,7 +319,7 @@ switch (decision.status) {
 
 ---
 
-## Why AILLE Works: The Science
+## 🔬 Why AILLE Works: The Science
 
 ### Elimination of Brittle Failure
 
@@ -330,7 +357,7 @@ This satisfies regulatory requirements for:
 
 ---
 
-## Implications for Financial Markets
+## 📈 Implications for Financial Markets
 
 ### Reduced Systemic Volatility
 
@@ -357,7 +384,7 @@ The Consensus Layer ensures winning strategies are robustly validated:
 
 ---
 
-## Academic Foundation
+## 📚 Academic Foundation
 
 AILLE is grounded in:
 
@@ -371,11 +398,11 @@ AILLE is grounded in:
 **"How Algorithmic Software is Improved by AILLE—Mitigating Risk and Sustaining Growth"**  
 Don Michael Feeney Jr., November 2025
 
-[Read Full Paper on LinkedIn](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
+📄 [Read Full Paper on LinkedIn](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
 
 ---
 
-## Deployment Guide
+## 🚀 Deployment Guide
 
 ### For Quantitative Researchers
 
@@ -433,7 +460,8 @@ Don Michael Feeney Jr., November 2025
 - Increasing catastrophic trade frequency
 
 ---
-## Test Plan & Benchmarking
+
+## 📋 Test Plan & Benchmarking
 
 - **Test plan:** See `docs/test_plan.md` for build, functional, and cleanup steps.
 - **Benchmark harness:** Build with `make benchmark` and run `./benchmark [iterations]` to measure decision throughput.
@@ -441,13 +469,13 @@ Don Michael Feeney Jr., November 2025
 
 ---
 
-## Continuous Integration
+## 🔄 Continuous Integration
 
 CI runs a lightweight workflow that installs dependencies, checks that the simulation module imports, and executes the deterministic simulation harness in a clean environment. It validates buildability and repeatable execution, but **does not** assert economic correctness or forecasting accuracy. The goal is a stable, deterministic safety net that confirms the code runs without runtime errors. 
 
 ---
 
-## Compliance & Regulatory
+## ✅ Compliance & Regulatory
 
 ### Built-In Compliance Features
 
@@ -481,7 +509,7 @@ if (!logger.verifyIntegrity()) {
 
 ---
 
-## Configuration Guide
+## ⚙️ Configuration Guide
 
 ### Conservative Profile (Risk-Averse)
 
@@ -518,7 +546,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-## Limitations & Disclaimers
+## ⚠️ Limitations & Disclaimers
 
 ### What AILLE Is
 
@@ -544,7 +572,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-### Citation
+## 📖 Citation
 
 If you use AILLE in academic research:
 
@@ -561,12 +589,14 @@ If you use AILLE in academic research:
 
 ---
 
-## Support & Contact
+## 📞 Support & Contact
 
 - 📧 **Email**: dfeen87@gmail.com
-- 💼 **LinkedIn**: www.linkedin.com/in/don-michael-feeney-jr-908a96351
+- 💼 **LinkedIn**: [Don Michael Feeney Jr.](https://www.linkedin.com/in/don-michael-feeney-jr-908a96351)
 
-## Acknowledgments
+---
+
+## 🙏 Acknowledgments
 
 This framework builds upon decades of research in:
 - Algorithmic trading (Renaissance Technologies, DE Shaw, Citadel)
@@ -578,7 +608,7 @@ Special thanks to the quantitative finance community for their feedback and vali
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 We welcome contributions from:
 - Quantitative researchers
@@ -586,7 +616,7 @@ We welcome contributions from:
 - Software engineers
 - Academic researchers
 
-See (CONTRIBUTING.md) for guidelines.
+See `CONTRIBUTING.md` for guidelines.
 
 ---
 
@@ -596,5 +626,11 @@ See (CONTRIBUTING.md) for guidelines.
 
 ---
 
-© 2025 Don Michael Feeney Jr. 
+<div align="center">
+
+© 2025 Don Michael Feeney Jr.  
 License: MIT
+
+**[⬆ Back to Top](#aille-framework)**
+
+</div>
