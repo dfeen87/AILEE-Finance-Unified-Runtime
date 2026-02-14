@@ -20,7 +20,7 @@ RestAPIServer::~RestAPIServer() {
 }
 
 void RestAPIServer::setupRoutes(httplib::Server& svr) {
-    // Health check endpoint
+    // Health check endpoint - verifies server is running and responsive
     svr.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(SimpleJSON::buildHealthResponse(true), "application/json");
         res.status = 200;
