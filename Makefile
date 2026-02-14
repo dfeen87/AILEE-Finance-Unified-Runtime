@@ -9,7 +9,11 @@ DEBUGFLAGS = -g -O0 -DDEBUG
 # Targets
 EXAMPLE_SRC = examples/example.cpp
 BENCHMARK_SRC = benchmarks/benchmark.cpp
+REST_API_SRC = examples/rest_api_server.cpp
+REST_API_IMPL = extensions/aille_rest_api.cpp
 INCLUDES = -I.
+HTTPLIB_INCLUDES = -I./external
+THREAD_FLAGS = -pthread
 all: demo
 
 # Build the demo (default)
@@ -28,9 +32,18 @@ debug: $(EXAMPLE_SRC) aille.hpp
 	@echo "  Run with: gdb ./demo_debug"
 	@echo ""
 
+# Build REST API server
+rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_rest_api.hpp external/httplib.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(OPTFLAGS) $(THREAD_FLAGS) $(REST_API_SRC) $(REST_API_IMPL) -o rest_api_server
+	@echo ""
+	@echo "✓ REST API Server compiled successfully!"
+	@echo "  Run with: ./rest_api_server [port] [host]"
+	@echo "  Default:  ./rest_api_server (port 8080, host 0.0.0.0)"
+	@echo ""
+
 # Clean build artifacts
 clean:
-	rm -f demo demo_debug demo_audit.csv benchmark
+	rm -f demo demo_debug demo_audit.csv benchmark rest_api_server rest_api_audit.csv
 	@echo "✓ Cleaned build artifacts"
 
 # Run the demo
@@ -74,17 +87,18 @@ help:
 	@echo "AILLE Framework - Build Targets"
 	@echo "================================"
 	@echo ""
-	@echo "  make          - Build demo (optimized)"
-	@echo "  make debug    - Build with debug symbols"
-	@echo "  make run      - Build and run demo"
-	@echo "  make test     - Run integration tests"
-	@echo "  make benchmark- Build benchmark harness"
-	@echo "  make clean    - Remove build artifacts"
-	@echo "  make install  - Install header system-wide"
-	@echo "  make help     - Show this message"
+	@echo "  make              - Build demo (optimized)"
+	@echo "  make debug        - Build with debug symbols"
+	@echo "  make run          - Build and run demo"
+	@echo "  make test         - Run integration tests"
+	@echo "  make benchmark    - Build benchmark harness"
+	@echo "  make rest_api_server - Build REST API server"
+	@echo "  make clean        - Remove build artifacts"
+	@echo "  make install      - Install header system-wide"
+	@echo "  make help         - Show this message"
 	@echo ""
 	@echo "Quick start:"
 	@echo "  make && ./demo"
 	@echo ""
 
-.PHONY: all demo debug clean run test benchmark install uninstall help
+.PHONY: all demo debug clean run test benchmark rest_api_server install uninstall help

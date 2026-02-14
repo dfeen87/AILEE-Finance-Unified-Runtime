@@ -181,6 +181,45 @@ g++ -std=c++17 -O3 -march=native aille_framework.cpp -o aille_engine
 
 ---
 
+## Integration Options
+
+### Option 1: Direct C++ Integration
+
+```cpp
+#include "aille.hpp"
+
+AILLE::AILLEEngine engine;
+std::vector<AILLE::ModelSignal> signals = get_your_model_predictions();
+AILLE::Decision decision = engine.makeDecision(signals);
+```
+
+### Option 2: REST API Integration
+
+For multi-language environments or microservices:
+
+**1. Start the REST API server:**
+```bash
+./setup_rest_api.sh  # Download dependencies
+make rest_api_server
+./rest_api_server    # Runs on 0.0.0.0:8080
+```
+
+**2. Make HTTP requests from any language:**
+```python
+import requests
+
+response = requests.post("http://localhost:8080/api/decision",
+    json=[
+        {"value": 0.05, "confidence": 0.85, "model_id": 0},
+        {"value": 0.03, "confidence": 0.72, "model_id": 1}
+    ])
+decision = response.json()
+```
+
+**See [REST API Documentation](docs/REST_API.md) for complete details.**
+
+---
+
 ## Integration Example
 
 ### Step 1: Initialize AILLE Engine
