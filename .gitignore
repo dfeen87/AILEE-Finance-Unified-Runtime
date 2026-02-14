@@ -4,11 +4,16 @@ demo_debug
 benchmark
 metrics_demo
 edge_test
+rest_api_server
 *.o
 *.out
 
+# External dependencies (download separately)
+external/
+
 # Audit logs
 demo_audit.csv
+rest_api_audit.csv
 *.csv
 
 # Python cache
