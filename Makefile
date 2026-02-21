@@ -11,6 +11,7 @@ EXAMPLE_SRC = examples/example.cpp
 BENCHMARK_SRC = benchmarks/benchmark.cpp
 REST_API_SRC = examples/rest_api_server.cpp
 REST_API_IMPL = extensions/aille_rest_api.cpp
+UNIT_TESTS_SRC = tests/unit_tests.cpp
 INCLUDES = -I.
 HTTPLIB_INCLUDES = -I./external
 THREAD_FLAGS = -pthread
@@ -43,24 +44,34 @@ rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_res
 
 # Clean build artifacts
 clean:
-	rm -f demo demo_debug demo_audit.csv benchmark rest_api_server rest_api_audit.csv
+	rm -f demo demo_debug demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv
 	@echo "✓ Cleaned build artifacts"
 
 # Run the demo
 run: demo
 	./demo
 
+# Build and run unit tests
+test_suite: $(UNIT_TESTS_SRC) aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(UNIT_TESTS_SRC) -o test_suite
+	@echo ""
+	@echo "✓ Test Suite compiled successfully!"
+	@echo "  Run with: ./test_suite"
+	@echo ""
+
 # Integration test
-test: demo
+test: demo test_suite
 	@echo "Running integration test..."
 	./demo > test_output.txt
 	@if grep -q "PASSED" test_output.txt; then \
-		echo "✓ All tests passed"; \
+		echo "✓ Demo integration passed"; \
 	else \
-		echo "✗ Tests failed"; \
+		echo "✗ Demo integration failed"; \
 		exit 1; \
 	fi
 	@rm test_output.txt
+	@echo "Running unit tests..."
+	./test_suite
 
 # Benchmark
 benchmark: $(BENCHMARK_SRC) aille.hpp

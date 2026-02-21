@@ -32,6 +32,7 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <mutex>
 
 namespace AILLE {
 
@@ -116,7 +117,7 @@ private:
     AILLEConfig config;
     std::deque<float> fallback_buffer;
     
-    float calculateFallbackValue() const {
+    [[nodiscard]] float calculateFallbackValue() const {
         if (fallback_buffer.empty()) return 0.0f;
         float sum = 0.0f;
         for (float val : fallback_buffer) sum += val;
@@ -203,7 +204,7 @@ public:
     AILLEEngine() {}
     explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg) {}
     
-    Decision makeDecision(const std::vector<ModelSignal>& model_signals) {
+    [[nodiscard]] Decision makeDecision(const std::vector<ModelSignal>& model_signals) {
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()
@@ -213,6 +214,19 @@ public:
             decision.status = ERROR_NO_MODELS;
             decision.reasoning = "No model inputs";
             return decision;
+        }
+
+        // Validate inputs
+        for (const auto& sig : model_signals) {
+            if (std::isnan(sig.value) || std::isinf(sig.value) ||
+                std::isnan(sig.confidence) || std::isinf(sig.confidence)) {
+                decision.status = REJECTED_LOW_CONFIDENCE;
+                decision.reasoning = "Invalid input (NaN/Inf) detected";
+                decision.final_value = getFallbackValue();
+                decision.confidence = 0.0f;
+                decision.fallback_used = true;
+                return decision;
+            }
         }
 
         if (config.max_model_count <= 0) {
@@ -272,8 +286,8 @@ public:
         return decision;
     }
     
-    void reset() { fallback_buffer.clear(); }
-    AILLEConfig getConfig() const { return config; }
+    void reset() noexcept { fallback_buffer.clear(); }
+    AILLEConfig getConfig() const noexcept { return config; }
     void setConfig(const AILLEConfig& cfg) { config = cfg; }
 };
 
@@ -307,6 +321,8 @@ private:
     std::vector<AuditRecord> audit_trail;
     uint64_t next_decision_id;
     std::string last_hash;
+    mutable std::mutex mutex_;
+    bool flush_on_write_;
 
     static uint32_t rotateRight(uint32_t value, uint32_t bits) {
         return (value >> bits) | (value << (32 - bits));
@@ -477,16 +493,17 @@ private:
     }
     
 public:
-    AuditLogger() : next_decision_id(1), last_hash("0000000000000000") {}
+    AuditLogger(bool flush = true) : next_decision_id(1), last_hash("0000000000000000"), flush_on_write_(flush) {}
     
-    explicit AuditLogger(const std::string& filename) 
-        : next_decision_id(1), last_hash("0000000000000000") {
+    explicit AuditLogger(const std::string& filename, bool flush = true)
+        : next_decision_id(1), last_hash("0000000000000000"), flush_on_write_(flush) {
         open(filename);
     }
     
     ~AuditLogger() { close(); }
     
     bool open(const std::string& filename) {
+        std::lock_guard<std::mutex> lock(mutex_);
         log_file.open(filename, std::ios::app);
         if (!log_file.is_open()) return false;
         if (log_file.tellp() == 0) {
@@ -497,11 +514,13 @@ public:
     }
     
     void close() {
+        std::lock_guard<std::mutex> lock(mutex_);
         if (log_file.is_open()) log_file.close();
     }
     
     void logDecision(const Decision& d, const std::string& symbol = "",
                     const std::string& strategy = "") {
+        std::lock_guard<std::mutex> lock(mutex_);
         AuditRecord rec;
         rec.timestamp_ns = d.timestamp_ns;
         rec.decision_id = next_decision_id++;
@@ -540,11 +559,12 @@ public:
                     << csvEscape(rec.symbol) << ","
                     << csvEscape(rec.strategy_id) << ","
                     << rec.hash << "," << rec.prev_hash << "\n";
-            log_file.flush();
+            if (flush_on_write_) log_file.flush();
         }
     }
     
     bool verifyIntegrity() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         if (audit_trail.empty()) return true;
         std::string expected = "0000000000000000";
         for (const auto& rec : audit_trail) {
