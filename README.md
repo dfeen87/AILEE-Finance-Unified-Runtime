@@ -1,8 +1,4 @@
-# AILLE Framework
-
-<div align="center">
-
-## AI-Load Integrity and Layered Evaluation
+# AILEE Mitigating Risk and Sustaining Growth Software
 
 **The Algorithmic Safety System That Transforms Risk into Reliability**
 
