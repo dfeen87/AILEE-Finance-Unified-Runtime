@@ -606,6 +606,9 @@ This framework builds upon decades of research in:
 
 Special thanks to the quantitative finance community for their feedback and validation.
 
+I would like to acknowledge **Microsoft Copilot**, **Anthropic Claude**, **Google Jules**, and **OpenAI ChatGPT** for their meaningful assistance in refining concepts, improving clarity, and strengthening the overall quality of this work.
+
+
 ---
 
 ## 🤝 Contributing
