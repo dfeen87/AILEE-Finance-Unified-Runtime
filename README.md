@@ -626,7 +626,11 @@ See `CONTRIBUTING.md` for guidelines.
 
 <div align="center">
 
-© 2025 Don Michael Feeney Jr. 
+License
+
+This project is available for **non‑commercial use only** under the terms of the included LICENSE file.  
+Commercial use requires a separate paid license.
+
 
 **[⬆ Back to Top](#aille-framework)**
 
