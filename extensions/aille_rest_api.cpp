@@ -31,7 +31,7 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
         std::ostringstream json;
         json << "{\n";
         json << "  \"name\": \"AILLE Framework REST API\",\n";
-        json << "  \"version\": \"1.0.0\",\n";
+        json << "  \"version\": \"" << AILLE_VERSION << "\",\n";
         json << "  \"description\": \"AI-Load Integrity and Layered Evaluation Framework\",\n";
         json << "  \"endpoints\": {\n";
         json << "    \"GET /health\": \"Health check\",\n";
@@ -157,6 +157,10 @@ bool RestAPIServer::start() {
     }
     
     try {
+        if (server_) {
+            delete server_;
+            server_ = nullptr;
+        }
         server_ = new httplib::Server();
         
         setupRoutes(*server_);
@@ -173,7 +177,7 @@ bool RestAPIServer::start() {
         
         running_ = true;
         
-        // Bind to 0.0.0.0 for global network access
+        // Bind to configured host (default: 127.0.0.1 for security)
         if (!server_->listen(host_.c_str(), port_)) {
             std::cerr << "Failed to start server on " << host_ << ":" << port_ << "\n";
             running_ = false;

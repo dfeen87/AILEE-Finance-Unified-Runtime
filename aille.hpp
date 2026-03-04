@@ -37,6 +37,15 @@
 namespace AILLE {
 
 // ============================================================================
+// VERSION
+// ============================================================================
+
+constexpr const char* AILLE_VERSION = "2.1.0";
+constexpr int AILLE_VERSION_MAJOR = 2;
+constexpr int AILLE_VERSION_MINOR = 1;
+constexpr int AILLE_VERSION_PATCH = 0;
+
+// ============================================================================
 // FORWARD DECLARATIONS
 // ============================================================================
 
@@ -114,8 +123,11 @@ struct AILLEConfig {
 
 class AILLEEngine {
 private:
+    static constexpr float MAX_SIGNAL_VALUE = 1e6f;
+
     AILLEConfig config;
     std::deque<float> fallback_buffer;
+    mutable std::mutex engine_mtx_;
     
     [[nodiscard]] float calculateFallbackValue() const {
         if (fallback_buffer.empty()) return 0.0f;
@@ -126,11 +138,16 @@ private:
     
     void updateFallbackBuffer(float value) {
         fallback_buffer.push_back(value);
-        while (fallback_buffer.size() > static_cast<size_t>(config.fallback_window_size)) {
+        size_t window = static_cast<size_t>(std::max(1, config.fallback_window_size));
+        while (fallback_buffer.size() > window) {
             fallback_buffer.pop_front();
         }
     }
     
+    // smoothPosition maps a raw signal to [-1, 1] via tanh.
+    // The default scale=100.0f intentionally saturates to ±1.0 for direction-only
+    // output. Callers wanting magnitude sensitivity should lower the scale via
+    // AILLEConfig settings.
     float smoothPosition(float signal, float scale = 100.0f) const {
         return std::tanh(signal * scale);
     }
@@ -194,6 +211,40 @@ private:
         return false;
     }
     
+    bool validateConfig(const AILLEConfig& cfg, Decision& decision) const {
+        if (cfg.min_confidence_threshold <= 0.0f || cfg.min_confidence_threshold > 1.0f) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: min_confidence_threshold must be in (0, 1]";
+            return false;
+        }
+        if (cfg.grace_confidence_threshold < 0.0f || cfg.grace_confidence_threshold > cfg.min_confidence_threshold) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: grace_confidence_threshold must be in [0, min_confidence_threshold]";
+            return false;
+        }
+        if (cfg.min_models_required < 1) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: min_models_required must be >= 1";
+            return false;
+        }
+        if (cfg.fallback_window_size < 1) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: fallback_window_size must be >= 1";
+            return false;
+        }
+        if (cfg.sign_agreement_threshold <= 0.0f || cfg.sign_agreement_threshold > 1.0f) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: sign_agreement_threshold must be in (0, 1]";
+            return false;
+        }
+        if (cfg.max_model_count < 1) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: max_model_count must be >= 1";
+            return false;
+        }
+        return true;
+    }
+
     float getFallbackValue() const {
         if (fallback_buffer.empty()) return 0.0f;
         float fb = calculateFallbackValue();
@@ -205,10 +256,15 @@ public:
     explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg) {}
     
     [[nodiscard]] Decision makeDecision(const std::vector<ModelSignal>& model_signals) {
+        std::lock_guard<std::mutex> lock(engine_mtx_);
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()
         ).count();
+
+        if (!validateConfig(config, decision)) {
+            return decision;
+        }
         
         if (model_signals.empty()) {
             decision.status = ERROR_NO_MODELS;
@@ -227,11 +283,22 @@ public:
                 decision.fallback_used = true;
                 return decision;
             }
-        }
-
-        if (config.max_model_count <= 0) {
-            decision.reasoning = "Invalid max model count configuration";
-            return decision;
+            if (sig.confidence < 0.0f || sig.confidence > 1.0f) {
+                decision.status = REJECTED_LOW_CONFIDENCE;
+                decision.reasoning = "Signal rejected: confidence out of range [0,1]";
+                decision.final_value = getFallbackValue();
+                decision.confidence = 0.0f;
+                decision.fallback_used = true;
+                return decision;
+            }
+            if (sig.value < -MAX_SIGNAL_VALUE || sig.value > MAX_SIGNAL_VALUE) {
+                decision.status = REJECTED_LOW_CONFIDENCE;
+                decision.reasoning = "Signal rejected: value out of reasonable bounds";
+                decision.final_value = getFallbackValue();
+                decision.confidence = 0.0f;
+                decision.fallback_used = true;
+                return decision;
+            }
         }
 
         std::vector<ModelSignal> scoped_signals;
@@ -286,9 +353,15 @@ public:
         return decision;
     }
     
-    void reset() noexcept { fallback_buffer.clear(); }
+    void reset() noexcept {
+        std::lock_guard<std::mutex> lock(engine_mtx_);
+        fallback_buffer.clear();
+    }
     AILLEConfig getConfig() const noexcept { return config; }
-    void setConfig(const AILLEConfig& cfg) { config = cfg; }
+    void setConfig(const AILLEConfig& cfg) {
+        std::lock_guard<std::mutex> lock(engine_mtx_);
+        config = cfg;
+    }
 };
 
 // ============================================================================
@@ -499,6 +572,9 @@ public:
         : next_decision_id(1), last_hash("0000000000000000"), flush_on_write_(flush) {
         open(filename);
     }
+
+    AuditLogger(const AuditLogger&) = delete;
+    AuditLogger& operator=(const AuditLogger&) = delete;
     
     ~AuditLogger() { close(); }
     

@@ -49,6 +49,8 @@ def smooth_position(signal: float, scale: float = 100.0) -> float:
 def apply_safety_layer(signals: List[ModelSignal], config: AILLEConfig) -> List[ModelSignal]:
     valid: List[ModelSignal] = []
     for sig in signals:
+        if sig.confidence < 0.0 or sig.confidence > 1.0:
+            continue  # Signal rejected: confidence out of range [0,1]
         if sig.confidence >= config.min_confidence_threshold:
             valid.append(sig)
         elif sig.confidence >= config.grace_confidence_threshold:

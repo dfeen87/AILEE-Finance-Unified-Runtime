@@ -35,7 +35,7 @@ void signal_handler(int signal) {
 int main(int argc, char* argv[]) {
     // Parse command line arguments
     int port = 8080;
-    std::string host = "0.0.0.0"; // Bind to all interfaces for global network access
+    std::string host = "127.0.0.1"; // Use "0.0.0.0" to bind to all interfaces (requires proper network security)
     
     if (argc > 1) {
         try {
