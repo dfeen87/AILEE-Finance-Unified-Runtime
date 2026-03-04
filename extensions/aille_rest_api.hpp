@@ -11,7 +11,7 @@
  * 
  * AILLE::AILLEEngine engine;
  * AILLE::RestAPIServer server(engine, 8080);
- * server.start(); // Starts server on 0.0.0.0:8080 for global access
+ * server.start(); // Starts server on 127.0.0.1:8080 (localhost only; use "0.0.0.0" to bind to all interfaces)
  * 
  * NOTE: This requires cpp-httplib (single-header library)
  * Download from: https://github.com/yhirose/cpp-httplib
@@ -98,7 +98,15 @@ private:
                 case '\n': result += "\\n"; break;
                 case '\r': result += "\\r"; break;
                 case '\t': result += "\\t"; break;
-                default: result += c; break;
+                default:
+                    if (static_cast<unsigned char>(c) < 0x20) {
+                        char buf[8];
+                        std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned char>(c));
+                        result += buf;
+                    } else {
+                        result += c;
+                    }
+                    break;
             }
         }
         return result;
@@ -131,6 +139,7 @@ public:
         
         // Parse each object
         size_t pos = 0;
+        static constexpr size_t MAX_PARSED_SIGNALS = 100;
         while (pos < content.length()) {
             // Find next object
             size_t objStart = content.find('{', pos);
@@ -152,6 +161,7 @@ public:
             
             signals.push_back(ModelSignal(value, confidence, model_id));
             
+            if (signals.size() >= MAX_PARSED_SIGNALS) break;
             pos = objEnd + 1;
         }
         
@@ -215,7 +225,7 @@ private:
 // REST API Server class
 class RestAPIServer {
 public:
-    RestAPIServer(AILLEEngine& engine, int port = 8080, const std::string& host = "0.0.0.0")
+    RestAPIServer(AILLEEngine& engine, int port = 8080, const std::string& host = "127.0.0.1")
         : engine_(engine), port_(port), host_(host), running_(false), server_(nullptr) {
     }
     

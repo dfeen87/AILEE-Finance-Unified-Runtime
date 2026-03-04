@@ -13,7 +13,15 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    const std::size_t iterations = (argc > 1) ? static_cast<std::size_t>(std::stoull(argv[1])) : 200000;
+    std::size_t iterations = 200000;
+    if (argc > 1) {
+        try {
+            iterations = static_cast<std::size_t>(std::stoull(argv[1]));
+        } catch (...) {
+            std::cerr << "Invalid iteration count: " << argv[1] << "\n";
+            return 1;
+        }
+    }
 
     AILLE::AILLEConfig config;
     config.min_confidence_threshold = 0.35f;

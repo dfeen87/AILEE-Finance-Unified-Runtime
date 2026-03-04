@@ -24,3 +24,7 @@ __pycache__/
 
 # Test outputs
 test_output.txt
+test_suite
+benchmark
+rest_api_server
+demo

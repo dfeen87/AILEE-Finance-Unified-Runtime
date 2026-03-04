@@ -171,6 +171,94 @@ TEST(TestInvalidInputs) {
     ASSERT_TRUE(decision.reasoning.find("NaN/Inf") != std::string::npos);
 }
 
+TEST(TestNegativeConfidence) {
+    AILLE::AILLEEngine engine;
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.1f, -0.5f, 0));
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE);
+    ASSERT_TRUE(decision.reasoning.find("confidence out of range") != std::string::npos);
+}
+
+TEST(TestConfidenceAboveOne) {
+    AILLE::AILLEEngine engine;
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.1f, 1.5f, 0));
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE);
+    ASSERT_TRUE(decision.reasoning.find("confidence out of range") != std::string::npos);
+}
+
+TEST(TestMaxModelCountTruncation) {
+    AILLE::AILLEConfig config;
+    config.max_model_count = 2;
+    config.min_confidence_threshold = 0.5f;
+    config.min_models_required = 1;
+    AILLE::AILLEEngine engine(config);
+
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 0));
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 1));
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 2));
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 3));
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 4));
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::DECISION_VALID);
+    // Only 2 models should contribute
+    ASSERT_TRUE(decision.contributing_models.size() <= 2);
+}
+
+TEST(TestFallbackBufferAccumulation) {
+    AILLE::AILLEConfig config;
+    config.min_confidence_threshold = 0.5f;
+    config.min_models_required = 3; // Require 3 models so 2 signals fail consensus
+    config.fallback_window_size = 10;
+    AILLE::AILLEEngine engine(config);
+
+    std::vector<AILLE::ModelSignal> disagreeing;
+    disagreeing.push_back(AILLE::ModelSignal(0.1f, 0.8f, 0));
+    disagreeing.push_back(AILLE::ModelSignal(-0.1f, 0.8f, 1));
+
+    // Make multiple decisions that trigger fallback
+    AILLE::Decision d1 = engine.makeDecision(disagreeing);
+    ASSERT_TRUE(d1.fallback_used);
+
+    // After several rejections the fallback value stays at 0 (buffer still empty)
+    // Now make a valid decision to populate the fallback buffer
+    std::vector<AILLE::ModelSignal> valid_signals;
+    valid_signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 0));
+    valid_signals.push_back(AILLE::ModelSignal(0.12f, 0.8f, 1));
+    valid_signals.push_back(AILLE::ModelSignal(0.11f, 0.8f, 2));
+
+    AILLE::Decision d2 = engine.makeDecision(valid_signals);
+    ASSERT_EQ(d2.status, AILLE::DECISION_VALID);
+
+    // Now fallback buffer is non-empty; next disagreeing decision uses a non-zero fallback
+    AILLE::Decision d3 = engine.makeDecision(disagreeing);
+    ASSERT_TRUE(d3.fallback_used);
+    ASSERT_TRUE(std::abs(d3.final_value) > 0.0f);
+}
+
+TEST(TestEmptySignals) {
+    AILLE::AILLEEngine engine;
+    std::vector<AILLE::ModelSignal> signals;
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::ERROR_NO_MODELS);
+}
+
+TEST(TestVersionConstant) {
+    ASSERT_TRUE(AILLE::AILLE_VERSION != nullptr);
+    ASSERT_TRUE(std::string(AILLE::AILLE_VERSION).length() > 0);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -181,6 +269,12 @@ int main() {
     RUN_TEST(TestAuditLogger);
     RUN_TEST(TestAuditLoggerIntegrityFailure);
     RUN_TEST(TestInvalidInputs);
+    RUN_TEST(TestNegativeConfidence);
+    RUN_TEST(TestConfidenceAboveOne);
+    RUN_TEST(TestMaxModelCountTruncation);
+    RUN_TEST(TestFallbackBufferAccumulation);
+    RUN_TEST(TestEmptySignals);
+    RUN_TEST(TestVersionConstant);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
