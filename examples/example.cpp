@@ -1,5 +1,8 @@
 /*
  * AILLE Framework - Complete Working Example
+ *
+ * Copyright (c) 2026 Don Michael Feeney Jr
+ * License: Non-Commercial (see LICENSE)
  * 
  * This demonstrates plug-and-play integration in under 50 lines.
  * Just compile and run - no configuration needed.

@@ -1,6 +1,9 @@
 /*
  * AILLE Metrics Extension – Minimal Integration Example
  *
+ * Copyright (c) 2026 Don Michael Feeney Jr
+ * License: Non-Commercial (see LICENSE)
+ *
  * Demonstrates how to observe AILLE decisions in real time
  * without modifying core decision logic.
  *

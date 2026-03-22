@@ -1,3 +1,10 @@
+/*
+ * AILLE Framework - Unit Tests
+ *
+ * Copyright (c) 2026 Don Michael Feeney Jr
+ * License: Non-Commercial (see LICENSE)
+ */
+
 #include <iostream>
 #include <vector>
 #include <cassert>
