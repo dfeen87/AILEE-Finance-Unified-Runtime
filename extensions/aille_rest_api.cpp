@@ -2,7 +2,8 @@
  * AILLE Framework - REST API Implementation
  * HTTP server implementation for AILLE decision-making
  * 
- * Copyright (c) 2025 Don Michael Feeney Jr
+ * Copyright (c) 2026 Don Michael Feeney Jr
+ * License: Non-Commercial (see LICENSE)
  */
 
 #include "../external/httplib.h"

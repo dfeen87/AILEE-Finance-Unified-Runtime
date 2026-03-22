@@ -1,7 +1,10 @@
 /*
  * AILLE Audit & Compliance Layer
  * Cryptographic logging and regulatory reporting
- * 
+ *
+ * Copyright (c) 2026 Don Michael Feeney Jr
+ * License: Non-Commercial (see LICENSE)
+ *
  * Provides immutable audit trail for all AILLE decisions
  * Compatible with SEC, EU AI Act, and MiFID II requirements
  */
