@@ -391,7 +391,9 @@ g++ --version  # Should be 7.0 or higher
 
 ## License
 
-MIT License - Same as AILLE Framework
+The AILLE Framework is available for non-commercial use under the terms of the included LICENSE file. Commercial use requires a separate paid license — contact dfeen87@gmail.com.
+
+The `cpp-httplib` dependency is distributed under the MIT License.
 
 ## Support
 

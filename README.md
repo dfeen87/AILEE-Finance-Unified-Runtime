@@ -2,10 +2,13 @@
 
 **The Algorithmic Safety System That Transforms Risk into Reliability**
 
+<div align="center">
+
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
+[![Version](https://img.shields.io/badge/version-3.2.1-blue.svg)]()
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
 
@@ -247,8 +250,7 @@ decision = response.json()
 ### Step 1: Initialize AILLE Engine
 
 ```cpp
-#include "aille_framework.cpp"
-#include "aille_audit.cpp"
+#include "aille.hpp"
 
 using namespace AILLE;
 
@@ -403,8 +405,8 @@ Don Michael Feeney Jr., November 2025
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/[username]/aille-framework
-   cd aille-framework
+   git clone https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software
+   cd AILEE-Mitigating-Risk-and-Sustaining-Growth-Software
    ```
 
 2. **Compile the library**
@@ -412,9 +414,10 @@ Don Michael Feeney Jr., November 2025
    make release
    ```
 
-3. **Run included backtests**
+3. **Run the benchmark harness**
    ```bash
-   ./backtest --strategy=momentum --config=configs/conservative.json
+   make benchmark
+   ./benchmark
    ```
 
 4. **Integrate with your models**
@@ -614,7 +617,7 @@ We welcome contributions from:
 - Software engineers
 - Academic researchers
 
-See `CONTRIBUTING.md` for guidelines.
+See `CONTRIBUTING.md` for guidelines (coming soon).
 
 ---
 
@@ -632,6 +635,6 @@ This project is available for **non‑commercial use only** under the terms of t
 Commercial use requires a separate paid license.
 
 
-**[⬆ Back to Top](#aille-framework)**
+**[⬆ Back to Top](#ailee-mitigating-risk-and-sustaining-growth-software)**
 
 </div>
