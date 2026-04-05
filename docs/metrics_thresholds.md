@@ -37,11 +37,11 @@ Metrics should:
 *(Regulated funds, pensions, capital-preserving strategies)*
 
 | Metric | Threshold |
-|------|----------|
-Fallback Activation Rate | > 5% |
-Consensus Failure Rate | > 10% |
-Avg Confidence Drop | Sustained decline > 15% |
-Invalid Inputs | > 0 (immediate review) |
+|--------|-----------|
+| Fallback Activation Rate | > 5% |
+| Consensus Failure Rate | > 10% |
+| Avg Confidence Drop | Sustained decline > 15% |
+| Invalid Inputs | > 0 (immediate review) |
 
 Recommended response:
 - Investigate models
@@ -54,11 +54,11 @@ Recommended response:
 *(General trading, hedge funds, diversified strategies)*
 
 | Metric | Threshold |
-|------|----------|
-Fallback Activation Rate | > 8–10% |
-Consensus Failure Rate | > 15% |
-Avg Confidence Drop | Sustained decline > 20% |
-Invalid Inputs | > 0 |
+|--------|-----------|
+| Fallback Activation Rate | > 8–10% |
+| Consensus Failure Rate | > 15% |
+| Avg Confidence Drop | Sustained decline > 20% |
+| Invalid Inputs | > 0 |
 
 Recommended response:
 - Monitor closely
@@ -70,11 +70,11 @@ Recommended response:
 *(High-frequency, proprietary, alpha-seeking systems)*
 
 | Metric | Threshold |
-|------|----------|
-Fallback Activation Rate | > 12–15% |
-Consensus Failure Rate | > 20% |
-Avg Confidence Drop | Sustained decline > 25% |
-Invalid Inputs | > 0 |
+|--------|-----------|
+| Fallback Activation Rate | > 12–15% |
+| Consensus Failure Rate | > 20% |
+| Avg Confidence Drop | Sustained decline > 25% |
+| Invalid Inputs | > 0 |
 
 Recommended response:
 - Diagnose model disagreement

@@ -1,19 +1,40 @@
-AILLE Framework - Quick Start
-Get Running in 60 Seconds
-Option 1: Pre-Built Demo (Fastest)
-bashgit clone https://github.com/[username]/aille-framework
-cd aille-framework
+# AILLE Framework — Quick Start
+
+> **Get running in 60 seconds.**
+
+---
+
+## Option 1: Pre-Built Demo (Fastest)
+
+```bash
+git clone https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software
+cd AILEE-Mitigating-Risk-and-Sustaining-Growth-Software
 make
 ./demo
+```
+
 That's it. You just ran AILLE.
 
-Option 2: Integrate Into Your Code
-Step 1: Copy the header
-bashcp aille.hpp /your/project/include/
-Step 2: Include it
-cpp#include "aille.hpp"
-Step 3: Use it
-cpp// Create engine
+---
+
+## Option 2: Integrate Into Your Code
+
+### Step 1: Copy the header
+
+```bash
+cp aille.hpp /your/project/include/
+```
+
+### Step 2: Include it
+
+```cpp
+#include "aille.hpp"
+```
+
+### Step 3: Use it
+
+```cpp
+// Create engine
 AILLE::AILLEEngine engine;
 
 // Get your model predictions
@@ -28,17 +49,37 @@ AILLE::Decision decision = engine.makeDecision(signals);
 if (decision.status == AILLE::DECISION_VALID) {
     execute_trade(decision.final_value);
 }
-Step 4: Compile
-bashg++ -std=c++17 -O3 your_code.cpp -o your_program
+```
 
-Option 3: System-Wide Install
-bashsudo make install
+### Step 4: Compile
+
+```bash
+g++ -std=c++17 -O3 your_code.cpp -o your_program
+```
+
+---
+
+## Option 3: System-Wide Install
+
+```bash
+sudo make install
+```
+
 Now you can use:
-cpp#include <aille.hpp>
-From any project on your system.
 
-What You Get
-When you run ./demo, you'll see:
+```cpp
+#include <aille.hpp>
+```
+
+from any project on your system.
+
+---
+
+## What You Get
+
+When you run `./demo`, you'll see:
+
+```
 === AILLE Framework - Live Demo ===
 
 Configuration:
@@ -60,24 +101,35 @@ AILLE Decision:
   Reasoning: Consensus: 3 models
 
 Action: Execute trade with position 0.0258
+```
+
 Plus:
 
-Audit trail in demo_audit.csv
-Cryptographic integrity verification
-Full regulatory compliance logging
+- Audit trail in `demo_audit.csv`
+- Cryptographic integrity verification
+- Full regulatory compliance logging
 
+---
 
-Customize Configuration
+## Customize Configuration
+
 Edit the config in your code:
-cppAILLE::AILLEConfig config;
+
+```cpp
+AILLE::AILLEConfig config;
 config.min_confidence_threshold = 0.50f;  // Stricter
 config.min_models_required = 3;           // Need more agreement
 config.fallback_window_size = 100;        // Longer history
 
 AILLE::AILLEEngine engine(config);
+```
 
-Add Audit Logging
-cppAILLE::AuditLogger logger("my_trades.csv");
+---
+
+## Add Audit Logging
+
+```cpp
+AILLE::AuditLogger logger("my_trades.csv");
 
 // After each decision:
 logger.logDecision(decision, "AAPL", "momentum_strategy");
@@ -86,51 +138,97 @@ logger.logDecision(decision, "AAPL", "momentum_strategy");
 if (logger.verifyIntegrity()) {
     std::cout << "Audit trail verified ✓\n";
 }
+```
 
-Three Deployment Profiles
-Conservative (Risk-Averse)
-cppconfig.min_confidence_threshold = 0.50f;
+---
+
+## Three Deployment Profiles
+
+### Conservative (Risk-Averse)
+
+```cpp
+config.min_confidence_threshold = 0.50f;
 config.min_models_required = 3;
 config.fallback_position_scale = 0.05f;
-Balanced (Default)
-cppconfig.min_confidence_threshold = 0.35f;
+```
+
+### Balanced (Default)
+
+```cpp
+config.min_confidence_threshold = 0.35f;
 config.min_models_required = 2;
 config.fallback_position_scale = 0.10f;
-Aggressive (Performance-Focused)
-cppconfig.min_confidence_threshold = 0.25f;
+```
+
+### Aggressive (Performance-Focused)
+
+```cpp
+config.min_confidence_threshold = 0.25f;
 config.min_models_required = 2;
 config.fallback_position_scale = 0.15f;
+```
 
-Build Commands
-CommandWhat It DoesmakeBuild optimized demomake debugBuild with debug symbolsmake runBuild and run immediatelymake testRun integration testsmake cleanRemove build artifactsmake installInstall header system-widemake helpShow all commands
-make benchmarkBuild benchmark harness
+---
 
-Troubleshooting
-"No such file or directory: aille.hpp"
-Make sure you're in the right directory:
-bashls aille.hpp  # Should exist
-Compiler errors about C++17
-Update your flags:
-bashg++ -std=c++17 ...
-Want to see what's happening?
-Run the demo:
-bash./demo
-It shows every step in real-time.
+## Build Commands
 
-Next Steps
+| Command              | What It Does                    |
+|----------------------|---------------------------------|
+| `make`               | Build optimized demo            |
+| `make debug`         | Build with debug symbols        |
+| `make run`           | Build and run immediately       |
+| `make test`          | Run integration tests           |
+| `make benchmark`     | Build benchmark harness         |
+| `make clean`         | Remove build artifacts          |
+| `make install`       | Install header system-wide      |
+| `make help`          | Show all commands               |
 
-✅ Run the demo (make && ./demo)
-✅ Read the main README.md
-✅ Check INTEGRATION.md for production deployment
-✅ Review CONFIGURATION.md for tuning
+---
 
+## Troubleshooting
 
-Need Help?
+### "No such file or directory: aille.hpp"
 
-📖 Full docs: README.md
-🐛 Issues: GitHub Issues
-📧 Email: dfeen87@gmail.com
+Make sure you're in the repository root:
 
+```bash
+ls aille.hpp  # Should exist
+```
 
-You're now running the same algorithmic safety system used by quantitative trading desks.
+### Compiler errors about C++17
+
+Ensure your compiler flags include `-std=c++17`:
+
+```bash
+g++ -std=c++17 ...
+```
+
+### Want to see what's happening?
+
+Run the demo — it prints every decision step in real time:
+
+```bash
+./demo
+```
+
+---
+
+## Next Steps
+
+- ✅ Run the demo (`make && ./demo`)
+- ✅ Read the main [README.md](README.md)
+- ✅ Review [docs/test_plan.md](docs/test_plan.md) for build and test steps
+- ✅ See [docs/REST_API.md](docs/REST_API.md) for HTTP integration
+
+---
+
+## Need Help?
+
+- 📖 Full docs: [README.md](README.md)
+- 🐛 Issues: [GitHub Issues](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/issues)
+- 📧 Email: dfeen87@gmail.com
+
+---
+
+You're now running the same algorithmic safety system used by quantitative trading desks.  
 Welcome to AILLE. 🚀
