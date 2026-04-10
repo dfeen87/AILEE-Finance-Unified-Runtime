@@ -8,7 +8,7 @@
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)]()
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
 
@@ -327,7 +327,7 @@ AILLE is designed to be extended without modifying its core. Three categories of
 | **Execution** | Consume decisions after `makeDecision()` | `Decision` |
 | **Analytics** | Observe decisions passively | `Decision` (read-only) |
 
-The built-in `extensions/aille_metrics.hpp` (`MetricsCollector`) is the reference analytics plugin. The `extensions/aille_rest_api.hpp` is the reference execution transport.
+The built-in `extensions/aille_metrics.hpp` (`MetricsCollector`) is the reference analytics plugin. The `extensions/aille_rest_api.hpp` is the reference execution transport. Stable C++ base classes for all three plugin categories live in `ailee_plugins/` (`IMarketDataSource`, `IExecutionProvider`, `IAnalyticsObserver`), together with the thread-safe `PluginRegistry` singleton and bundled example implementations.
 
 **See [docs/plugin_guide.md](docs/plugin_guide.md) for the complete plugin authoring reference**, including the stable API contract, per-plugin interface requirements, and configuration guidance.
 
