@@ -80,7 +80,7 @@ public:
             float base_confidence = 0.5f + volume_score * 0.4f; // [0.5, 0.9]
 
             // Apply staleness penalty before handing to engine
-            float confidence = applyStalenesspenalty(base_confidence,
+            float confidence = applyStalenessPenalty(base_confidence,
                                                      bar.timestamp_ns);
 
             signals.emplace_back(direction, confidence, model_id_);

@@ -295,7 +295,7 @@ public:
     virtual std::string name() const = 0;
 
     // Returns one ModelSignal per candle, oldest → newest.
-    // Confidence penalties for stale bars are applied via applyStalenesspenalty().
+    // Confidence penalties for stale bars are applied via applyStalenessPenalty().
     virtual std::vector<ModelSignal> getCandles(const std::string& symbol,
                                                 int timeframe,
                                                 int count) = 0;

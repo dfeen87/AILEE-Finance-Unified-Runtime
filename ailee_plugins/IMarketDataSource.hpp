@@ -72,9 +72,7 @@ public:
     ///   - Bars > 5 min old: apply × 0.8 staleness penalty
     virtual std::vector<ModelSignal> getCandles(const std::string& symbol,
                                                 int                timeframe,
-                                                int                count) = 0;
-
-    /// Fetch the latest price and return it as a single ModelSignal.
+                                                int                count) = 0;    /// Fetch the latest price and return it as a single ModelSignal.
     ///
     /// @param symbol  Ticker symbol (e.g. "AAPL")
     /// @return        A single ModelSignal whose `value` is the mid-price
@@ -85,7 +83,7 @@ public:
 protected:
     /// Utility: apply a staleness confidence penalty based on how old
     /// the bar timestamp is relative to now.
-    static float applyStalenesspenalty(float base_confidence,
+    static float applyStalenessPenalty(float base_confidence,
                                        uint64_t bar_timestamp_ns) {
         using namespace std::chrono;
         uint64_t now_ns = static_cast<uint64_t>(
