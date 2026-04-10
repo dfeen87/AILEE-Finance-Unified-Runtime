@@ -20,7 +20,7 @@ This extension enables teams to measure, monitor, and alert on decision quality,
 - **Bounded memory**: No unbounded growth or leaks
 - **Regulator-friendly**: Observability without behavioral coupling
 
-> **Note**: The AILLE core remains v1-stable. This extension represents v2 observability, not a logic change.
+> **Note**: The AILLE core is stable at v2.1.0. This extension provides v2.0 observability layered on top of the core — it does not alter core decision logic.
 
 ---
 
@@ -246,7 +246,7 @@ Recommended rollout:
 
 ## Versioning & Stability
 
-- **AILLE Core**: v1.x (stable, unchanged)
+- **AILLE Core**: v2.1.0 (stable, unchanged by this extension)
 - **Metrics Extension**: v2.0 (this document)
 
 Future versions may add:
