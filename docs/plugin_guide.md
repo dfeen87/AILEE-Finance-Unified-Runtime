@@ -307,7 +307,7 @@ public:
 protected:
     // Helper: reduces confidence by 10 % for bars 60 s–5 min old,
     // and by 20 % for bars older than 5 minutes.
-    static float applyStalenesspenalty(float base_confidence,
+    static float applyStalenessPenalty(float base_confidence,
                                        uint64_t bar_timestamp_ns);
 };
 ```
