@@ -275,9 +275,171 @@ Internal methods (e.g., `applySafetyLayer`, `checkConsensus`) are private and su
 
 ---
 
+---
+
+## Formal Plugin Interfaces (`ailee_plugins/`)
+
+The `ailee_plugins/` directory provides **stable C++ base classes** for each plugin
+category. Using these interfaces is optional but recommended: they encode the
+Decision Routing pattern, staleness penalties, and thread-safety contract so that
+plugin authors do not need to re-implement them.
+
+### IMarketDataSource
+
+```cpp
+// ailee_plugins/IMarketDataSource.hpp
+
+class IMarketDataSource {
+public:
+    virtual ~IMarketDataSource() = default;
+    virtual std::string name() const = 0;
+
+    // Returns one ModelSignal per candle, oldest → newest.
+    // Confidence penalties for stale bars are applied via applyStalenesspenalty().
+    virtual std::vector<ModelSignal> getCandles(const std::string& symbol,
+                                                int timeframe,
+                                                int count) = 0;
+
+    // Returns a single ModelSignal representing the latest price.
+    // confidence should reflect data-feed quality (e.g. 0.70 for a delayed feed).
+    virtual ModelSignal getLatestPrice(const std::string& symbol) = 0;
+
+protected:
+    // Helper: reduces confidence by 10 % for bars 60 s–5 min old,
+    // and by 20 % for bars older than 5 minutes.
+    static float applyStalenesspenalty(float base_confidence,
+                                       uint64_t bar_timestamp_ns);
+};
+```
+
+See the bundled example: `ailee_plugins/plugins/market_data/yahoo/YahooMarketData.cpp`
+
+---
+
+### IExecutionProvider
+
+```cpp
+// ailee_plugins/IExecutionProvider.hpp
+
+class IExecutionProvider {
+public:
+    virtual ~IExecutionProvider() = default;
+    virtual std::string name() const = 0;
+
+    // Submit a fully-specified order. Returns a broker order ID, or "" on failure.
+    virtual std::string submitOrder(const OrderRequest& request) = 0;
+
+    // Cancel an order by its broker-assigned ID. Returns true on success.
+    virtual bool cancelOrder(const std::string& order_id) = 0;
+
+    // Default Decision Routing implementation.
+    // Override to add broker-specific logging or pre-submission checks.
+    virtual std::string routeDecision(const Decision& decision,
+                                      const std::string& symbol,
+                                      float base_qty);
+};
+```
+
+The default `routeDecision()` applies the standard pattern:
+
+| Status                    | Action                              |
+|---------------------------|-------------------------------------|
+| `DECISION_VALID`          | `submitOrder()` at full confidence  |
+| `FALLBACK_ACTIVATED`      | `submitOrder()` at `confidence × 0.5` |
+| `REJECTED_LOW_CONFIDENCE` | No order placed                     |
+| `REJECTED_NO_CONSENSUS`   | No order placed                     |
+
+See the bundled example: `ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp`
+
+---
+
+### IAnalyticsObserver
+
+```cpp
+// ailee_plugins/IAnalyticsObserver.hpp
+
+class IAnalyticsObserver {
+public:
+    virtual ~IAnalyticsObserver() = default;
+    virtual std::string name() const = 0;
+
+    // Called with the raw signal vector before the safety layer filters it.
+    // Must not block for more than 1 ms.
+    virtual void onSignalEvaluated(const std::vector<ModelSignal>& signals) = 0;
+
+    // Called with the completed Decision after makeDecision() returns.
+    // Must not block for more than 1 ms. Treat decision as read-only.
+    virtual void onDecisionRouted(const Decision& decision) = 0;
+};
+```
+
+See the bundled example: `ailee_plugins/plugins/analytics/basic/BasicMetricsObserver.cpp`
+
+---
+
+## Plugin Registry
+
+The `PluginRegistry` singleton maps string names to plugin factories:
+
+```cpp
+#include "ailee_plugins/PluginRegistry.hpp"
+
+using namespace AILLE::Plugins;
+
+// ── Registration (once at startup) ──────────────────────────────────────────
+PluginRegistry::instance().registerMarketData(
+    "yahoo",
+    []() -> std::unique_ptr<IMarketDataSource> {
+        return std::make_unique<Yahoo::YahooMarketData>("AAPL", /*model_id=*/0);
+    }
+);
+
+PluginRegistry::instance().registerExecutionProvider(
+    "alpaca",
+    []() -> std::unique_ptr<IExecutionProvider> {
+        return std::make_unique<Alpaca::AlpacaExecution>("AAPL", /*base_qty=*/100.0f);
+    }
+);
+
+PluginRegistry::instance().registerAnalyticsObserver(
+    "basic-metrics",
+    []() -> std::unique_ptr<IAnalyticsObserver> {
+        return std::make_unique<Basic::BasicMetricsObserver>();
+    }
+);
+
+// ── Retrieval (any time after registration) ──────────────────────────────────
+auto md   = PluginRegistry::instance().createMarketData("yahoo");
+auto exec = PluginRegistry::instance().createExecutionProvider("alpaca");
+auto obs  = PluginRegistry::instance().createAnalyticsObserver("basic-metrics");
+
+// ── Decision loop ────────────────────────────────────────────────────────────
+AILLE::AILLEEngine engine;
+
+auto signals = md->getCandles("AAPL", 60, 5);
+signals.push_back(md->getLatestPrice("AAPL"));
+
+obs->onSignalEvaluated(signals);
+
+AILLE::Decision decision = engine.makeDecision(signals);
+
+obs->onDecisionRouted(decision);
+exec->routeDecision(decision, "AAPL", 100.0f);
+```
+
+Bundled plugins support **link-time self-registration**: linking a plugin `.cpp`
+file into the application automatically calls `registerMarketData()` /
+`registerExecutionProvider()` / `registerAnalyticsObserver()` at static-init time,
+before `main()` runs.
+
+See [docs/plugin_registry.md](plugin_registry.md) for the full registry reference.
+
+---
+
 ## See Also
 
 - [README.md](../README.md) — Framework overview and architecture
 - [QUICKSTART.md](../QUICKSTART.md) — Get running in 60 seconds
 - [docs/metrics_extension.md](metrics_extension.md) — Analytics extension reference
 - [docs/REST_API.md](REST_API.md) — REST API integration
+- [docs/plugin_registry.md](plugin_registry.md) — Plugin discovery and registry reference
