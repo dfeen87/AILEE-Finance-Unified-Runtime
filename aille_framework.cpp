@@ -305,6 +305,6 @@ public:
 
 /*
  * LICENSE:
- * Released under the MIT License (see LICENSE).
- * Support / contact: dfeen87@gmail.com
+ * Non-Commercial use only (see LICENSE).
+ * Commercial use requires a separate paid license — contact dfeen87@gmail.com.
  */

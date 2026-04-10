@@ -219,6 +219,7 @@ Run the demo — it prints every decision step in real time:
 - ✅ Read the main [README.md](README.md)
 - ✅ Review [docs/test_plan.md](docs/test_plan.md) for build and test steps
 - ✅ See [docs/REST_API.md](docs/REST_API.md) for HTTP integration
+- ✅ See [docs/plugin_guide.md](docs/plugin_guide.md) to build market-data, execution, or analytics plugins
 
 ---
 
