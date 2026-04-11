@@ -10,7 +10,9 @@
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
 [![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)]()
 
-[Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
+[Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
+
+
 
 </div>
 
@@ -412,7 +414,7 @@ AILLE is grounded in:
 **"How Algorithmic Software is Improved by AILLE—Mitigating Risk and Sustaining Growth"**  
 Don Michael Feeney Jr., November 2025
 
-📄 [Read Full Paper on LinkedIn](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/)
+📄 [Read Full Paper on LinkedIn]([https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-mitigating-risk-feeney-jr-egp5c/](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/))
 
 ---
 
@@ -607,7 +609,7 @@ If you use AILLE in academic research:
 ## 📞 Support & Contact
 
 - 📧 **Email**: dfeen87@gmail.com
-- 💼 **LinkedIn**: [Don Michael Feeney Jr.](https://www.linkedin.com/in/don-michael-feeney-jr-908a96351)
+- 💼 **LinkedIn**: [Don Michael Feeney Jr.](www.linkedin.com/in/don-michael-feeney-jr-908a96351)
 
 ---
 
