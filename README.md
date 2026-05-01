@@ -559,7 +559,7 @@ aggressive.min_models_required = 2;              // Flexible consensus
 aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 ```
 
-**Use for:** High-frequency trading, proprietary desks, alpha generation
+**Use for:** High-frequency trading, institutional desks, alpha generation
 
 ---
 
@@ -628,6 +628,11 @@ I would like to acknowledge **Microsoft Copilot**, **Anthropic Claude**, **Googl
 
 ---
 
+## Enterprise Consulting & Integration
+This architecture is fully open-source under the MIT License. If your organization requires custom scaling, proprietary integration, or dedicated technical consulting to deploy these models at an enterprise level, please reach out at: dfeen87@gmail.com
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions from:
@@ -650,8 +655,7 @@ See `CONTRIBUTING.md` for guidelines (coming soon).
 
 License
 
-This project is available for **non‑commercial use only** under the terms of the included LICENSE file.  
-Commercial use requires a separate paid license.
+This project is 100% open-source under the **MIT License**. See [`LICENSE`](LICENSE) for full terms.
 
 
 **[⬆ Back to Top](#ailee-mitigating-risk-and-sustaining-growth-software)**
