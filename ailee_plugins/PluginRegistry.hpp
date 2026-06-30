@@ -40,6 +40,7 @@
 #include "IMarketDataSource.hpp"
 #include "IExecutionProvider.hpp"
 #include "IAnalyticsObserver.hpp"
+#include "ITradingAlertAdapter.hpp"
 
 namespace AILLE {
 namespace Plugins {
@@ -51,6 +52,7 @@ namespace Plugins {
 using MarketDataFactory    = std::function<std::unique_ptr<IMarketDataSource>()>;
 using ExecutionFactory     = std::function<std::unique_ptr<IExecutionProvider>()>;
 using AnalyticsFactory     = std::function<std::unique_ptr<IAnalyticsObserver>()>;
+using TradingAlertFactory  = std::function<std::unique_ptr<ITradingAlertAdapter>()>;
 
 // ============================================================================
 // PLUGIN REGISTRY
@@ -107,6 +109,19 @@ public:
         analytics_[name] = std::move(factory);
     }
 
+    /// Register a passive trading-alert adapter factory.
+    ///
+    /// @param name     Unique adapter name (e.g. "robinhood-alerts").
+    /// @param factory  Callable returning std::unique_ptr<ITradingAlertAdapter>.
+    /// @throws std::invalid_argument if @p name is already registered.
+    void registerTradingAlertAdapter(const std::string& name, TradingAlertFactory factory) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (trading_alerts_.count(name))
+            throw std::invalid_argument(
+                "PluginRegistry: trading-alert adapter already registered: " + name);
+        trading_alerts_[name] = std::move(factory);
+    }
+
     // ---- Construction -------------------------------------------------------
 
     /// Construct and return a market-data plugin by name.
@@ -145,6 +160,18 @@ public:
         return it->second();
     }
 
+    /// Construct and return a passive trading-alert adapter by name.
+    ///
+    /// @throws std::out_of_range if no adapter with @p name is registered.
+    std::unique_ptr<ITradingAlertAdapter> createTradingAlertAdapter(const std::string& name) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = trading_alerts_.find(name);
+        if (it == trading_alerts_.end())
+            throw std::out_of_range(
+                "PluginRegistry: trading-alert adapter not found: " + name);
+        return it->second();
+    }
+
     // ---- Introspection ------------------------------------------------------
 
     /// Return true if a market-data plugin with @p name is registered.
@@ -165,6 +192,12 @@ public:
         return analytics_.count(name) > 0;
     }
 
+    /// Return true if a passive trading-alert adapter with @p name is registered.
+    bool hasTradingAlertAdapter(const std::string& name) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return trading_alerts_.count(name) > 0;
+    }
+
     // Singletons must not be copy- or move-constructed.
     PluginRegistry(const PluginRegistry&)            = delete;
     PluginRegistry& operator=(const PluginRegistry&) = delete;
@@ -177,6 +210,7 @@ private:
     std::unordered_map<std::string, MarketDataFactory> market_data_;
     std::unordered_map<std::string, ExecutionFactory>  execution_;
     std::unordered_map<std::string, AnalyticsFactory>  analytics_;
+    std::unordered_map<std::string, TradingAlertFactory> trading_alerts_;
 };
 
 } // namespace Plugins
