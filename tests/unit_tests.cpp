@@ -14,6 +14,9 @@
 
 // Include the library to test
 #include "../aille.hpp"
+#include "../ailee_plugins/ITradingAlertAdapter.hpp"
+#include "../ailee_plugins/PluginRegistry.hpp"
+#include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
 
 // Simple Test Framework
 int tests_run = 0;
@@ -61,6 +64,67 @@ int tests_failed = 0;
 
 
 // Test Cases
+
+class CapturingAlertAdapter : public AILLE::Plugins::ITradingAlertAdapter {
+public:
+    AILLE::Plugins::TradingAlert last_alert;
+    bool called = false;
+
+    std::string name() const override { return "capturing-alerts"; }
+
+    bool sendAlert(const AILLE::Plugins::TradingAlert& alert) override {
+        last_alert = alert;
+        called = true;
+        return true;
+    }
+};
+
+TEST(TestTradingAlertAdapterBuildsPassiveBuyAlert) {
+    CapturingAlertAdapter adapter;
+    AILLE::Decision decision;
+    decision.status = AILLE::DECISION_VALID;
+    decision.final_value = 0.75f;
+    decision.confidence = 0.82f;
+    decision.reasoning = "consensus passed";
+
+    ASSERT_TRUE(adapter.alertDecision(decision, "AAPL", "decision-1"));
+    ASSERT_TRUE(adapter.called);
+    ASSERT_TRUE(adapter.last_alert.side == AILLE::Plugins::AlertSide::ALERT_BUY);
+    ASSERT_TRUE(adapter.last_alert.symbol == "AAPL");
+    ASSERT_TRUE(adapter.last_alert.client_ref == "decision-1");
+    ASSERT_FLOAT_EQ(adapter.last_alert.confidence, 0.82f);
+    ASSERT_FLOAT_EQ(adapter.last_alert.signal_value, 0.75f);
+    ASSERT_TRUE(adapter.last_alert.message.find("no order executed") != std::string::npos);
+}
+
+TEST(TestTradingAlertAdapterRejectedDecisionIsHoldAlert) {
+    CapturingAlertAdapter adapter;
+    AILLE::Decision decision;
+    decision.status = AILLE::REJECTED_NO_CONSENSUS;
+    decision.final_value = -0.40f;
+    decision.confidence = 0.20f;
+
+    ASSERT_TRUE(adapter.alertDecision(decision, "MSFT"));
+    ASSERT_TRUE(adapter.called);
+    ASSERT_TRUE(adapter.last_alert.side == AILLE::Plugins::AlertSide::ALERT_HOLD);
+    ASSERT_TRUE(adapter.last_alert.severity == "warning");
+    ASSERT_TRUE(adapter.last_alert.message.find("rejected") != std::string::npos);
+}
+
+TEST(TestRobinhoodAlertAdapterRegistersWithoutExecutionProvider) {
+    auto& registry = AILLE::Plugins::PluginRegistry::instance();
+    ASSERT_TRUE(registry.hasTradingAlertAdapter("robinhood-alerts"));
+    ASSERT_FALSE(registry.hasExecutionProvider("robinhood-alerts"));
+
+    auto adapter = registry.createTradingAlertAdapter("robinhood-alerts");
+    ASSERT_TRUE(adapter->name() == "robinhood-alerts");
+
+    AILLE::Decision decision;
+    decision.status = AILLE::FALLBACK_ACTIVATED;
+    decision.final_value = -0.25f;
+    decision.confidence = 0.55f;
+    ASSERT_TRUE(adapter->alertDecision(decision, "HOOD", "fallback-alert"));
+}
 
 TEST(TestConfigurationDefaults) {
     AILLE::AILLEConfig config;
@@ -269,6 +333,9 @@ TEST(TestVersionConstant) {
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
+    RUN_TEST(TestTradingAlertAdapterBuildsPassiveBuyAlert);
+    RUN_TEST(TestTradingAlertAdapterRejectedDecisionIsHoldAlert);
+    RUN_TEST(TestRobinhoodAlertAdapterRegistersWithoutExecutionProvider);
     RUN_TEST(TestConfigurationDefaults);
     RUN_TEST(TestSafetyLayer);
     RUN_TEST(TestConsensusLayer);

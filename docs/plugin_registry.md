@@ -9,7 +9,7 @@
 The `PluginRegistry` is a thread-safe singleton that maps plugin names to factory
 functions. It decouples the AILLE engine from concrete plugin implementations: the
 engine knows only about stable interfaces (`IMarketDataSource`, `IExecutionProvider`,
-`IAnalyticsObserver`), while concrete classes register themselves under well-known
+`IAnalyticsObserver`, `ITradingAlertAdapter`), while concrete classes register themselves under well-known
 string names.
 
 The registry lives in:
@@ -111,6 +111,7 @@ The registry retains no ownership of constructed instances.
 
 ```cpp
 bool exists = PluginRegistry::instance().hasMarketData("my-source");
+bool alert_exists = PluginRegistry::instance().hasTradingAlertAdapter("robinhood-alerts");
 ```
 
 ---
@@ -147,6 +148,7 @@ Linking `my_plugin.cpp` activates registration automatically.
 | `yahoo`         | Market-Data | `ailee_plugins/plugins/market_data/yahoo/YahooMarketData.cpp` |
 | `alpaca`        | Execution   | `ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp`  |
 | `basic-metrics` | Analytics   | `ailee_plugins/plugins/analytics/basic/BasicMetricsObserver.cpp` |
+| `robinhood-alerts` | Trading Alerts | `ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp` |
 
 ---
 
@@ -157,7 +159,7 @@ Linking `my_plugin.cpp` activates registration automatically.
    ailee_plugins/plugins/<category>/<vendor>/MyPlugin.cpp
    ```
 2. Implement the relevant interface (`IMarketDataSource`, `IExecutionProvider`,
-   or `IAnalyticsObserver`).
+   `IAnalyticsObserver`, or `ITradingAlertAdapter`).
 3. Add a self-registration block at the bottom of the `.cpp` file.
 4. Link the `.cpp` file into the application. No other changes are required.
 

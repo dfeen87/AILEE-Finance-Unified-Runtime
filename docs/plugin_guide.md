@@ -11,7 +11,8 @@ AILLE is designed to be extended through well-defined interfaces without touchin
 | Plugin Type     | Purpose                                 | Hook Point                      |
 |-----------------|-----------------------------------------|---------------------------------|
 | **Market-Data** | Supply model signals to the engine      | Before `makeDecision()`         |
-| **Execution**   | Consume validated decisions             | After `makeDecision()`          |
+| **Execution**   | Consume validated decisions for orders  | After `makeDecision()`          |
+| **Trading Alerts** | Emit broker/agent alerts without orders | After `makeDecision()` (passive)|
 | **Analytics**   | Observe decisions for metrics/alerting  | After `makeDecision()` (passive)|
 
 The AILLE core (`aille.hpp`) exposes three stable data structures that form the plugin contract: `ModelSignal`, `Decision`, and `AILLEConfig`. Plugins depend only on these types — not on internal engine methods.
@@ -443,3 +444,55 @@ See [docs/plugin_registry.md](plugin_registry.md) for the full registry referenc
 - [docs/metrics_extension.md](metrics_extension.md) — Analytics extension reference
 - [docs/REST_API.md](REST_API.md) — REST API integration
 - [docs/plugin_registry.md](plugin_registry.md) — Plugin discovery and registry reference
+
+---
+
+## Trading Alert Adapters
+
+Trading alert adapters are passive integrations for brokerage-adjacent agents,
+watchlists, notification bridges, or tools such as Robinhood. They consume
+validated `AILLE::Decision` objects and emit human/operator-facing alerts only.
+They do **not** expose order submission or cancellation methods, and they must
+never place trades.
+
+### Stable Interface
+
+```cpp
+#include "ailee_plugins/ITradingAlertAdapter.hpp"
+
+class MyAlertAdapter : public AILLE::Plugins::ITradingAlertAdapter {
+public:
+    std::string name() const override { return "my-alerts"; }
+
+    bool sendAlert(const AILLE::Plugins::TradingAlert& alert) override {
+        // Send to a notification sink, webhook, queue, or log.
+        // Do not call broker execution endpoints here.
+        return true;
+    }
+};
+```
+
+### Alert Routing Pattern
+
+- `DECISION_VALID` creates an informational BUY/SELL/HOLD alert.
+- `FALLBACK_ACTIVATED` creates a warning BUY/SELL/HOLD alert.
+- Rejected or unavailable decisions create warning HOLD alerts so operators can
+  see the risk block without receiving executable instructions.
+
+### Robinhood-Style Adapter
+
+The bundled `robinhood-alerts` adapter demonstrates how to bridge AILLE decisions
+into passive trading-agent notifications:
+
+```cpp
+#include "ailee_plugins/PluginRegistry.hpp"
+#include "ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
+
+auto alerts = AILLE::Plugins::PluginRegistry::instance()
+    .createTradingAlertAdapter("robinhood-alerts");
+
+alerts->alertDecision(decision, "HOOD", "decision-123");
+```
+
+This adapter logs alert payloads and deliberately does not register as an
+`IExecutionProvider`, so it cannot submit or cancel broker orders.
