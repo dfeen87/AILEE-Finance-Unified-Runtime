@@ -2,7 +2,7 @@
  * AILLE Framework - REST API Server Example
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  * 
  * This example demonstrates how to run AILLE as a REST API service
  * accessible over the network for decision-making.

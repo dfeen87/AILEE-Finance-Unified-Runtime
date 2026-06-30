@@ -3,7 +3,7 @@
  * AI-Load Integrity and Layered Evaluation
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  *
  * Stable interface for execution plugins. Implementors consume validated
  * AILLE Decision objects and route them to an order management system,

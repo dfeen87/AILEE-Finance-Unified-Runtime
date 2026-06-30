@@ -2,7 +2,7 @@
  * AILLE Framework - Edge Case Testing
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  * 
  * Tests various edge cases to ensure robustness:
  * - Empty signal sets

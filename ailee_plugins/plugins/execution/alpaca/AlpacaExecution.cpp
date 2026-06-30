@@ -3,7 +3,7 @@
  * AI-Load Integrity and Layered Evaluation
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  *
  * Minimal, dependency-free example showing how an execution plugin
  * implements IExecutionProvider and consumes AILLE Decision objects.

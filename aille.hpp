@@ -5,7 +5,7 @@
  * PLUG AND PLAY - Just #include this file
  * 
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  * 
  * USAGE:
  * ------
@@ -34,6 +34,7 @@
 #include <iomanip>
 #include <ctime>
 #include <mutex>
+#include <unordered_set>
 
 namespace AILLE {
 
@@ -107,6 +108,8 @@ struct AILLEConfig {
     int fallback_window_size;
     float fallback_position_scale;
     int max_model_count;
+    uint64_t max_signal_age_ns;
+    float max_position_abs;
     
     AILLEConfig() :
         min_confidence_threshold(0.35f),
@@ -115,7 +118,9 @@ struct AILLEConfig {
         sign_agreement_threshold(0.66f),
         fallback_window_size(50),
         fallback_position_scale(0.1f),
-        max_model_count(10) {}
+        max_model_count(10),
+        max_signal_age_ns(1000000000ULL),
+        max_position_abs(1.0f) {}
 };
 
 // ============================================================================
@@ -150,7 +155,8 @@ private:
     // output. Callers wanting magnitude sensitivity should lower the scale via
     // AILLEConfig settings.
     float smoothPosition(float signal, float scale = 100.0f) const {
-        return std::tanh(signal * scale);
+        float bounded = std::tanh(signal * scale);
+        return std::clamp(bounded, -config.max_position_abs, config.max_position_abs);
     }
     
     std::vector<ModelSignal> applySafetyLayer(const std::vector<ModelSignal>& signals) {
@@ -196,16 +202,16 @@ private:
         
         if (agreement_ratio >= config.sign_agreement_threshold && 
             agreement_count >= config.min_models_required) {
-            float sum = 0.0f;
-            int count = 0;
+            float weighted_sum = 0.0f;
+            float total_weight = 0.0f;
             for (const auto& sig : valid_signals) {
                 if (((sig.value >= 0) ? 1.0f : -1.0f) == median_sign) {
-                    sum += sig.value;
-                    count++;
+                    weighted_sum += sig.value * sig.confidence;
+                    total_weight += sig.confidence;
                 }
             }
-            if (count > 0) {
-                consensus_value = sum / count;
+            if (total_weight > 0.0f) {
+                consensus_value = weighted_sum / total_weight;
                 return true;
             }
         }
@@ -243,6 +249,12 @@ private:
             decision.reasoning = "Invalid config: max_model_count must be >= 1";
             return false;
         }
+        if (cfg.max_position_abs <= 0.0f || cfg.max_position_abs > 1.0f ||
+            std::isnan(cfg.max_position_abs) || std::isinf(cfg.max_position_abs)) {
+            decision.status = ERROR_NO_MODELS;
+            decision.reasoning = "Invalid config: max_position_abs must be in (0, 1]";
+            return false;
+        }
         return true;
     }
 
@@ -267,13 +279,18 @@ public:
             return decision;
         }
         
+        const uint64_t decision_time_ns = decision.timestamp_ns;
+
         if (model_signals.empty()) {
             decision.status = ERROR_NO_MODELS;
             decision.reasoning = "No model inputs";
             return decision;
         }
 
-        // Validate inputs
+        // Validate inputs. HFT callers can set max_signal_age_ns to enforce
+        // freshness in nanoseconds; the default rejects signals older than 1s.
+        std::unordered_set<int> seen_model_ids;
+        seen_model_ids.reserve(model_signals.size());
         for (const auto& sig : model_signals) {
             if (std::isnan(sig.value) || std::isinf(sig.value) ||
                 std::isnan(sig.confidence) || std::isinf(sig.confidence)) {
@@ -287,6 +304,31 @@ public:
             if (sig.confidence < 0.0f || sig.confidence > 1.0f) {
                 decision.status = REJECTED_LOW_CONFIDENCE;
                 decision.reasoning = "Signal rejected: confidence out of range [0,1]";
+                decision.final_value = getFallbackValue();
+                decision.confidence = 0.0f;
+                decision.fallback_used = true;
+                return decision;
+            }
+            if (sig.timestamp_ns > decision_time_ns) {
+                decision.status = REJECTED_LOW_CONFIDENCE;
+                decision.reasoning = "Signal rejected: timestamp is in the future";
+                decision.final_value = getFallbackValue();
+                decision.confidence = 0.0f;
+                decision.fallback_used = true;
+                return decision;
+            }
+            if (config.max_signal_age_ns > 0 &&
+                decision_time_ns - sig.timestamp_ns > config.max_signal_age_ns) {
+                decision.status = REJECTED_LOW_CONFIDENCE;
+                decision.reasoning = "Signal rejected: stale timestamp";
+                decision.final_value = getFallbackValue();
+                decision.confidence = 0.0f;
+                decision.fallback_used = true;
+                return decision;
+            }
+            if (!seen_model_ids.insert(sig.model_id).second) {
+                decision.status = REJECTED_NO_CONSENSUS;
+                decision.reasoning = "Signal rejected: duplicate model_id";
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;

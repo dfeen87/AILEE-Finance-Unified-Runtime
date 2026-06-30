@@ -3,7 +3,7 @@
  * HTTP server implementation for AILLE decision-making
  * 
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  */
 
 #include "../external/httplib.h"

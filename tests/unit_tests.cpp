@@ -2,7 +2,7 @@
  * AILLE Framework - Unit Tests
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  */
 
 #include <iostream>
@@ -285,6 +285,53 @@ TEST(TestMaxModelCountTruncation) {
     ASSERT_TRUE(decision.contributing_models.size() <= 2);
 }
 
+TEST(TestRejectsStaleSignalsForHFT) {
+    AILLE::AILLEConfig config;
+    config.max_signal_age_ns = 1000;
+    AILLE::AILLEEngine engine(config);
+
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 0));
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 1));
+    signals[0].timestamp_ns = 1;
+    signals[1].timestamp_ns = 1;
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE);
+    ASSERT_TRUE(decision.fallback_used);
+    ASSERT_TRUE(decision.reasoning.find("stale timestamp") != std::string::npos);
+}
+
+TEST(TestRejectsDuplicateModelIdsForHFT) {
+    AILLE::AILLEEngine engine;
+
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 7));
+    signals.push_back(AILLE::ModelSignal(0.1f, 0.8f, 7));
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::REJECTED_NO_CONSENSUS);
+    ASSERT_TRUE(decision.fallback_used);
+    ASSERT_TRUE(decision.reasoning.find("duplicate model_id") != std::string::npos);
+}
+
+TEST(TestMaxPositionClampForHFT) {
+    AILLE::AILLEConfig config;
+    config.max_position_abs = 0.25f;
+    AILLE::AILLEEngine engine(config);
+
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(10.0f, 0.8f, 0));
+    signals.push_back(AILLE::ModelSignal(10.0f, 0.8f, 1));
+
+    AILLE::Decision decision = engine.makeDecision(signals);
+
+    ASSERT_EQ(decision.status, AILLE::DECISION_VALID);
+    ASSERT_FLOAT_EQ(decision.final_value, 0.25f);
+}
+
 TEST(TestFallbackBufferAccumulation) {
     AILLE::AILLEConfig config;
     config.min_confidence_threshold = 0.5f;
@@ -346,6 +393,9 @@ int main() {
     RUN_TEST(TestNegativeConfidence);
     RUN_TEST(TestConfidenceAboveOne);
     RUN_TEST(TestMaxModelCountTruncation);
+    RUN_TEST(TestRejectsStaleSignalsForHFT);
+    RUN_TEST(TestRejectsDuplicateModelIdsForHFT);
+    RUN_TEST(TestMaxPositionClampForHFT);
     RUN_TEST(TestFallbackBufferAccumulation);
     RUN_TEST(TestEmptySignals);
     RUN_TEST(TestVersionConstant);
