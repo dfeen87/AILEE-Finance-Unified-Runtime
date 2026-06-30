@@ -26,6 +26,7 @@
 - [Proven Performance](#proven-performance)
 - [Architecture](#architecture-five-layers-of-safety)
 - [Technical Specifications](#technical-specifications)
+- [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
 - [Integration Options](#integration-options)
 - [Integration Example](#integration-example)
@@ -181,6 +182,19 @@ g++ -std=c++17 -O3 -march=native aille_framework.cpp -o aille_engine
 ```
 
 ---
+
+
+## Optional Performance Layer
+
+AILLE now includes an optional next-generation performance layer for deployments that need microsecond-class and nanosecond-aware signal handling while preserving the framework's passive safety guarantees. The layer is disabled by architecture, not by trust: all outputs remain advisory and must flow back through the existing human-controlled safety, consensus, fallback, audit, and alerting boundaries.
+
+| Module | Purpose | Safety Boundary |
+|--------|---------|-----------------|
+| **Ultra-low-latency IPC** | Describes shared-memory rings, memory-mapped queues, kernel-bypass descriptors, and in-process fallback envelopes for nanosecond-scale signal transport. | Carries model signals only; no order or trade transport is defined. |
+| **SIMD consensus kernels** | Provides vector-style consensus summaries for parallel confidence filtering, directional votes, weighted sums, and valid-lane counts. | Produces passive evidence; the canonical engine still performs auditable decisions. |
+| **FPGA/ASIC manifests** | Defines synthesis-compatible execution models for fixed-point streaming risk and mitigation scoring. | Hardware targets explicitly report `advisory_only = true` and `emits_orders = false`. |
+
+See [docs/performance_layer.md](docs/performance_layer.md) for integration guidance and hardware deployment constraints.
 
 ## 💼 Use Cases
 
