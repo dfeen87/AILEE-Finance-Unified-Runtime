@@ -2,7 +2,7 @@
  * AILLE Framework - Benchmark Harness
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: Non-Commercial (see LICENSE)
+ * License: MIT (see LICENSE)
  *
  * Measures decision throughput for the core engine using
  * deterministic synthetic signals.
