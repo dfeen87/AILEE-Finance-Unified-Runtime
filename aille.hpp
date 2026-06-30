@@ -57,6 +57,7 @@ struct AuditRecord;
 struct AILLEConfig;
 class AILLEEngine;
 class AuditLogger;
+class PerformanceLayer;
 
 enum DecisionStatus {
     DECISION_VALID,
@@ -121,6 +122,170 @@ struct AILLEConfig {
         max_model_count(10),
         max_signal_age_ns(1000000000ULL),
         max_position_abs(1.0f) {}
+};
+
+
+// ============================================================================
+// OPTIONAL NEXT-GENERATION PERFORMANCE LAYER (PASSIVE / ADVISORY ONLY)
+// ============================================================================
+
+enum class IPCTransport {
+    SharedMemoryRing,
+    MemoryMappedQueue,
+    KernelBypassDescriptor,
+    InProcessFallback
+};
+
+enum class HardwareTarget {
+    PortableCPU,
+    SIMDCPU,
+    FPGA,
+    ASIC
+};
+
+struct IPCChannelConfig {
+    IPCTransport transport;
+    uint32_t ring_slots;
+    uint32_t cache_line_bytes;
+    bool single_writer_single_reader;
+    bool advisory_only;
+
+    IPCChannelConfig()
+        : transport(IPCTransport::SharedMemoryRing), ring_slots(1024),
+          cache_line_bytes(64), single_writer_single_reader(true),
+          advisory_only(true) {}
+};
+
+struct IPCSignalEnvelope {
+    uint64_t sequence;
+    uint64_t published_timestamp_ns;
+    ModelSignal signal;
+    bool advisory_only;
+
+    IPCSignalEnvelope() : sequence(0), published_timestamp_ns(0), advisory_only(true) {}
+};
+
+struct SIMDConsensusResult {
+    float weighted_sum;
+    float total_weight;
+    int positive_votes;
+    int negative_votes;
+    int valid_lanes;
+    bool advisory_only;
+
+    SIMDConsensusResult()
+        : weighted_sum(0.0f), total_weight(0.0f), positive_votes(0),
+          negative_votes(0), valid_lanes(0), advisory_only(true) {}
+};
+
+struct HardwareKernelManifest {
+    HardwareTarget target;
+    std::string kernel_name;
+    std::string execution_model;
+    bool supports_fixed_point;
+    bool supports_streaming_ipc;
+    bool emits_orders;
+    bool advisory_only;
+
+    HardwareKernelManifest()
+        : target(HardwareTarget::PortableCPU), kernel_name("aille_advisory_kernel"),
+          execution_model("passive risk scoring"), supports_fixed_point(false),
+          supports_streaming_ipc(false), emits_orders(false), advisory_only(true) {}
+};
+
+struct PerformanceLayerConfig {
+    bool enable_ipc_descriptors;
+    bool enable_simd_consensus;
+    bool enable_hardware_manifests;
+    IPCChannelConfig ipc;
+    HardwareTarget preferred_target;
+    bool advisory_only;
+
+    PerformanceLayerConfig()
+        : enable_ipc_descriptors(true), enable_simd_consensus(true),
+          enable_hardware_manifests(true), preferred_target(HardwareTarget::SIMDCPU),
+          advisory_only(true) {}
+};
+
+class PerformanceLayer {
+private:
+    PerformanceLayerConfig config_;
+
+    static uint64_t nowNs() {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    }
+
+public:
+    PerformanceLayer() = default;
+    explicit PerformanceLayer(const PerformanceLayerConfig& cfg) : config_(cfg) {
+        config_.advisory_only = true;
+        config_.ipc.advisory_only = true;
+    }
+
+    [[nodiscard]] IPCSignalEnvelope publishAdvisorySignal(const ModelSignal& signal,
+                                                          uint64_t sequence) const {
+        IPCSignalEnvelope envelope;
+        envelope.sequence = sequence;
+        envelope.published_timestamp_ns = nowNs();
+        envelope.signal = signal;
+        envelope.advisory_only = true;
+        return envelope;
+    }
+
+    [[nodiscard]] SIMDConsensusResult evaluateConsensusVector(
+        const std::vector<ModelSignal>& signals,
+        float min_confidence) const {
+        SIMDConsensusResult result;
+        for (const auto& sig : signals) {
+            if (sig.confidence < min_confidence || std::isnan(sig.value) ||
+                std::isinf(sig.value) || std::isnan(sig.confidence) ||
+                std::isinf(sig.confidence)) {
+                continue;
+            }
+            result.valid_lanes++;
+            if (sig.value >= 0.0f) result.positive_votes++;
+            else result.negative_votes++;
+            result.weighted_sum += sig.value * sig.confidence;
+            result.total_weight += sig.confidence;
+        }
+        result.advisory_only = true;
+        return result;
+    }
+
+    [[nodiscard]] HardwareKernelManifest describeHardwareTarget(HardwareTarget target) const {
+        HardwareKernelManifest manifest;
+        manifest.target = target;
+        manifest.advisory_only = true;
+        manifest.emits_orders = false;
+        switch (target) {
+            case HardwareTarget::SIMDCPU:
+                manifest.kernel_name = "aille_simd_consensus_advisory";
+                manifest.execution_model = "vectorized CPU lanes for passive consensus scoring";
+                break;
+            case HardwareTarget::FPGA:
+                manifest.kernel_name = "aille_fpga_streaming_risk_advisory";
+                manifest.execution_model = "streaming fixed-latency fabric for mitigation and risk scores";
+                manifest.supports_fixed_point = true;
+                manifest.supports_streaming_ipc = true;
+                break;
+            case HardwareTarget::ASIC:
+                manifest.kernel_name = "aille_asic_mitigation_advisory";
+                manifest.execution_model = "synthesizable combinational/sequential advisory scoring pipeline";
+                manifest.supports_fixed_point = true;
+                manifest.supports_streaming_ipc = true;
+                break;
+            case HardwareTarget::PortableCPU:
+            default:
+                manifest.kernel_name = "aille_portable_cpu_advisory";
+                manifest.execution_model = "portable scalar passive risk scoring";
+                break;
+        }
+        return manifest;
+    }
+
+    [[nodiscard]] bool isAdvisoryOnly() const noexcept { return true; }
+    [[nodiscard]] PerformanceLayerConfig getConfig() const noexcept { return config_; }
 };
 
 // ============================================================================

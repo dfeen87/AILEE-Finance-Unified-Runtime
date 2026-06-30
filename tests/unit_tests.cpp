@@ -426,6 +426,55 @@ TEST(TestEmptySignals) {
     ASSERT_EQ(decision.status, AILLE::ERROR_NO_MODELS);
 }
 
+
+TEST(TestPerformanceLayerPublishesAdvisoryIPCEnvelope) {
+    AILLE::PerformanceLayer layer;
+    AILLE::ModelSignal signal(0.42f, 0.91f, 7);
+
+    AILLE::IPCSignalEnvelope envelope = layer.publishAdvisorySignal(signal, 123);
+
+    ASSERT_EQ(envelope.sequence, 123);
+    ASSERT_TRUE(envelope.advisory_only);
+    ASSERT_FLOAT_EQ(envelope.signal.value, 0.42f);
+    ASSERT_FLOAT_EQ(envelope.signal.confidence, 0.91f);
+    ASSERT_EQ(envelope.signal.model_id, 7);
+    ASSERT_TRUE(envelope.published_timestamp_ns >= signal.timestamp_ns);
+}
+
+TEST(TestPerformanceLayerSIMDConsensusIsPassiveVectorSummary) {
+    AILLE::PerformanceLayer layer;
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.50f, 0.80f, 1));
+    signals.push_back(AILLE::ModelSignal(-0.25f, 0.70f, 2));
+    signals.push_back(AILLE::ModelSignal(0.20f, 0.20f, 3));
+
+    AILLE::SIMDConsensusResult result = layer.evaluateConsensusVector(signals, 0.50f);
+
+    ASSERT_TRUE(result.advisory_only);
+    ASSERT_EQ(result.valid_lanes, 2);
+    ASSERT_EQ(result.positive_votes, 1);
+    ASSERT_EQ(result.negative_votes, 1);
+    ASSERT_FLOAT_EQ(result.weighted_sum, 0.225f);
+    ASSERT_FLOAT_EQ(result.total_weight, 1.5f);
+}
+
+TEST(TestHardwareKernelManifestNeverEmitsOrders) {
+    AILLE::PerformanceLayer layer;
+    AILLE::HardwareKernelManifest fpga = layer.describeHardwareTarget(AILLE::HardwareTarget::FPGA);
+    AILLE::HardwareKernelManifest asic = layer.describeHardwareTarget(AILLE::HardwareTarget::ASIC);
+
+    ASSERT_TRUE(fpga.advisory_only);
+    ASSERT_FALSE(fpga.emits_orders);
+    ASSERT_TRUE(fpga.supports_fixed_point);
+    ASSERT_TRUE(fpga.supports_streaming_ipc);
+    ASSERT_TRUE(fpga.kernel_name.find("fpga") != std::string::npos);
+
+    ASSERT_TRUE(asic.advisory_only);
+    ASSERT_FALSE(asic.emits_orders);
+    ASSERT_TRUE(asic.supports_fixed_point);
+    ASSERT_TRUE(asic.execution_model.find("advisory") != std::string::npos);
+}
+
 TEST(TestVersionConstant) {
     ASSERT_TRUE(AILLE::AILLE_VERSION != nullptr);
     ASSERT_TRUE(std::string(AILLE::AILLE_VERSION).length() > 0);
@@ -454,6 +503,9 @@ int main() {
     RUN_TEST(TestMaxPositionClampForHFT);
     RUN_TEST(TestFallbackBufferAccumulation);
     RUN_TEST(TestEmptySignals);
+    RUN_TEST(TestPerformanceLayerPublishesAdvisoryIPCEnvelope);
+    RUN_TEST(TestPerformanceLayerSIMDConsensusIsPassiveVectorSummary);
+    RUN_TEST(TestHardwareKernelManifestNeverEmitsOrders);
     RUN_TEST(TestVersionConstant);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
