@@ -11,12 +11,14 @@
 #include <cmath>
 #include <string>
 #include <functional>
+#include <memory>
 
 // Include the library to test
 #include "../aille.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
+#include "../ailee_plugins/plugins/alerts/news/BreakingNewsAlertAdapter.cpp"
 
 // Simple Test Framework
 int tests_run = 0;
@@ -124,6 +126,58 @@ TEST(TestRobinhoodAlertAdapterRegistersWithoutExecutionProvider) {
     decision.final_value = -0.25f;
     decision.confidence = 0.55f;
     ASSERT_TRUE(adapter->alertDecision(decision, "HOOD", "fallback-alert"));
+}
+
+TEST(TestBreakingNewsAlertAdapterEnrichesBuySellHoldAlerts) {
+    using namespace AILLE::Plugins;
+    using namespace AILLE::Plugins::News;
+
+    std::vector<BreakingNewsItem> items;
+    items.push_back(BreakingNewsItem(
+        "Wall Street Journal",
+        "Company announces major supply agreement",
+        "https://www.wsj.com/",
+        "bullish",
+        1));
+
+    auto provider = std::make_shared<StaticBreakingNewsProvider>(items);
+    BreakingNewsAlertAdapter adapter(provider);
+
+    TradingAlert alert;
+    alert.symbol = "AAPL";
+    alert.side = AlertSide::ALERT_BUY;
+    alert.confidence = 0.90f;
+    alert.signal_value = 0.70f;
+    alert.severity = "info";
+    alert.message = "Passive trading alert: validated AILLE decision; no order executed.";
+    alert.client_ref = "news-alert-1";
+    alert.timestamp_ns = 2;
+
+    TradingAlert enriched = adapter.enrichAlert(alert);
+    ASSERT_TRUE(enriched.message.find("Breaking news context") != std::string::npos);
+    ASSERT_TRUE(enriched.message.find("Wall Street Journal") != std::string::npos);
+    ASSERT_TRUE(enriched.side == AlertSide::ALERT_BUY);
+    ASSERT_TRUE(enriched.severity == "info");
+
+    alert.side = AlertSide::ALERT_SELL;
+    enriched = adapter.enrichAlert(alert);
+    ASSERT_TRUE(enriched.side == AlertSide::ALERT_SELL);
+    ASSERT_TRUE(enriched.severity == "warning");
+
+    alert.side = AlertSide::ALERT_HOLD;
+    alert.severity = "warning";
+    enriched = adapter.enrichAlert(alert);
+    ASSERT_TRUE(enriched.side == AlertSide::ALERT_HOLD);
+    ASSERT_TRUE(enriched.message.find("Company announces") != std::string::npos);
+}
+
+TEST(TestBreakingNewsAlertAdapterRegistersAsOptionalAlertOnly) {
+    auto& registry = AILLE::Plugins::PluginRegistry::instance();
+    ASSERT_TRUE(registry.hasTradingAlertAdapter("breaking-news-alerts"));
+    ASSERT_FALSE(registry.hasExecutionProvider("breaking-news-alerts"));
+
+    auto adapter = registry.createTradingAlertAdapter("breaking-news-alerts");
+    ASSERT_TRUE(adapter->name() == "breaking-news-alerts");
 }
 
 TEST(TestConfigurationDefaults) {
@@ -383,6 +437,8 @@ int main() {
     RUN_TEST(TestTradingAlertAdapterBuildsPassiveBuyAlert);
     RUN_TEST(TestTradingAlertAdapterRejectedDecisionIsHoldAlert);
     RUN_TEST(TestRobinhoodAlertAdapterRegistersWithoutExecutionProvider);
+    RUN_TEST(TestBreakingNewsAlertAdapterEnrichesBuySellHoldAlerts);
+    RUN_TEST(TestBreakingNewsAlertAdapterRegistersAsOptionalAlertOnly);
     RUN_TEST(TestConfigurationDefaults);
     RUN_TEST(TestSafetyLayer);
     RUN_TEST(TestConsensusLayer);

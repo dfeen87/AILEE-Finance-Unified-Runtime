@@ -437,6 +437,43 @@ See [docs/plugin_registry.md](plugin_registry.md) for the full registry referenc
 
 ---
 
+### Optional Breaking-News Alert Enrichment
+
+The optional `breaking-news-alerts` adapter decorates passive BUY/SELL/HOLD
+alerts with cached headline context from a caller-provided `IBreakingNewsProvider`.
+It is intended for licensed feeds, RSS bridges, or webhook-fed caches from major
+outlets such as the Wall Street Journal, Reuters, Bloomberg, or comparable
+sources. A provider can be linked only in deployments that need news-aware alert
+messages; the AILLE engine and core alert contract do not require it.
+
+```cpp
+#include "ailee_plugins/PluginRegistry.hpp"
+#include "ailee_plugins/plugins/alerts/news/BreakingNewsAlertAdapter.cpp"
+
+using namespace AILLE::Plugins;
+using namespace AILLE::Plugins::News;
+
+std::vector<BreakingNewsItem> headlines = {
+    BreakingNewsItem(
+        "Wall Street Journal",
+        "Company announces major supply agreement",
+        "https://www.wsj.com/",
+        "bullish",
+        /*published_ns=*/1)
+};
+
+auto provider = std::make_shared<StaticBreakingNewsProvider>(headlines);
+BreakingNewsAlertAdapter alerts(provider, /*max_headlines=*/3);
+alerts.alertDecision(decision, "AAPL", "decision-456");
+```
+
+News context is appended to the human-readable alert message. If an
+informational BUY alert includes bearish news, or an informational SELL alert
+includes bullish news, the adapter raises the alert severity to `warning` so an
+operator can review the conflict. HOLD alerts remain passive monitoring events.
+The adapter is registered as `breaking-news-alerts` only when its `.cpp` file is
+linked, and it deliberately does not register as an execution provider.
+
 ## See Also
 
 - [README.md](../README.md) — Framework overview and architecture
