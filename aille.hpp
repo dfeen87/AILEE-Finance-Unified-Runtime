@@ -6,36 +6,23 @@
  * 
  * Copyright (c) 2026 Don Michael Feeney Jr
  * License: MIT (see LICENSE)
- * 
- * USAGE:
- * ------
- * #include "aille.hpp"
- * 
- * AILLE::AILLEEngine engine;
- * std::vector<AILLE::ModelSignal> signals = get_your_model_predictions();
- * AILLE::Decision decision = engine.makeDecision(signals);
- * 
- * No linking, no dependencies, no unnecessary complexity.
  */
 
 #ifndef AILLE_HPP
 #define AILLE_HPP
 
-#include <vector>
-#include <deque>
 #include <cmath>
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <string>
 #include <chrono>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
 #include <ctime>
 #include <mutex>
-#include <unordered_set>
 #include <cstring>
+#include <thread>
 
 // For __builtin_prefetch fallback
 #ifndef __has_builtin
@@ -57,16 +44,51 @@ constexpr int AILLE_VERSION_MINOR = 3;
 constexpr int AILLE_VERSION_PATCH = 0;
 
 // ============================================================================
-// FORWARD DECLARATIONS
+// CORE DATA STRUCTURES AND CONTRACTS
 // ============================================================================
 
-struct ModelSignal;
-struct Decision;
-struct AuditRecord;
-struct AILLEConfig;
-class AILLEEngine;
-class AuditLogger;
-class PerformanceLayer;
+struct alignas(64) SafetyState {
+    bool hardware_fault;
+    bool kill_switch;
+    std::uint8_t _reserved_padding[62];
+
+    SafetyState() : hardware_fault(false), kill_switch(false) {
+        std::memset(_reserved_padding, 0, sizeof(_reserved_padding));
+    }
+};
+static_assert(sizeof(SafetyState) == 64, "SafetyState must be exactly 64 bytes");
+
+struct FPGASafetyContract {
+    bool advisory_only;
+    const bool execution_capability;
+    std::uint8_t _padding[6];
+
+    FPGASafetyContract() : advisory_only(true), execution_capability(false) {
+        std::memset(_padding, 0, sizeof(_padding));
+    }
+};
+static_assert(sizeof(FPGASafetyContract) == 8, "FPGASafetyContract must be exactly 8 bytes");
+
+struct ModelSignal {
+    float value;           // Prediction value
+    float confidence;      // 0.0-1.0
+    uint64_t timestamp_ns;
+    int model_id;
+    std::uint8_t _reserved_padding[12];
+    
+    ModelSignal() : value(0.0f), confidence(0.0f), timestamp_ns(0), model_id(-1) {
+        std::memset(_reserved_padding, 0, sizeof(_reserved_padding));
+    }
+    
+    ModelSignal(float v, float c, int id = 0) 
+        : value(v), confidence(c), model_id(id) {
+        timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch()
+        ).count();
+        std::memset(_reserved_padding, 0, sizeof(_reserved_padding));
+    }
+};
+static_assert(sizeof(ModelSignal) == 32, "ModelSignal must be exactly 32 bytes");
 
 enum DecisionStatus {
     DECISION_VALID,
@@ -76,32 +98,13 @@ enum DecisionStatus {
     ERROR_NO_MODELS
 };
 
-// ============================================================================
-// DATA STRUCTURES
-// ============================================================================
-
-struct ModelSignal {
-    float value;           // Prediction value
-    float confidence;      // 0.0-1.0
-    uint64_t timestamp_ns;
-    int model_id;
-    
-    ModelSignal() : value(0.0f), confidence(0.0f), timestamp_ns(0), model_id(-1) {}
-    
-    ModelSignal(float v, float c, int id = 0) 
-        : value(v), confidence(c), model_id(id) {
-        timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::high_resolution_clock::now().time_since_epoch()
-        ).count();
-    }
-};
-
 struct Decision {
     float final_value;
     DecisionStatus status;
     float confidence;
     int models_agreed;
     bool fallback_used;
+    std::uint8_t _pad1[3];
     uint64_t timestamp_ns;
 
     int contributing_models[AILLE_MAX_MODELS];
@@ -111,7 +114,9 @@ struct Decision {
     Decision() : final_value(0.0f), status(ERROR_NO_MODELS), confidence(0.0f),
                  models_agreed(0), fallback_used(false), timestamp_ns(0),
                  num_contributing_models(0) {
-        reasoning[0] = '\0';
+        std::memset(_pad1, 0, sizeof(_pad1));
+        std::memset(reasoning, 0, sizeof(reasoning));
+        std::memset(contributing_models, 0, sizeof(contributing_models));
     }
 
     void setReasoning(const char* str) {
@@ -123,12 +128,44 @@ struct Decision {
         reasoning[len] = '\0';
     }
 
-    void setReasoning(const std::string& str) {
-        setReasoning(str.c_str());
-    }
-
-    std::string getReasoningString() const { return std::string(reasoning); }
+    const char* getReasoningString() const { return reasoning; }
 };
+
+struct AuditRecord {
+    uint64_t timestamp_ns;        // 8
+    uint64_t decision_id;         // 8
+    DecisionStatus status;        // 4
+    float final_value;            // 4
+    float confidence;             // 4
+    int models_agreed;            // 4
+    bool fallback_used;           // 1
+    std::uint8_t _pad1[3];        // 3 -> 36 bytes
+
+    char reasoning[64];           // 64 -> 100 bytes
+    int contributing_models[10];  // 40 -> 140 bytes
+    char symbol[12];              // 12 -> 152 bytes
+    char strategy_id[16];         // 16 -> 168 bytes
+    char user_id[16];             // 16 -> 184 bytes
+
+    std::uint8_t prev_hash[32];   // 32 -> 216 bytes
+    std::uint8_t _reserved_padding[8]; // 8 -> 224 bytes
+    std::uint8_t hash[32];        // 32 -> 256 bytes
+
+    AuditRecord() : timestamp_ns(0), decision_id(0), status(DECISION_VALID),
+                   final_value(0.0f), confidence(0.0f), models_agreed(0),
+                   fallback_used(false) {
+        std::memset(_pad1, 0, sizeof(_pad1));
+        std::memset(reasoning, 0, sizeof(reasoning));
+        std::memset(contributing_models, 0, sizeof(contributing_models));
+        std::memset(symbol, 0, sizeof(symbol));
+        std::memset(strategy_id, 0, sizeof(strategy_id));
+        std::memset(user_id, 0, sizeof(user_id));
+        std::memset(hash, 0, sizeof(hash));
+        std::memset(prev_hash, 0, sizeof(prev_hash));
+        std::memset(_reserved_padding, 0, sizeof(_reserved_padding));
+    }
+};
+static_assert(sizeof(AuditRecord) == 256, "AuditRecord must be exactly 256 bytes");
 
 struct alignas(64) SignalSoA {
     float values[AILLE_MAX_MODELS];
@@ -163,9 +200,8 @@ struct AILLEConfig {
         max_position_abs(1.0f) {}
 };
 
-
 // ============================================================================
-// OPTIONAL NEXT-GENERATION PERFORMANCE LAYER (PASSIVE / ADVISORY ONLY)
+// PERFORMANCE LAYER DATA STRUCTURES (OPTIONAL)
 // ============================================================================
 
 enum class IPCTransport {
@@ -219,17 +255,21 @@ struct SIMDConsensusResult {
 
 struct HardwareKernelManifest {
     HardwareTarget target;
-    std::string kernel_name;
-    std::string execution_model;
+    char kernel_name[64];
+    char execution_model[128];
     bool supports_fixed_point;
     bool supports_streaming_ipc;
     bool emits_orders;
     bool advisory_only;
 
     HardwareKernelManifest()
-        : target(HardwareTarget::PortableCPU), kernel_name("aille_advisory_kernel"),
-          execution_model("passive risk scoring"), supports_fixed_point(false),
-          supports_streaming_ipc(false), emits_orders(false), advisory_only(true) {}
+        : target(HardwareTarget::PortableCPU), supports_fixed_point(false),
+          supports_streaming_ipc(false), emits_orders(false), advisory_only(true) {
+        std::memset(kernel_name, 0, sizeof(kernel_name));
+        std::memset(execution_model, 0, sizeof(execution_model));
+        std::strncpy(kernel_name, "aille_advisory_kernel", sizeof(kernel_name) - 1);
+        std::strncpy(execution_model, "passive risk scoring", sizeof(execution_model) - 1);
+    }
 };
 
 struct PerformanceLayerConfig {
@@ -272,11 +312,13 @@ public:
         return envelope;
     }
 
+
     [[nodiscard]] SIMDConsensusResult evaluateConsensusVector(
-        const std::vector<ModelSignal>& signals,
+        const ModelSignal* signals, size_t count,
         float min_confidence) const {
         SIMDConsensusResult result;
-        for (const auto& sig : signals) {
+        for (size_t i = 0; i < count; ++i) {
+            const auto& sig = signals[i];
             if (sig.confidence < min_confidence || std::isnan(sig.value) ||
                 std::isinf(sig.value) || std::isnan(sig.confidence) ||
                 std::isinf(sig.confidence)) {
@@ -299,25 +341,25 @@ public:
         manifest.emits_orders = false;
         switch (target) {
             case HardwareTarget::SIMDCPU:
-                manifest.kernel_name = "aille_simd_consensus_advisory";
-                manifest.execution_model = "vectorized CPU lanes for passive consensus scoring";
+                std::strncpy(manifest.kernel_name, "aille_simd_consensus_advisory", sizeof(manifest.kernel_name) - 1);
+                std::strncpy(manifest.execution_model, "vectorized CPU lanes for passive consensus scoring", sizeof(manifest.execution_model) - 1);
                 break;
             case HardwareTarget::FPGA:
-                manifest.kernel_name = "aille_fpga_streaming_risk_advisory";
-                manifest.execution_model = "streaming fixed-latency fabric for mitigation and risk scores";
+                std::strncpy(manifest.kernel_name, "aille_fpga_streaming_risk_advisory", sizeof(manifest.kernel_name) - 1);
+                std::strncpy(manifest.execution_model, "streaming fixed-latency fabric for mitigation and risk scores", sizeof(manifest.execution_model) - 1);
                 manifest.supports_fixed_point = true;
                 manifest.supports_streaming_ipc = true;
                 break;
             case HardwareTarget::ASIC:
-                manifest.kernel_name = "aille_asic_mitigation_advisory";
-                manifest.execution_model = "synthesizable combinational/sequential advisory scoring pipeline";
+                std::strncpy(manifest.kernel_name, "aille_asic_mitigation_advisory", sizeof(manifest.kernel_name) - 1);
+                std::strncpy(manifest.execution_model, "synthesizable combinational/sequential advisory scoring pipeline", sizeof(manifest.execution_model) - 1);
                 manifest.supports_fixed_point = true;
                 manifest.supports_streaming_ipc = true;
                 break;
             case HardwareTarget::PortableCPU:
             default:
-                manifest.kernel_name = "aille_portable_cpu_advisory";
-                manifest.execution_model = "portable scalar passive risk scoring";
+                std::strncpy(manifest.kernel_name, "aille_portable_cpu_advisory", sizeof(manifest.kernel_name) - 1);
+                std::strncpy(manifest.execution_model, "portable scalar passive risk scoring", sizeof(manifest.execution_model) - 1);
                 break;
         }
         return manifest;
@@ -368,30 +410,11 @@ private:
         }
     }
     
-    // smoothPosition maps a raw signal to [-1, 1] via tanh.
-    // The default scale=100.0f intentionally saturates to ±1.0 for direction-only
-    // output. Callers wanting magnitude sensitivity should lower the scale via
-    // AILLEConfig settings.
     float smoothPosition(float signal, float scale = 100.0f) const {
         float bounded = std::tanh(signal * scale);
         return std::clamp(bounded, -config.max_position_abs, config.max_position_abs);
     }
     
-    std::vector<ModelSignal> applySafetyLayer(const std::vector<ModelSignal>& signals) {
-        std::vector<ModelSignal> valid;
-        valid.reserve(signals.size());
-        for (const auto& sig : signals) {
-            if (sig.confidence >= config.min_confidence_threshold) {
-                valid.push_back(sig);
-            } else if (sig.confidence >= config.grace_confidence_threshold) {
-                ModelSignal grace_sig = sig;
-                grace_sig.confidence *= 0.8f;
-                valid.push_back(grace_sig);
-            }
-        }
-        return valid;
-    }
-
     void applySafetyLayerFast(const ModelSignal* signals, size_t count, SignalSoA& valid) const {
         for (size_t i = 0; i < count; ++i) {
             const auto& sig = signals[i];
@@ -411,52 +434,8 @@ private:
         }
     }
     
-    bool checkConsensus(const std::vector<ModelSignal>& valid_signals,
-                       float& consensus_value, int& models_agreed) {
-        if (valid_signals.size() < static_cast<size_t>(config.min_models_required)) {
-            models_agreed = 0;
-            return false;
-        }
-        
-        std::vector<float> values;
-        values.reserve(valid_signals.size());
-        for (const auto& sig : valid_signals) {
-            values.push_back(sig.value);
-        }
-        
-        const size_t median_index = values.size() / 2;
-        std::nth_element(values.begin(), values.begin() + median_index, values.end());
-        float median = values[median_index];
-        float median_sign = (median >= 0) ? 1.0f : -1.0f;
-        
-        int agreement_count = 0;
-        for (float val : values) {
-            if (((val >= 0) ? 1.0f : -1.0f) == median_sign) agreement_count++;
-        }
-        
-        models_agreed = agreement_count;
-        float agreement_ratio = static_cast<float>(agreement_count) / values.size();
-        
-        if (agreement_ratio >= config.sign_agreement_threshold && 
-            agreement_count >= config.min_models_required) {
-            float weighted_sum = 0.0f;
-            float total_weight = 0.0f;
-            for (const auto& sig : valid_signals) {
-                if (((sig.value >= 0) ? 1.0f : -1.0f) == median_sign) {
-                    weighted_sum += sig.value * sig.confidence;
-                    total_weight += sig.confidence;
-                }
-            }
-            if (total_weight > 0.0f) {
-                consensus_value = weighted_sum / total_weight;
-                return true;
-            }
-        }
-        return false;
-    }
-    
     bool checkConsensusFast(const SignalSoA& valid_signals,
-                       float& consensus_value, int& models_agreed) {
+                       float& consensus_value, int& models_agreed) const {
         if (valid_signals.count < static_cast<size_t>(config.min_models_required)) {
             models_agreed = 0;
             return false;
@@ -544,19 +523,13 @@ private:
         return ((fb >= 0) ? 1.0f : -1.0f) * config.fallback_position_scale;
     }
     
-    bool kill_switch_engaged_ = false;
-    bool hardware_fault_detected_ = false;
+    SafetyState* safety_state_ = nullptr;
 
 public:
-    AILLEEngine() : fallback_head_(0), fallback_count_(0), kill_switch_engaged_(false), hardware_fault_detected_(false) {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), kill_switch_engaged_(false), hardware_fault_detected_(false) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr) {}
     
-    void engageKillSwitch() noexcept { kill_switch_engaged_ = true; }
-    void declareHardwareFault() noexcept { hardware_fault_detected_ = true; }
-
-    [[nodiscard]] Decision makeDecision(const std::vector<ModelSignal>& model_signals) {
-        return makeDecision(model_signals.data(), model_signals.size());
-    }
+    void setSafetyState(SafetyState* state) { safety_state_ = state; }
 
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         std::lock_guard<std::mutex> lock(engine_mtx_);
@@ -565,12 +538,12 @@ public:
             std::chrono::high_resolution_clock::now().time_since_epoch()
         ).count();
 
-        if (kill_switch_engaged_ || hardware_fault_detected_) {
+        if (safety_state_ && (safety_state_->kill_switch || safety_state_->hardware_fault)) {
             decision.status = FALLBACK_ACTIVATED;
             decision.final_value = 0.0f;
             decision.confidence = 0.0f;
             decision.fallback_used = true;
-            decision.setReasoning(hardware_fault_detected_ ? "Hardware fault detected - fallback to zero" : "Kill switch engaged - fallback to zero");
+            decision.setReasoning(safety_state_->hardware_fault ? "Hardware fault detected - fallback to zero" : "Kill switch engaged - fallback to zero");
             return decision;
         }
 
@@ -594,8 +567,6 @@ public:
             process_count = AILLE_MAX_MODELS;
         }
 
-        // Validate inputs. HFT callers can set max_signal_age_ns to enforce
-        // freshness in nanoseconds; the default rejects signals older than 1s.
         for (size_t i = 0; i < process_count; ++i) {
 #if __has_builtin(__builtin_prefetch) || defined(__GNUC__) || defined(__clang__)
             __builtin_prefetch(&model_signals[i + 1], 0, 1);
@@ -722,35 +693,14 @@ public:
 };
 
 // ============================================================================
-// AUDIT LOGGER (OPTIONAL - For Compliance)
+// AUDIT LOGGER
 // ============================================================================
-
-struct AuditRecord {
-    uint64_t timestamp_ns;
-    uint64_t decision_id;
-    DecisionStatus status;
-    float final_value;
-    float confidence;
-    int models_agreed;
-    bool fallback_used;
-    std::string reasoning;
-    std::vector<int> contributing_models;
-    std::string symbol;
-    std::string strategy_id;
-    std::string hash;
-    std::string prev_hash;
-    
-    AuditRecord() : timestamp_ns(0), decision_id(0), status(DECISION_VALID),
-                   final_value(0.0f), confidence(0.0f), models_agreed(0),
-                   fallback_used(false) {}
-};
 
 class AuditLogger {
 private:
     std::ofstream log_file;
-    std::vector<AuditRecord> audit_trail;
     uint64_t next_decision_id;
-    std::string last_hash;
+    std::uint8_t last_hash[32];
     mutable std::mutex mutex_;
     bool flush_on_write_;
 
@@ -758,7 +708,7 @@ private:
         return (value >> bits) | (value << (32 - bits));
     }
 
-    static std::string sha256(const std::string& input) {
+    void computeHashRaw(const AuditRecord& record, std::uint8_t* out_hash) const {
         static constexpr std::array<uint32_t, 64> k = {
             0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
             0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -783,17 +733,25 @@ private:
             0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
         };
 
-        std::vector<uint8_t> data(input.begin(), input.end());
-        uint64_t bit_len = static_cast<uint64_t>(data.size()) * 8;
-        data.push_back(0x80);
-        while ((data.size() % 64) != 56) {
-            data.push_back(0);
-        }
-        for (int i = 7; i >= 0; --i) {
-            data.push_back(static_cast<uint8_t>((bit_len >> (i * 8)) & 0xff));
+        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&record);
+        size_t len = 224; // offset up to hash array // Exact offset up to user_id
+
+        uint8_t data[512];
+        std::memcpy(data, ptr, len);
+
+        uint64_t bit_len = static_cast<uint64_t>(len) * 8;
+        data[len] = 0x80;
+        size_t padded_len = len + 1;
+
+        while ((padded_len % 64) != 56) {
+            data[padded_len++] = 0;
         }
 
-        for (size_t chunk = 0; chunk < data.size(); chunk += 64) {
+        for (int i = 7; i >= 0; --i) {
+            data[padded_len++] = static_cast<uint8_t>((bit_len >> (i * 8)) & 0xff);
+        }
+
+        for (size_t chunk = 0; chunk < padded_len; chunk += 64) {
             std::array<uint32_t, 64> w{};
             for (size_t i = 0; i < 16; ++i) {
                 size_t idx = chunk + i * 4;
@@ -849,44 +807,15 @@ private:
             h[7] += hh;
         }
 
-        std::ostringstream out;
-        out << std::hex << std::setfill('0');
-        for (uint32_t value : h) {
-            out << std::setw(8) << value;
+        for (size_t i = 0; i < 8; ++i) {
+            out_hash[i*4]   = (h[i] >> 24) & 0xff;
+            out_hash[i*4+1] = (h[i] >> 16) & 0xff;
+            out_hash[i*4+2] = (h[i] >> 8) & 0xff;
+            out_hash[i*4+3] = h[i] & 0xff;
         }
-        return out.str();
     }
 
-    std::string serializeRecord(const AuditRecord& record) const {
-        std::ostringstream ss;
-        ss << "timestamp_ns=" << record.timestamp_ns << '\x1f'
-           << "decision_id=" << record.decision_id << '\x1f'
-           << "status=" << static_cast<int>(record.status) << '\x1f'
-           << "final_value=" << std::setprecision(10) << record.final_value << '\x1f'
-           << "confidence=" << std::setprecision(10) << record.confidence << '\x1f'
-           << "models_agreed=" << record.models_agreed << '\x1f'
-           << "fallback_used=" << (record.fallback_used ? "1" : "0") << '\x1f'
-           << "reasoning=" << record.reasoning << '\x1f'
-           << "symbol=" << record.symbol << '\x1f'
-           << "strategy_id=" << record.strategy_id << '\x1f'
-           << "prev_hash=" << record.prev_hash << '\x1f'
-           << "contributing_models=" << "";
-        return ss.str();
-    }
-
-    std::string computeHash(const AuditRecord& record) const {
-        std::ostringstream ss;
-        ss << serializeRecord(record);
-        for (size_t i = 0; i < record.contributing_models.size(); ++i) {
-            if (i > 0) {
-                ss << ",";
-            }
-            ss << record.contributing_models[i];
-        }
-        return sha256(ss.str());
-    }
-
-    std::string getTimestamp(uint64_t ns) const {
+    void writeTimestamp(uint64_t ns) {
         time_t seconds = ns / 1000000000ULL;
         struct tm timeinfo;
 #if defined(_WIN32)
@@ -896,23 +825,17 @@ private:
 #endif
         char buffer[80];
         strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
-        return std::string(buffer);
+        log_file << buffer;
     }
 
-    std::string csvEscape(const std::string& value) const {
-        std::string escaped = "\"";
-        for (char c : value) {
-            if (c == '"') {
-                escaped += "\"\"";
-            } else {
-                escaped += c;
-            }
+    void writeHex(const std::uint8_t* data, size_t len) {
+        for (size_t i = 0; i < len; ++i) {
+            log_file << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(data[i]);
         }
-        escaped += "\"";
-        return escaped;
+        log_file << std::dec;
     }
     
-    std::string statusToString(DecisionStatus s) const {
+    const char* statusToString(DecisionStatus s) const {
         switch (s) {
             case DECISION_VALID: return "VALID";
             case REJECTED_LOW_CONFIDENCE: return "REJECTED_CONF";
@@ -923,10 +846,13 @@ private:
     }
     
 public:
-    AuditLogger(bool flush = true) : next_decision_id(1), last_hash("0000000000000000"), flush_on_write_(flush) {}
+    AuditLogger(bool flush = true) : next_decision_id(1), flush_on_write_(flush) {
+        std::memset(last_hash, 0, sizeof(last_hash));
+    }
     
-    explicit AuditLogger(const std::string& filename, bool flush = true)
-        : next_decision_id(1), last_hash("0000000000000000"), flush_on_write_(flush) {
+    explicit AuditLogger(const char* filename, bool flush = true)
+        : next_decision_id(1), flush_on_write_(flush) {
+        std::memset(last_hash, 0, sizeof(last_hash));
         open(filename);
     }
 
@@ -935,7 +861,7 @@ public:
     
     ~AuditLogger() { close(); }
     
-    bool open(const std::string& filename) {
+    bool open(const char* filename) {
         std::lock_guard<std::mutex> lock(mutex_);
         log_file.open(filename, std::ios::app);
         if (!log_file.is_open()) return false;
@@ -951,8 +877,7 @@ public:
         if (log_file.is_open()) log_file.close();
     }
     
-    void logDecision(const Decision& d, const std::string& symbol = "",
-                    const std::string& strategy = "") {
+    void logDecision(const Decision& d, const char* symbol = "", const char* strategy = "") {
         std::lock_guard<std::mutex> lock(mutex_);
         AuditRecord rec;
         rec.timestamp_ns = d.timestamp_ns;
@@ -962,93 +887,45 @@ public:
         rec.confidence = d.confidence;
         rec.models_agreed = d.models_agreed;
         rec.fallback_used = d.fallback_used;
-        rec.reasoning = d.getReasoningString();
-        for (size_t i = 0; i < d.num_contributing_models; ++i) {
-            rec.contributing_models.push_back(d.contributing_models[i]);
+
+        std::strncpy(rec.reasoning, d.getReasoningString(), sizeof(rec.reasoning) - 1);
+
+        for (size_t i = 0; i < d.num_contributing_models && i < 10; ++i) {
+            rec.contributing_models[i] = d.contributing_models[i];
         }
-        rec.symbol = symbol;
-        rec.strategy_id = strategy;
-        rec.prev_hash = last_hash;
-        rec.hash = computeHash(rec);
-        last_hash = rec.hash;
         
-        audit_trail.push_back(rec);
+        if (symbol) std::strncpy(rec.symbol, symbol, sizeof(rec.symbol) - 1);
+        if (strategy) std::strncpy(rec.strategy_id, strategy, sizeof(rec.strategy_id) - 1);
+
+        std::memcpy(rec.prev_hash, last_hash, sizeof(last_hash));
+        computeHashRaw(rec, rec.hash);
         
         if (log_file.is_open()) {
-            std::ostringstream model_list;
-            model_list << "[";
-            for (size_t i = 0; i < rec.contributing_models.size(); ++i) {
-                if (i > 0) {
-                    model_list << ",";
-                }
-                model_list << rec.contributing_models[i];
-            }
-            model_list << "]";
-
-            log_file << getTimestamp(rec.timestamp_ns) << "," << rec.decision_id << ","
+            writeTimestamp(rec.timestamp_ns);
+            log_file << "," << rec.decision_id << ","
                     << statusToString(rec.status) << "," << rec.final_value << ","
                     << rec.confidence << "," << rec.models_agreed << ","
                     << (rec.fallback_used ? "true" : "false") << ","
-                    << csvEscape(rec.reasoning) << ","
-                    << csvEscape(model_list.str()) << ","
-                    << csvEscape(rec.symbol) << ","
-                    << csvEscape(rec.strategy_id) << ","
-                    << rec.hash << "," << rec.prev_hash << "\n";
+                    << "\"" << rec.reasoning << "\","
+                    << "\"[";
+            for (size_t i = 0; i < d.num_contributing_models && i < 10; ++i) {
+                if (i > 0) log_file << ",";
+                log_file << rec.contributing_models[i];
+            }
+            log_file << "]\",\"" << rec.symbol << "\",\""
+                    << rec.strategy_id << "\",";
+            writeHex(rec.hash, 32);
+            log_file << ",";
+            writeHex(rec.prev_hash, 32);
+            log_file << "\n";
+
             if (flush_on_write_) log_file.flush();
         }
-    }
-    
-    bool verifyIntegrity() const {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (audit_trail.empty()) return true;
-        std::string expected = "0000000000000000";
-        for (const auto& rec : audit_trail) {
-            if (rec.prev_hash != expected) return false;
-            if (rec.hash != computeHash(rec)) return false;
-            expected = rec.hash;
-        }
-        return true;
+
+        std::memcpy(last_hash, rec.hash, sizeof(last_hash));
     }
 };
 
 } // namespace AILLE
 
 #endif // AILLE_HPP
-
-/*
- * ============================================================================
- * QUICK START EXAMPLE
- * ============================================================================
- * 
- * #include "aille.hpp"
- * 
- * int main() {
- *     // Step 1: Create engine
- *     AILLE::AILLEEngine engine;
- *     
- *     // Step 2: Get your model predictions
- *     std::vector<AILLE::ModelSignal> signals;
- *     signals.push_back(AILLE::ModelSignal(0.05f, 0.85f, 0));  // Model 0
- *     signals.push_back(AILLE::ModelSignal(0.03f, 0.72f, 1));  // Model 1
- *     signals.push_back(AILLE::ModelSignal(0.04f, 0.68f, 2));  // Model 2
- *     
- *     // Step 3: Get validated decision
- *     AILLE::Decision decision = engine.makeDecision(signals);
- *     
- *     // Step 4: Act on it
- *     if (decision.status == AILLE::DECISION_VALID) {
- *         execute_trade(decision.final_value);
- *     }
- *     
- *     return 0;
- * }
- * 
- * ============================================================================
- * COMPILE & RUN
- * ============================================================================
- * 
- * g++ -std=c++17 -O3 your_trading_system.cpp -o trader
- * ./trader
- * 
- * That's it. No linking. No external libraries. Just works.
- */

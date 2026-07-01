@@ -56,7 +56,7 @@ public:
 
     Decision evaluate(const std::vector<ModelSignal>& signals, const AILLEConfig& config) override {
         engine_.setConfig(config);
-        return engine_.makeDecision(signals);
+        return engine_.makeDecision(signals.data(), signals.size());
     }
 
     std::string backendName() const override {
@@ -75,8 +75,8 @@ public:
         // In a real implementation, this would map to PCIe/AXI memory and invoke the FPGA kernel.
         // We simulate the output using the fallback engine for now.
         fallback_engine_.setConfig(config);
-        Decision d = fallback_engine_.makeDecision(signals);
-        d.setReasoning(std::string(d.getReasoningString()) + " [FPGA Accelerated]");
+        Decision d = fallback_engine_.makeDecision(signals.data(), signals.size());
+        char buf[128]; snprintf(buf, sizeof(buf), "%s [FPGA Accelerated]", d.getReasoningString()); d.setReasoning(buf);
         return d;
     }
 
@@ -93,8 +93,8 @@ public:
 
     Decision evaluate(const std::vector<ModelSignal>& signals, const AILLEConfig& config) override {
         engine_.setConfig(config);
-        Decision d = engine_.makeDecision(signals);
-        d.setReasoning(std::string(d.getReasoningString()) + " [Simulated]");
+        Decision d = engine_.makeDecision(signals.data(), signals.size());
+        char buf[128]; snprintf(buf, sizeof(buf), "%s [Simulated]", d.getReasoningString()); d.setReasoning(buf);
         return d;
     }
 
