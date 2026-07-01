@@ -27,6 +27,7 @@
 #include "../extensions/aille_copper.hpp"
 #include "../extensions/aille_natgas.hpp"
 #include "../extensions/aille_platinum.hpp"
+#include "../extensions/aille_forex_usd.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1427,6 +1428,72 @@ int main() {
     } else {
         tests_run++;
     }
+
+    std::cout << "\nRunning FOREX-USD Module Tests...\n";
+
+    if (sizeof(AILLE::ForexUSDState) != 64) {
+        std::cerr << "FAIL: ForexUSDState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::ForexUSDAdvisory) != 64) {
+        std::cerr << "FAIL: ForexUSDAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::ForexUSDObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: ForexUSDObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::ForexUSDState forex_usd_state;
+    forex_usd_state.usd_index = 104.5f;
+    forex_usd_state.realized_vol = 0.05f;
+    forex_usd_state.drawdown = 0.10f;
+    forex_usd_state.trend_score = -0.2f;
+    forex_usd_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::ForexUSDAdvisory forex_usd_adv = AILLE::evaluate_forex_usd_state(forex_usd_state, &safety);
+
+    if (forex_usd_adv.risk_score < 0.0f || forex_usd_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: FOREX-USD Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::ForexUSDAdvisory forex_usd_adv_ks = AILLE::evaluate_forex_usd_state(forex_usd_state, &safety);
+    if (!forex_usd_adv_ks.risk_elevated || forex_usd_adv_ks.recommended_weight > 0.0f || forex_usd_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: FOREX-USD Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::ForexUSDAdvisory engine_forex_usd_adv;
+    engine.set_forex_usd_state(&forex_usd_state);
+    engine.set_forex_usd_advisory(&engine_forex_usd_adv);
+
+    AILLE::Decision forex_usd_d = engine.makeDecision(signals.data(), signals.size());
+    (void)forex_usd_d; // Suppress unused warning
+
+    if (engine_forex_usd_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update ForexUSDAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
 
