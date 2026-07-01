@@ -16,6 +16,7 @@
 // Include the library to test
 #include "../aille.hpp"
 #include "../extensions/aille_hal.hpp"
+#include "../extensions/aille_ingest.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -569,6 +570,103 @@ TEST(TestFailClosedHardwareFault) {
 }
 
 
+TEST(TestIngestPacketView) {
+    uint8_t data[] = {0x01, 0x02, 0x03};
+    AILLE::Ingest::DMARXDescriptor desc;
+    desc.physical_addr = 0x1000;
+    desc.length = 3;
+    desc.status_flags = 0;
+    desc.metadata = 0;
+    desc.hardware_timestamp = 123456789;
+
+    AILLE::Ingest::PacketView view(data, 3, &desc);
+
+    ASSERT_EQ(view.length(), 3);
+    ASSERT_EQ(view.data()[0], 0x01);
+    ASSERT_TRUE(view.descriptor() != nullptr);
+    ASSERT_EQ(view.descriptor()->hardware_timestamp, 123456789);
+    ASSERT_FALSE(view.empty());
+}
+
+TEST(TestIngestFIXParser) {
+    std::string msg = "48=12345\x01""44=100.5\x01""38=50\x01""54=1\x01";
+    AILLE::Ingest::PacketView view(reinterpret_cast<const uint8_t*>(msg.c_str()), msg.length());
+
+    auto event = AILLE::Ingest::FIXParser::parse(view);
+
+    ASSERT_TRUE(event.is_valid);
+    ASSERT_EQ(event.symbol_id, 12345);
+    ASSERT_FLOAT_EQ(event.price, 100.5f);
+    ASSERT_FLOAT_EQ(event.quantity, 50.0f);
+    ASSERT_EQ(event.side, 1);
+}
+
+TEST(TestIngestNoExecutionCapability) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    AILLE::Ingest::InlineRiskFeedParser<AILLE::Ingest::FIXParser> parser(runtime);
+
+    ASSERT_TRUE(runtime.isAdvisoryOnly());
+}
+
+TEST(TestIngestHumanConfirmationBoundary) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    AILLE::Ingest::InlineRiskFeedParser<AILLE::Ingest::FIXParser> parser(runtime);
+
+    ASSERT_TRUE(runtime.requiresHumanConfirmation());
+}
+
+TEST(TestIngestSafetyLayerFinalVeto) {
+    AILLE::AILLEConfig config;
+    config.min_confidence_threshold = 0.99f; // Require very high confidence
+    config.grace_confidence_threshold = 0.98f;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    AILLE::Ingest::InlineRiskFeedParser<AILLE::Ingest::FIXParser> parser(runtime);
+
+    // Mock FIX message: 48=12345|44=100.5|38=50|54=1|
+    // The parser assigns 0.95f confidence. This should be vetoed by safety layer.
+    std::string msg = "48=12345\x01""44=100.5\x01""38=50\x01""54=1\x01";
+    AILLE::Ingest::PacketView view(reinterpret_cast<const uint8_t*>(msg.c_str()), msg.length());
+
+    AILLE::Decision d = parser.processPacket(view);
+
+    ASSERT_EQ(d.status, AILLE::REJECTED_LOW_CONFIDENCE);
+    ASSERT_FLOAT_EQ(d.final_value, 0.0f);
+}
+
+TEST(TestIngestKillSwitchReducesRisk) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    AILLE::Ingest::InlineRiskFeedParser<AILLE::Ingest::FIXParser> parser(runtime);
+
+    runtime.engageKillSwitch();
+
+    std::string msg = "48=12345\x01""44=100.5\x01""38=50\x01""54=1\x01";
+    AILLE::Ingest::PacketView view(reinterpret_cast<const uint8_t*>(msg.c_str()), msg.length());
+
+    AILLE::Decision d = parser.processPacket(view);
+
+    ASSERT_EQ(d.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(d.final_value, 0.0f);
+}
+
+TEST(TestIngestFailClosedHardwareFault) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    AILLE::Ingest::InlineRiskFeedParser<AILLE::Ingest::FIXParser> parser(runtime);
+
+    runtime.declareHardwareFault();
+
+    std::string msg = "48=12345\x01""44=100.5\x01""38=50\x01""54=1\x01";
+    AILLE::Ingest::PacketView view(reinterpret_cast<const uint8_t*>(msg.c_str()), msg.length());
+
+    AILLE::Decision d = parser.processPacket(view);
+
+    ASSERT_EQ(d.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(d.final_value, 0.0f);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -602,6 +700,13 @@ int main() {
     RUN_TEST(TestSafetyLayerFinalVeto);
     RUN_TEST(TestKillSwitchReducesRisk);
     RUN_TEST(TestFailClosedHardwareFault);
+    RUN_TEST(TestIngestPacketView);
+    RUN_TEST(TestIngestFIXParser);
+    RUN_TEST(TestIngestNoExecutionCapability);
+    RUN_TEST(TestIngestHumanConfirmationBoundary);
+    RUN_TEST(TestIngestSafetyLayerFinalVeto);
+    RUN_TEST(TestIngestKillSwitchReducesRisk);
+    RUN_TEST(TestIngestFailClosedHardwareFault);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
