@@ -17,6 +17,7 @@
 #include "../aille.hpp"
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
+#include "../extensions/aille_enclave.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -667,6 +668,88 @@ TEST(TestIngestFailClosedHardwareFault) {
     ASSERT_FLOAT_EQ(d.final_value, 0.0f);
 }
 
+TEST(TestHardwareKillSwitchAdvisoryOnly) {
+    AILLE::Enclave::HardwareKillSwitch ks;
+    ASSERT_TRUE(ks.isAdvisoryOnly());
+    ASSERT_TRUE(ks.requiresHumanConfirmation());
+}
+
+TEST(TestHardwareKillSwitchLimits) {
+    AILLE::Enclave::RiskLimits limits;
+    limits.max_exposure = 100.0f;
+    limits.max_loss = 50.0f;
+    limits.max_rule_violations = 2;
+    AILLE::Enclave::HardwareKillSwitch ks(limits);
+
+    AILLE::Decision d;
+    d.status = AILLE::DECISION_VALID;
+    d.final_value = 0.5f;
+
+    // Normal behavior
+    AILLE::Decision out1 = ks.enforce(d);
+    ASSERT_EQ(out1.status, AILLE::DECISION_VALID);
+    ASSERT_FLOAT_EQ(out1.final_value, 0.5f);
+
+    // Limit breached (exposure)
+    ks.updateExposure(150.0f);
+    AILLE::Decision out2 = ks.enforce(d);
+    ASSERT_EQ(out2.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(out2.final_value, 0.0f);
+    ASSERT_TRUE(out2.getReasoningString().find("Risk limits breached") != std::string::npos);
+
+    // Reset and check kill switch engagement
+    ks.updateExposure(50.0f);
+    ks.engageKillSwitch();
+    AILLE::Decision out3 = ks.enforce(d);
+    ASSERT_EQ(out3.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(out3.final_value, 0.0f);
+    ASSERT_TRUE(out3.getReasoningString().find("Kill switch engaged") != std::string::npos);
+}
+
+TEST(TestEnclaveHashChain) {
+    AILLE::Enclave::EnclaveLogger logger(AILLE::Enclave::EnclaveType::SGX);
+
+    logger.logDecision(12345, "input_digest_1", 0.5f);
+    logger.logDecision(12346, "input_digest_2", 0.6f);
+
+    ASSERT_TRUE(logger.verifyIntegrity());
+
+    const auto& log = logger.getLog();
+    ASSERT_EQ(log.size(), 2);
+    if (log[0].prev_hash != "0000000000000000") {
+        throw std::runtime_error("Assertion failed: log[0].prev_hash != \"0000000000000000\"");
+    }
+    if (log[1].prev_hash != log[0].hash) {
+        throw std::runtime_error("Assertion failed: log[1].prev_hash != log[0].hash");
+    }
+
+    // Hash chain verification string construction check
+    // The computeHash combines: rec.timestamp_ns << "|" << rec.input_digest << "|" << rec.output_value << "|" << rec.prev_hash
+    std::hash<std::string> hasher;
+    std::stringstream expected_input;
+    expected_input << "12345|input_digest_1|0.5|0000000000000000";
+    std::stringstream expected_hash;
+    expected_hash << std::hex << hasher(expected_input.str());
+
+    if (log[0].hash != expected_hash.str()) {
+        throw std::runtime_error("Assertion failed: log[0].hash != expected_hash.str()");
+    }
+}
+
+TEST(TestEnclaveRemoteAttestation) {
+    AILLE::Enclave::EnclaveLogger sgx_logger(AILLE::Enclave::EnclaveType::SGX);
+    sgx_logger.logDecision(12345, "digest", 0.5f);
+    ASSERT_TRUE(sgx_logger.getLog()[0].signature.find("SGX_SIG") != std::string::npos);
+
+    AILLE::Enclave::EnclaveLogger sev_logger(AILLE::Enclave::EnclaveType::SEV);
+    sev_logger.logDecision(12345, "digest", 0.5f);
+    ASSERT_TRUE(sev_logger.getLog()[0].signature.find("SEV_SIG") != std::string::npos);
+
+    AILLE::Enclave::EnclaveLogger none_logger(AILLE::Enclave::EnclaveType::NONE);
+    none_logger.logDecision(12345, "digest", 0.5f);
+    ASSERT_TRUE(none_logger.getLog()[0].signature.find("UNVERIFIED") != std::string::npos);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -707,6 +790,10 @@ int main() {
     RUN_TEST(TestIngestSafetyLayerFinalVeto);
     RUN_TEST(TestIngestKillSwitchReducesRisk);
     RUN_TEST(TestIngestFailClosedHardwareFault);
+    RUN_TEST(TestHardwareKillSwitchAdvisoryOnly);
+    RUN_TEST(TestHardwareKillSwitchLimits);
+    RUN_TEST(TestEnclaveHashChain);
+    RUN_TEST(TestEnclaveRemoteAttestation);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
