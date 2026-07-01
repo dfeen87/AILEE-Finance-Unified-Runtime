@@ -18,6 +18,7 @@
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
 #include "../extensions/aille_enclave.hpp"
+#include "../extensions/aille_observability.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -750,6 +751,102 @@ TEST(TestEnclaveRemoteAttestation) {
     ASSERT_TRUE(none_logger.getLog()[0].signature.find("UNVERIFIED") != std::string::npos);
 }
 
+TEST(TestObservabilityHealthStreamRingBuffer) {
+    AILLE::Observability::HealthStreamRingBuffer<3> buffer;
+    AILLE::Observability::MetricsSnapshot snap1;
+    snap1.total_decisions = 1;
+    AILLE::Observability::MetricsSnapshot snap2;
+    snap2.total_decisions = 2;
+    AILLE::Observability::MetricsSnapshot snap3;
+    snap3.total_decisions = 3;
+
+    ASSERT_TRUE(buffer.try_push(snap1));
+    ASSERT_TRUE(buffer.try_push(snap2));
+    ASSERT_FALSE(buffer.try_push(snap3)); // Should be full (capacity 3, but ring buffer drops if next is read)
+    // Wait, ring buffer with capacity 3 can only hold 2 elements if we use (write+1)%capacity == read
+
+    AILLE::Observability::MetricsSnapshot out;
+    ASSERT_TRUE(buffer.try_pop(out));
+    ASSERT_EQ(out.total_decisions, 1);
+
+    // Now we can push snap3
+    ASSERT_TRUE(buffer.try_push(snap3));
+    ASSERT_TRUE(buffer.try_pop(out));
+    ASSERT_EQ(out.total_decisions, 2);
+}
+
+TEST(TestObservabilityExportPlanePrometheus) {
+    AILLE::Observability::ExportPlane export_plane;
+
+    AILLE::Decision d1;
+    d1.status = AILLE::DECISION_VALID;
+    export_plane.recordDecision(0, d1);
+
+    AILLE::Decision d2;
+    d2.status = AILLE::REJECTED_LOW_CONFIDENCE;
+    export_plane.recordDecision(1, d2);
+
+    std::string prom = export_plane.generatePrometheusExport();
+    ASSERT_TRUE(prom.find("aille_total_decisions 2") != std::string::npos);
+    ASSERT_TRUE(prom.find("aille_valid_decisions 1") != std::string::npos);
+    ASSERT_TRUE(prom.find("aille_fallback_activations 1") != std::string::npos);
+    ASSERT_TRUE(prom.find("aille_rejected_confidence 1") != std::string::npos);
+}
+
+TEST(TestObservabilityNoExecutionCapabilityAdded) {
+    AILLE::Observability::ExportPlane export_plane;
+    ASSERT_TRUE(export_plane.isAdvisoryOnly());
+}
+
+TEST(TestObservabilityHumanConfirmationBoundary) {
+    AILLE::Observability::ExportPlane export_plane;
+    ASSERT_TRUE(export_plane.requiresHumanConfirmation());
+}
+
+TEST(TestObservabilitySafetyLayerFinalVeto) {
+    AILLE::Observability::ExportPlane export_plane;
+    AILLE::Decision d;
+    d.status = AILLE::REJECTED_LOW_CONFIDENCE;
+    d.final_value = 0.5f; // Should be vetoed
+
+    AILLE::Decision vetoed = export_plane.enforceSafetyLayerVeto(d);
+    ASSERT_EQ(vetoed.status, AILLE::REJECTED_LOW_CONFIDENCE);
+    ASSERT_FLOAT_EQ(vetoed.final_value, 0.0f);
+    ASSERT_TRUE(vetoed.fallback_used);
+    ASSERT_TRUE(vetoed.getReasoningString().find("Safety layer veto") != std::string::npos);
+}
+
+TEST(TestObservabilityKillSwitchReducesRisk) {
+    AILLE::Observability::ExportPlane export_plane;
+    export_plane.engageKillSwitch();
+
+    AILLE::Decision d;
+    d.status = AILLE::DECISION_VALID;
+    d.final_value = 0.5f;
+
+    AILLE::Decision safe_decision = export_plane.enforceSafetyLayerVeto(d);
+    ASSERT_EQ(safe_decision.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(safe_decision.final_value, 0.0f);
+    ASSERT_TRUE(safe_decision.fallback_used);
+    ASSERT_TRUE(safe_decision.getReasoningString().find("Kill switch engaged") != std::string::npos);
+}
+
+TEST(TestObservabilityFailClosedHardwareFault) {
+    AILLE::Observability::ExportPlane export_plane;
+    export_plane.declareHardwareFault();
+
+    AILLE::Decision d;
+    d.status = AILLE::DECISION_VALID;
+    d.final_value = 0.5f;
+
+    AILLE::Decision safe_decision = export_plane.enforceSafetyLayerVeto(d);
+    ASSERT_EQ(safe_decision.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(safe_decision.final_value, 0.0f);
+    ASSERT_TRUE(safe_decision.fallback_used);
+    ASSERT_TRUE(safe_decision.getReasoningString().find("Hardware fault detected") != std::string::npos);
+}
+
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -794,6 +891,14 @@ int main() {
     RUN_TEST(TestHardwareKillSwitchLimits);
     RUN_TEST(TestEnclaveHashChain);
     RUN_TEST(TestEnclaveRemoteAttestation);
+
+    RUN_TEST(TestObservabilityHealthStreamRingBuffer);
+    RUN_TEST(TestObservabilityExportPlanePrometheus);
+    RUN_TEST(TestObservabilityNoExecutionCapabilityAdded);
+    RUN_TEST(TestObservabilityHumanConfirmationBoundary);
+    RUN_TEST(TestObservabilitySafetyLayerFinalVeto);
+    RUN_TEST(TestObservabilityKillSwitchReducesRisk);
+    RUN_TEST(TestObservabilityFailClosedHardwareFault);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
