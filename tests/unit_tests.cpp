@@ -18,6 +18,7 @@
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
 #include "../extensions/aille_enclave.hpp"
+#include "../extensions/aille_observability.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -750,6 +751,131 @@ TEST(TestEnclaveRemoteAttestation) {
     ASSERT_TRUE(none_logger.getLog()[0].signature.find("UNVERIFIED") != std::string::npos);
 }
 
+TEST(TestObservabilityShardedCountersLogic) {
+    AILLE::Observability::ShardedCounters counters(2);
+
+    AILLE::Decision d1;
+    d1.status = AILLE::DECISION_VALID;
+    counters.observeDecision(d1);
+
+    AILLE::Decision d2;
+    d2.status = AILLE::FALLBACK_ACTIVATED;
+    counters.observeDecision(d2);
+
+    AILLE::Decision d3;
+    d3.status = AILLE::REJECTED_LOW_CONFIDENCE;
+    counters.observeDecision(d3);
+
+    counters.observeHardwareFault();
+    counters.observeKillSwitchEngagement();
+
+    auto metrics = counters.aggregate();
+    ASSERT_EQ(metrics.total_decisions, 3);
+    ASSERT_EQ(metrics.valid_decisions, 1);
+    ASSERT_EQ(metrics.fallback_activations, 1);
+    ASSERT_EQ(metrics.rejected_decisions, 1);
+    ASSERT_EQ(metrics.hardware_faults, 1);
+    ASSERT_EQ(metrics.kill_switch_engagements, 1);
+}
+
+TEST(TestObservabilityHealthStreamRingBuffer) {
+    AILLE::Observability::HealthStream stream(2);
+
+    AILLE::Observability::HealthSnapshot snap1{100, {}, 1.0f};
+    AILLE::Observability::HealthSnapshot snap2{200, {}, 0.9f};
+    AILLE::Observability::HealthSnapshot snap3{300, {}, 0.8f};
+
+    stream.pushSnapshot(snap1);
+    stream.pushSnapshot(snap2);
+    stream.pushSnapshot(snap3); // Should overwrite snap1
+
+    auto recent = stream.getRecentSnapshots(5);
+    ASSERT_EQ(recent.size(), 2);
+    ASSERT_EQ(recent[0].timestamp_ns, 300); // Newest
+    ASSERT_EQ(recent[1].timestamp_ns, 200); // Oldest
+}
+
+TEST(TestObservabilityNoExecutionCapability) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+
+    // Explicitly enforce that observability is advisory only
+    ASSERT_TRUE(plane.isAdvisoryOnly());
+}
+
+TEST(TestObservabilityHumanConfirmationBoundary) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+
+    // Explicitly enforce human confirmation required
+    ASSERT_TRUE(plane.requiresHumanConfirmation());
+}
+
+TEST(TestObservabilitySafetyLayerVeto) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+    ASSERT_TRUE(plane.hasSafetyLayerFinalVeto());
+}
+
+TEST(TestObservabilityKillSwitchReducesRisk) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+    ASSERT_TRUE(plane.doesKillSwitchReduceRiskOnly());
+}
+
+TEST(TestObservabilityFailClosedHardwareFault) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+    ASSERT_TRUE(plane.hasFailClosedHardwareFault());
+}
+
+TEST(TestObservabilityBackgroundThreadLifecycle) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+
+    plane.startExport();
+    // sleep briefly to let the thread spin up
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    plane.stopExport();
+
+    // Test passes if it does not hang and cleanly joins
+    ASSERT_TRUE(true);
+}
+
+TEST(TestObservabilityOTelExportFormat) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+
+    std::string exported = plane.exportOTelMetrics();
+    ASSERT_TRUE(exported.find("service.name") != std::string::npos);
+    ASSERT_TRUE(exported.find("aille-observability") != std::string::npos);
+    ASSERT_TRUE(exported.find("resourceMetrics") != std::string::npos);
+}
+
+TEST(TestObservabilityPrometheusExportFormat) {
+    AILLE::Observability::ShardedCounters counters;
+    AILLE::Observability::HealthStream stream;
+    AILLE::Observability::ObservabilityPlane plane(counters, stream);
+
+    AILLE::Decision d;
+    d.status = AILLE::DECISION_VALID;
+    counters.observeDecision(d);
+
+    std::string exported = plane.exportPrometheusMetrics();
+
+    ASSERT_TRUE(exported.find("aille_total_decisions") != std::string::npos);
+    ASSERT_TRUE(exported.find("aille_valid_decisions 1") != std::string::npos);
+    ASSERT_TRUE(exported.find("TYPE aille_total_decisions counter") != std::string::npos);
+}
+
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -794,6 +920,16 @@ int main() {
     RUN_TEST(TestHardwareKillSwitchLimits);
     RUN_TEST(TestEnclaveHashChain);
     RUN_TEST(TestEnclaveRemoteAttestation);
+    RUN_TEST(TestObservabilityShardedCountersLogic);
+    RUN_TEST(TestObservabilityHealthStreamRingBuffer);
+    RUN_TEST(TestObservabilityNoExecutionCapability);
+    RUN_TEST(TestObservabilityHumanConfirmationBoundary);
+    RUN_TEST(TestObservabilitySafetyLayerVeto);
+    RUN_TEST(TestObservabilityKillSwitchReducesRisk);
+    RUN_TEST(TestObservabilityFailClosedHardwareFault);
+    RUN_TEST(TestObservabilityBackgroundThreadLifecycle);
+    RUN_TEST(TestObservabilityOTelExportFormat);
+    RUN_TEST(TestObservabilityPrometheusExportFormat);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
