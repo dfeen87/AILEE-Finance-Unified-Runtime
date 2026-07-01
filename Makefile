@@ -44,12 +44,19 @@ rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_res
 
 # Clean build artifacts
 clean:
-	rm -f demo demo_debug demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv
+	rm -f demo demo_debug demo_hotpath demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv
 	@echo "✓ Cleaned build artifacts"
 
 # Run the demo
 run: demo
 	./demo
+
+# Hotpath build
+hotpath: $(EXAMPLE_SRC) aille.hpp
+	$(CXX) -std=c++17 -Wall -Wextra $(INCLUDES) -fno-exceptions -DAILLE_HOTPATH -O3 -march=native $(EXAMPLE_SRC) -o demo_hotpath
+	@echo ""
+	@echo "✓ Hotpath build ready"
+	@echo ""
 
 # Build and run unit tests
 test_suite: $(UNIT_TESTS_SRC) aille.hpp
