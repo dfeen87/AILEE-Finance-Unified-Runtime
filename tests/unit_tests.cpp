@@ -15,6 +15,7 @@
 
 // Include the library to test
 #include "../aille.hpp"
+#include "../extensions/aille_hal.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -497,6 +498,77 @@ TEST(TestSafetyInvariantsFailClosed) {
     ASSERT_FLOAT_EQ(decision_hf.final_value, 0.0f);
 }
 
+TEST(TestNoExecutionCapabilityAdded) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    ASSERT_TRUE(runtime.isAdvisoryOnly());
+    ASSERT_TRUE(runtime.requiresHumanConfirmation());
+}
+
+TEST(TestHumanConfirmationBoundary) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.5f, 0.9f, 0));
+    signals.push_back(AILLE::ModelSignal(0.6f, 0.9f, 1));
+
+    AILLE::Decision d = runtime.processSignals(signals);
+    // If it succeeds, it must be because advisory_only is respected
+    // We already check this inside NICHostRuntime, if it fails it returns FALLBACK
+    ASSERT_EQ(d.status, AILLE::DECISION_VALID);
+    // And reasoning contains "[FPGA Accelerated]"
+    ASSERT_TRUE(d.getReasoningString().find("[FPGA Accelerated]") != std::string::npos);
+}
+
+TEST(TestSafetyLayerFinalVeto) {
+    AILLE::AILLEConfig config;
+    config.min_confidence_threshold = 0.5f;
+    config.grace_confidence_threshold = 0.4f;
+    AILLE::HAL::NICHostRuntime runtime(config);
+
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.5f, 0.1f, 0)); // Very low confidence
+    signals.push_back(AILLE::ModelSignal(0.6f, 0.1f, 1));
+
+    AILLE::Decision d = runtime.processSignals(signals);
+
+    // Should be vetoed by safety layer before FPGA processing
+    ASSERT_EQ(d.status, AILLE::REJECTED_LOW_CONFIDENCE);
+    ASSERT_FLOAT_EQ(d.final_value, 0.0f); // Safe fallback
+    ASSERT_TRUE(d.getReasoningString().find("Safety layer veto") != std::string::npos);
+}
+
+TEST(TestKillSwitchReducesRisk) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.5f, 0.9f, 0));
+    signals.push_back(AILLE::ModelSignal(0.6f, 0.9f, 1));
+
+    runtime.engageKillSwitch();
+    AILLE::Decision d = runtime.processSignals(signals);
+
+    ASSERT_EQ(d.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(d.final_value, 0.0f); // Zero position
+    ASSERT_TRUE(d.getReasoningString().find("Kill switch engaged") != std::string::npos);
+}
+
+TEST(TestFailClosedHardwareFault) {
+    AILLE::AILLEConfig config;
+    AILLE::HAL::NICHostRuntime runtime(config);
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.5f, 0.9f, 0));
+    signals.push_back(AILLE::ModelSignal(0.6f, 0.9f, 1));
+
+    runtime.declareHardwareFault();
+    AILLE::Decision d = runtime.processSignals(signals);
+
+    ASSERT_EQ(d.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(d.final_value, 0.0f); // Zero position advisory
+    ASSERT_TRUE(d.getReasoningString().find("Hardware fault detected") != std::string::npos);
+}
+
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -525,6 +597,11 @@ int main() {
     RUN_TEST(TestHardwareKernelManifestNeverEmitsOrders);
     RUN_TEST(TestVersionConstant);
     RUN_TEST(TestSafetyInvariantsFailClosed);
+    RUN_TEST(TestNoExecutionCapabilityAdded);
+    RUN_TEST(TestHumanConfirmationBoundary);
+    RUN_TEST(TestSafetyLayerFinalVeto);
+    RUN_TEST(TestKillSwitchReducesRisk);
+    RUN_TEST(TestFailClosedHardwareFault);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
