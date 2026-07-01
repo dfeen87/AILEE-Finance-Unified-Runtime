@@ -116,7 +116,7 @@ protected:
         }
 
         if (decision.reasoning[0] != '\0') {
-            alert.message += " Reason: " + decision.getReasoningString();
+            alert.message += " Reason: " + std::string(decision.getReasoningString());
         }
 
         return alert;

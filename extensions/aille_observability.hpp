@@ -35,6 +35,7 @@ struct alignas(64) CoreMetrics {
     std::atomic<uint64_t> rejected_confidence{0};
     std::atomic<uint64_t> rejected_consensus{0};
     std::atomic<uint64_t> invalid_inputs{0};
+    std::uint8_t _reserved_padding[8];
 
     // Seqlock write
     void begin_write() {
@@ -56,6 +57,18 @@ struct MetricsSnapshot {
     uint64_t rejected_consensus = 0;
     uint64_t invalid_inputs = 0;
 };
+
+// Page-aligned deterministic metrics batch container
+struct alignas(4096) OTelBatchBuffer {
+    MetricsSnapshot snapshots[70];   // 70 * 56 = 3920 bytes
+    std::uint32_t count;             // 4 bytes
+    std::uint8_t _reserved_padding[4096 - sizeof(MetricsSnapshot) * 70 - sizeof(std::uint32_t)];
+
+    OTelBatchBuffer() : count(0) {
+        std::memset(_reserved_padding, 0, sizeof(_reserved_padding));
+    }
+};
+static_assert(sizeof(OTelBatchBuffer) == 4096, "OTelBatchBuffer must be exactly 4096 bytes");
 
 // Backpressure-safe ring buffer for health stream snapshots
 template <size_t Capacity = 1024>
@@ -93,8 +106,6 @@ class ExportPlane {
 private:
     std::array<CoreMetrics, MAX_CORES> sharded_metrics;
 
-    std::atomic<bool> kill_switch_engaged_{false};
-    std::atomic<bool> hardware_fault_detected_{false};
 
     std::thread export_thread;
     std::atomic<bool> running_{false};
@@ -102,8 +113,13 @@ private:
 public:
     HealthStreamRingBuffer<1024> health_stream;
 
-    ExportPlane() {}
+    AILLE::SafetyState* safety_state_ = nullptr;
+
+    ExportPlane() : safety_state_(nullptr) {}
+    explicit ExportPlane(AILLE::SafetyState* state) : safety_state_(state) {}
     ~ExportPlane() { stop(); }
+
+    void setSafetyState(AILLE::SafetyState* state) { safety_state_ = state; }
 
     void start() {
         if (!running_.exchange(true)) {
@@ -211,12 +227,9 @@ public:
     bool isAdvisoryOnly() const noexcept { return true; }
     bool requiresHumanConfirmation() const noexcept { return true; }
 
-    void engageKillSwitch() noexcept { kill_switch_engaged_.store(true, std::memory_order_release); }
-    void declareHardwareFault() noexcept { hardware_fault_detected_.store(true, std::memory_order_release); }
-
     AILLE::Decision enforceSafetyLayerVeto(AILLE::Decision input_decision) const {
         // Enforce fail-closed behavior on hardware fault
-        if (hardware_fault_detected_.load(std::memory_order_acquire)) {
+        if (safety_state_ && safety_state_->hardware_fault) {
             AILLE::Decision safe_decision = input_decision;
             safe_decision.status = AILLE::FALLBACK_ACTIVATED;
             safe_decision.final_value = 0.0f; // zero-position advisory
@@ -226,7 +239,7 @@ public:
         }
 
         // Enforce kill switch: can only reduce/neutralize advisory
-        if (kill_switch_engaged_.load(std::memory_order_acquire)) {
+        if (safety_state_ && safety_state_->kill_switch) {
             AILLE::Decision safe_decision = input_decision;
             safe_decision.status = AILLE::FALLBACK_ACTIVATED;
             safe_decision.final_value = 0.0f; // reduce risk to zero
@@ -243,7 +256,9 @@ public:
             AILLE::Decision veto_decision = input_decision;
             veto_decision.final_value = 0.0f;
             veto_decision.fallback_used = true;
-            veto_decision.setReasoning(std::string("Safety layer veto: ") + input_decision.getReasoningString());
+            char buf[128];
+            snprintf(buf, sizeof(buf), "Safety layer veto: %s", input_decision.getReasoningString());
+            veto_decision.setReasoning(buf);
             return veto_decision;
         }
 
