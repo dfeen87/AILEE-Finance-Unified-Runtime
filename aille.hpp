@@ -49,6 +49,8 @@ constexpr int AILLE_VERSION_PATCH = 0;
 
 struct BTCState;
 struct BTCAdvisory;
+struct ETHState;
+struct ETHAdvisory;
 
 struct alignas(64) SafetyState {
     bool hardware_fault;
@@ -529,18 +531,25 @@ private:
     SafetyState* safety_state_ = nullptr;
     BTCState* btc_state_ = nullptr;
     BTCAdvisory* btc_advisory_ = nullptr;
+    const ETHState* eth_state_ = nullptr;
+    ETHAdvisory* eth_advisory_ = nullptr;
 
 public:
-    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr) {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr) {}
     
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
     void set_btc_advisory(BTCAdvisory* advisory) { btc_advisory_ = advisory; }
     void evaluate_btc_advisory();
 
+    void set_eth_state(const ETHState* state) { eth_state_ = state; }
+    void set_eth_advisory(ETHAdvisory* advisory) { eth_advisory_ = advisory; }
+    void evaluate_eth_advisory();
+
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         evaluate_btc_advisory();
+        evaluate_eth_advisory();
         std::lock_guard<std::mutex> lock(engine_mtx_);
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(

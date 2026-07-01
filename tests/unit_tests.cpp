@@ -20,6 +20,7 @@
 #include "../extensions/aille_enclave.hpp"
 #include "../extensions/aille_btc.hpp"
 #include "../extensions/aille_observability.hpp"
+#include "../extensions/aille_eth.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -966,6 +967,70 @@ int main() {
 
     if (engine_adv.recommended_weight != 0.0f) {
         std::cerr << "FAIL: Engine integration did not correctly update BTCAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning ETH Module Tests...\n";
+
+    if (sizeof(AILLE::ETHState) != 64) {
+        std::cerr << "FAIL: ETHState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::ETHAdvisory) != 64) {
+        std::cerr << "FAIL: ETHAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::ETHObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: ETHObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::ETHState eth_state;
+    eth_state.realized_vol = 0.06f;
+    eth_state.drawdown = 0.12f;
+    eth_state.trend_score = -0.1f;
+    eth_state.smoothed_vol = 0.07f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::ETHAdvisory eth_adv = AILLE::evaluate_eth_state(eth_state, &safety);
+
+    if (eth_adv.risk_score < 0.0f || eth_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: ETH Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::ETHAdvisory eth_adv_ks = AILLE::evaluate_eth_state(eth_state, &safety);
+    if (!eth_adv_ks.risk_elevated || eth_adv_ks.recommended_weight > 0.0f || eth_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: ETH Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::ETHAdvisory engine_eth_adv;
+    engine.set_eth_state(&eth_state);
+    engine.set_eth_advisory(&engine_eth_adv);
+
+    AILLE::Decision eth_d = engine.makeDecision(signals.data(), signals.size());
+    (void)eth_d; // Suppress unused warning
+
+    if (engine_eth_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update ETHAdvisory under kill switch.\n";
         tests_failed++;
     } else {
         tests_run++;

@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
         signals.emplace_back(0.01f + dist(rng), 0.65f, 2);
 
         uint64_t t0 = get_cycles();
-        (void)engine.makeDecision(signals);
+        (void)engine.makeDecision(signals.data(), signals.size());
         uint64_t t1 = get_cycles();
 
         double latency = static_cast<double>(t1 - t0) / cycles_per_ns;
