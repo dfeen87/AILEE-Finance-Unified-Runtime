@@ -52,6 +52,24 @@ struct BTCAdvisory;
 struct ETHState;
 struct ETHAdvisory;
 
+struct OILState;
+struct OILAdvisory;
+
+struct GOLDState;
+struct GOLDAdvisory;
+
+struct SILVERState;
+struct SILVERAdvisory;
+
+struct COPPERState;
+struct COPPERAdvisory;
+
+struct NATGASState;
+struct NATGASAdvisory;
+
+struct PLATINUMState;
+struct PLATINUMAdvisory;
+
 struct alignas(64) SafetyState {
     bool hardware_fault;
     bool kill_switch;
@@ -533,10 +551,22 @@ private:
     BTCAdvisory* btc_advisory_ = nullptr;
     const ETHState* eth_state_ = nullptr;
     ETHAdvisory* eth_advisory_ = nullptr;
+    const OILState* oil_state_ = nullptr;
+    OILAdvisory* oil_advisory_ = nullptr;
+    const GOLDState* gold_state_ = nullptr;
+    GOLDAdvisory* gold_advisory_ = nullptr;
+    const SILVERState* silver_state_ = nullptr;
+    SILVERAdvisory* silver_advisory_ = nullptr;
+    const COPPERState* copper_state_ = nullptr;
+    COPPERAdvisory* copper_advisory_ = nullptr;
+    const NATGASState* natgas_state_ = nullptr;
+    NATGASAdvisory* natgas_advisory_ = nullptr;
+    const PLATINUMState* platinum_state_ = nullptr;
+    PLATINUMAdvisory* platinum_advisory_ = nullptr;
 
 public:
-    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr) {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr) {}
     
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
@@ -547,9 +577,39 @@ public:
     void set_eth_advisory(ETHAdvisory* advisory) { eth_advisory_ = advisory; }
     void evaluate_eth_advisory();
 
+    void set_oil_state(const OILState* state) { oil_state_ = state; }
+    void set_oil_advisory(OILAdvisory* advisory) { oil_advisory_ = advisory; }
+    void evaluate_oil_advisory();
+
+    void set_gold_state(const GOLDState* state) { gold_state_ = state; }
+    void set_gold_advisory(GOLDAdvisory* advisory) { gold_advisory_ = advisory; }
+    void evaluate_gold_advisory();
+
+    void set_silver_state(const SILVERState* state) { silver_state_ = state; }
+    void set_silver_advisory(SILVERAdvisory* advisory) { silver_advisory_ = advisory; }
+    void evaluate_silver_advisory();
+
+    void set_copper_state(const COPPERState* state) { copper_state_ = state; }
+    void set_copper_advisory(COPPERAdvisory* advisory) { copper_advisory_ = advisory; }
+    void evaluate_copper_advisory();
+
+    void set_natgas_state(const NATGASState* state) { natgas_state_ = state; }
+    void set_natgas_advisory(NATGASAdvisory* advisory) { natgas_advisory_ = advisory; }
+    void evaluate_natgas_advisory();
+
+    void set_platinum_state(const PLATINUMState* state) { platinum_state_ = state; }
+    void set_platinum_advisory(PLATINUMAdvisory* advisory) { platinum_advisory_ = advisory; }
+    void evaluate_platinum_advisory();
+
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         evaluate_btc_advisory();
         evaluate_eth_advisory();
+        evaluate_oil_advisory();
+        evaluate_gold_advisory();
+        evaluate_silver_advisory();
+        evaluate_copper_advisory();
+        evaluate_natgas_advisory();
+        evaluate_platinum_advisory();
         std::lock_guard<std::mutex> lock(engine_mtx_);
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
