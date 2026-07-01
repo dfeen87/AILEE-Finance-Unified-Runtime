@@ -21,6 +21,12 @@
 #include "../extensions/aille_btc.hpp"
 #include "../extensions/aille_observability.hpp"
 #include "../extensions/aille_eth.hpp"
+#include "../extensions/aille_oil.hpp"
+#include "../extensions/aille_gold.hpp"
+#include "../extensions/aille_silver.hpp"
+#include "../extensions/aille_copper.hpp"
+#include "../extensions/aille_natgas.hpp"
+#include "../extensions/aille_platinum.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -964,6 +970,7 @@ int main() {
         AILLE::ModelSignal(1.4f, 0.95f, 3)
     };
     AILLE::Decision d = engine.makeDecision(signals.data(), signals.size());
+    (void)d; // Suppress unused warning
 
     if (engine_adv.recommended_weight != 0.0f) {
         std::cerr << "FAIL: Engine integration did not correctly update BTCAdvisory under kill switch.\n";
@@ -1036,6 +1043,390 @@ int main() {
         tests_run++;
     }
 
+
+    std::cout << "\nRunning OIL Module Tests...\n";
+
+    if (sizeof(AILLE::OILState) != 64) {
+        std::cerr << "FAIL: OILState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::OILAdvisory) != 64) {
+        std::cerr << "FAIL: OILAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::OILObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: OILObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::OILState oil_state;
+    oil_state.realized_vol = 0.05f;
+    oil_state.drawdown = 0.10f;
+    oil_state.trend_score = -0.2f;
+    oil_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::OILAdvisory oil_adv = AILLE::evaluate_oil_state(oil_state, &safety);
+
+    if (oil_adv.risk_score < 0.0f || oil_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: OIL Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::OILAdvisory oil_adv_ks = AILLE::evaluate_oil_state(oil_state, &safety);
+    if (!oil_adv_ks.risk_elevated || oil_adv_ks.recommended_weight > 0.0f || oil_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: OIL Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::OILAdvisory engine_oil_adv;
+    engine.set_oil_state(&oil_state);
+    engine.set_oil_advisory(&engine_oil_adv);
+
+    AILLE::Decision oil_d = engine.makeDecision(signals.data(), signals.size());
+    (void)oil_d; // Suppress unused warning
+
+    if (engine_oil_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update OILAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning GOLD Module Tests...\n";
+
+    if (sizeof(AILLE::GOLDState) != 64) {
+        std::cerr << "FAIL: GOLDState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::GOLDAdvisory) != 64) {
+        std::cerr << "FAIL: GOLDAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::GOLDObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: GOLDObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::GOLDState gold_state;
+    gold_state.realized_vol = 0.05f;
+    gold_state.drawdown = 0.10f;
+    gold_state.trend_score = -0.2f;
+    gold_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::GOLDAdvisory gold_adv = AILLE::evaluate_gold_state(gold_state, &safety);
+
+    if (gold_adv.risk_score < 0.0f || gold_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: GOLD Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::GOLDAdvisory gold_adv_ks = AILLE::evaluate_gold_state(gold_state, &safety);
+    if (!gold_adv_ks.risk_elevated || gold_adv_ks.recommended_weight > 0.0f || gold_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: GOLD Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::GOLDAdvisory engine_gold_adv;
+    engine.set_gold_state(&gold_state);
+    engine.set_gold_advisory(&engine_gold_adv);
+
+    AILLE::Decision gold_d = engine.makeDecision(signals.data(), signals.size());
+    (void)gold_d; // Suppress unused warning
+
+    if (engine_gold_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update GOLDAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning SILVER Module Tests...\n";
+
+    if (sizeof(AILLE::SILVERState) != 64) {
+        std::cerr << "FAIL: SILVERState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::SILVERAdvisory) != 64) {
+        std::cerr << "FAIL: SILVERAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::SILVERObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: SILVERObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::SILVERState silver_state;
+    silver_state.realized_vol = 0.05f;
+    silver_state.drawdown = 0.10f;
+    silver_state.trend_score = -0.2f;
+    silver_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::SILVERAdvisory silver_adv = AILLE::evaluate_silver_state(silver_state, &safety);
+
+    if (silver_adv.risk_score < 0.0f || silver_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: SILVER Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::SILVERAdvisory silver_adv_ks = AILLE::evaluate_silver_state(silver_state, &safety);
+    if (!silver_adv_ks.risk_elevated || silver_adv_ks.recommended_weight > 0.0f || silver_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: SILVER Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::SILVERAdvisory engine_silver_adv;
+    engine.set_silver_state(&silver_state);
+    engine.set_silver_advisory(&engine_silver_adv);
+
+    AILLE::Decision silver_d = engine.makeDecision(signals.data(), signals.size());
+    (void)silver_d; // Suppress unused warning
+
+    if (engine_silver_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update SILVERAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning COPPER Module Tests...\n";
+
+    if (sizeof(AILLE::COPPERState) != 64) {
+        std::cerr << "FAIL: COPPERState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::COPPERAdvisory) != 64) {
+        std::cerr << "FAIL: COPPERAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::COPPERObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: COPPERObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::COPPERState copper_state;
+    copper_state.realized_vol = 0.05f;
+    copper_state.drawdown = 0.10f;
+    copper_state.trend_score = -0.2f;
+    copper_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::COPPERAdvisory copper_adv = AILLE::evaluate_copper_state(copper_state, &safety);
+
+    if (copper_adv.risk_score < 0.0f || copper_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: COPPER Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::COPPERAdvisory copper_adv_ks = AILLE::evaluate_copper_state(copper_state, &safety);
+    if (!copper_adv_ks.risk_elevated || copper_adv_ks.recommended_weight > 0.0f || copper_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: COPPER Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::COPPERAdvisory engine_copper_adv;
+    engine.set_copper_state(&copper_state);
+    engine.set_copper_advisory(&engine_copper_adv);
+
+    AILLE::Decision copper_d = engine.makeDecision(signals.data(), signals.size());
+    (void)copper_d; // Suppress unused warning
+
+    if (engine_copper_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update COPPERAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning NATGAS Module Tests...\n";
+
+    if (sizeof(AILLE::NATGASState) != 64) {
+        std::cerr << "FAIL: NATGASState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::NATGASAdvisory) != 64) {
+        std::cerr << "FAIL: NATGASAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::NATGASObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: NATGASObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::NATGASState natgas_state;
+    natgas_state.realized_vol = 0.05f;
+    natgas_state.drawdown = 0.10f;
+    natgas_state.trend_score = -0.2f;
+    natgas_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::NATGASAdvisory natgas_adv = AILLE::evaluate_natgas_state(natgas_state, &safety);
+
+    if (natgas_adv.risk_score < 0.0f || natgas_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: NATGAS Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::NATGASAdvisory natgas_adv_ks = AILLE::evaluate_natgas_state(natgas_state, &safety);
+    if (!natgas_adv_ks.risk_elevated || natgas_adv_ks.recommended_weight > 0.0f || natgas_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: NATGAS Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::NATGASAdvisory engine_natgas_adv;
+    engine.set_natgas_state(&natgas_state);
+    engine.set_natgas_advisory(&engine_natgas_adv);
+
+    AILLE::Decision natgas_d = engine.makeDecision(signals.data(), signals.size());
+    (void)natgas_d; // Suppress unused warning
+
+    if (engine_natgas_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update NATGASAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning PLATINUM Module Tests...\n";
+
+    if (sizeof(AILLE::PLATINUMState) != 64) {
+        std::cerr << "FAIL: PLATINUMState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::PLATINUMAdvisory) != 64) {
+        std::cerr << "FAIL: PLATINUMAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::PLATINUMObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: PLATINUMObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::PLATINUMState platinum_state;
+    platinum_state.realized_vol = 0.05f;
+    platinum_state.drawdown = 0.10f;
+    platinum_state.trend_score = -0.2f;
+    platinum_state.smoothed_vol = 0.06f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::PLATINUMAdvisory platinum_adv = AILLE::evaluate_platinum_state(platinum_state, &safety);
+
+    if (platinum_adv.risk_score < 0.0f || platinum_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: PLATINUM Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::PLATINUMAdvisory platinum_adv_ks = AILLE::evaluate_platinum_state(platinum_state, &safety);
+    if (!platinum_adv_ks.risk_elevated || platinum_adv_ks.recommended_weight > 0.0f || platinum_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: PLATINUM Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::PLATINUMAdvisory engine_platinum_adv;
+    engine.set_platinum_state(&platinum_state);
+    engine.set_platinum_advisory(&engine_platinum_adv);
+
+    AILLE::Decision platinum_d = engine.makeDecision(signals.data(), signals.size());
+    (void)platinum_d; // Suppress unused warning
+
+    if (engine_platinum_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update PLATINUMAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
 
