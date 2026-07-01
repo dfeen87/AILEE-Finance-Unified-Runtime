@@ -87,7 +87,7 @@ TEST(TestTradingAlertAdapterBuildsPassiveBuyAlert) {
     decision.status = AILLE::DECISION_VALID;
     decision.final_value = 0.75f;
     decision.confidence = 0.82f;
-    decision.reasoning = "consensus passed";
+    decision.setReasoning("consensus passed");
 
     ASSERT_TRUE(adapter.alertDecision(decision, "AAPL", "decision-1"));
     ASSERT_TRUE(adapter.called);
@@ -293,7 +293,7 @@ TEST(TestInvalidInputs) {
     AILLE::Decision decision = engine.makeDecision(signals);
 
     ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE); // We set it to this in code
-    ASSERT_TRUE(decision.reasoning.find("NaN/Inf") != std::string::npos);
+    ASSERT_TRUE(decision.getReasoningString().find("NaN/Inf") != std::string::npos);
 }
 
 TEST(TestNegativeConfidence) {
@@ -304,7 +304,7 @@ TEST(TestNegativeConfidence) {
     AILLE::Decision decision = engine.makeDecision(signals);
 
     ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE);
-    ASSERT_TRUE(decision.reasoning.find("confidence out of range") != std::string::npos);
+    ASSERT_TRUE(decision.getReasoningString().find("confidence out of range") != std::string::npos);
 }
 
 TEST(TestConfidenceAboveOne) {
@@ -315,7 +315,7 @@ TEST(TestConfidenceAboveOne) {
     AILLE::Decision decision = engine.makeDecision(signals);
 
     ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE);
-    ASSERT_TRUE(decision.reasoning.find("confidence out of range") != std::string::npos);
+    ASSERT_TRUE(decision.getReasoningString().find("confidence out of range") != std::string::npos);
 }
 
 TEST(TestMaxModelCountTruncation) {
@@ -336,7 +336,7 @@ TEST(TestMaxModelCountTruncation) {
 
     ASSERT_EQ(decision.status, AILLE::DECISION_VALID);
     // Only 2 models should contribute
-    ASSERT_TRUE(decision.contributing_models.size() <= 2);
+    ASSERT_TRUE(decision.num_contributing_models <= 2);
 }
 
 TEST(TestRejectsStaleSignalsForHFT) {
@@ -354,7 +354,7 @@ TEST(TestRejectsStaleSignalsForHFT) {
 
     ASSERT_EQ(decision.status, AILLE::REJECTED_LOW_CONFIDENCE);
     ASSERT_TRUE(decision.fallback_used);
-    ASSERT_TRUE(decision.reasoning.find("stale timestamp") != std::string::npos);
+    ASSERT_TRUE(decision.getReasoningString().find("stale timestamp") != std::string::npos);
 }
 
 TEST(TestRejectsDuplicateModelIdsForHFT) {
@@ -368,7 +368,7 @@ TEST(TestRejectsDuplicateModelIdsForHFT) {
 
     ASSERT_EQ(decision.status, AILLE::REJECTED_NO_CONSENSUS);
     ASSERT_TRUE(decision.fallback_used);
-    ASSERT_TRUE(decision.reasoning.find("duplicate model_id") != std::string::npos);
+    ASSERT_TRUE(decision.getReasoningString().find("duplicate model_id") != std::string::npos);
 }
 
 TEST(TestMaxPositionClampForHFT) {
@@ -480,6 +480,23 @@ TEST(TestVersionConstant) {
     ASSERT_TRUE(std::string(AILLE::AILLE_VERSION).length() > 0);
 }
 
+TEST(TestSafetyInvariantsFailClosed) {
+    AILLE::AILLEEngine engine;
+    std::vector<AILLE::ModelSignal> signals;
+    signals.push_back(AILLE::ModelSignal(0.8f, 0.9f, 0));
+    signals.push_back(AILLE::ModelSignal(0.8f, 0.9f, 1));
+
+    engine.engageKillSwitch();
+    AILLE::Decision decision_ks = engine.makeDecision(signals);
+    ASSERT_EQ(decision_ks.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(decision_ks.final_value, 0.0f);
+
+    engine.declareHardwareFault();
+    AILLE::Decision decision_hf = engine.makeDecision(signals);
+    ASSERT_EQ(decision_hf.status, AILLE::FALLBACK_ACTIVATED);
+    ASSERT_FLOAT_EQ(decision_hf.final_value, 0.0f);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -507,6 +524,7 @@ int main() {
     RUN_TEST(TestPerformanceLayerSIMDConsensusIsPassiveVectorSummary);
     RUN_TEST(TestHardwareKernelManifestNeverEmitsOrders);
     RUN_TEST(TestVersionConstant);
+    RUN_TEST(TestSafetyInvariantsFailClosed);
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;

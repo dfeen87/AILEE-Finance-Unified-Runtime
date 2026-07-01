@@ -115,8 +115,8 @@ protected:
             alert.message = "Passive trading alert: decision rejected or unavailable; no order executed.";
         }
 
-        if (!decision.reasoning.empty()) {
-            alert.message += " Reason: " + decision.reasoning;
+        if (decision.reasoning[0] != '\0') {
+            alert.message += " Reason: " + decision.getReasoningString();
         }
 
         return alert;

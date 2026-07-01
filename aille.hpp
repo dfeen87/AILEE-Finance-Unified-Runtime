@@ -35,6 +35,15 @@
 #include <ctime>
 #include <mutex>
 #include <unordered_set>
+#include <cstring>
+
+// For __builtin_prefetch fallback
+#ifndef __has_builtin
+  #define __has_builtin(x) 0
+#endif
+
+#define AILLE_MAX_MODELS 64
+#define AILLE_MAX_FALLBACK_WINDOW 256
 
 namespace AILLE {
 
@@ -94,11 +103,41 @@ struct Decision {
     int models_agreed;
     bool fallback_used;
     uint64_t timestamp_ns;
-    std::vector<int> contributing_models;
-    std::string reasoning;
+
+    int contributing_models[AILLE_MAX_MODELS];
+    size_t num_contributing_models;
+    char reasoning[128];
     
     Decision() : final_value(0.0f), status(ERROR_NO_MODELS), confidence(0.0f),
-                 models_agreed(0), fallback_used(false), timestamp_ns(0) {}
+                 models_agreed(0), fallback_used(false), timestamp_ns(0),
+                 num_contributing_models(0) {
+        reasoning[0] = '\0';
+    }
+
+    void setReasoning(const char* str) {
+        size_t len = 0;
+        while (str[len] != '\0' && len < sizeof(reasoning) - 1) {
+            reasoning[len] = str[len];
+            len++;
+        }
+        reasoning[len] = '\0';
+    }
+
+    void setReasoning(const std::string& str) {
+        setReasoning(str.c_str());
+    }
+
+    std::string getReasoningString() const { return std::string(reasoning); }
+};
+
+struct alignas(64) SignalSoA {
+    float values[AILLE_MAX_MODELS];
+    float confidences[AILLE_MAX_MODELS];
+    uint64_t timestamps_ns[AILLE_MAX_MODELS];
+    int model_ids[AILLE_MAX_MODELS];
+    size_t count;
+
+    SignalSoA() : count(0) {}
 };
 
 struct AILLEConfig {
@@ -297,21 +336,35 @@ private:
     static constexpr float MAX_SIGNAL_VALUE = 1e6f;
 
     AILLEConfig config;
-    std::deque<float> fallback_buffer;
     mutable std::mutex engine_mtx_;
     
+    alignas(64) float fallback_buffer[AILLE_MAX_FALLBACK_WINDOW]{};
+    size_t fallback_head_;
+    size_t fallback_count_;
+
     [[nodiscard]] float calculateFallbackValue() const {
-        if (fallback_buffer.empty()) return 0.0f;
+        if (fallback_count_ == 0) return 0.0f;
         float sum = 0.0f;
-        for (float val : fallback_buffer) sum += val;
-        return sum / fallback_buffer.size();
+        for (size_t i = 0; i < fallback_count_; ++i) {
+            sum += fallback_buffer[i];
+        }
+        return sum / static_cast<float>(fallback_count_);
     }
     
     void updateFallbackBuffer(float value) {
-        fallback_buffer.push_back(value);
         size_t window = static_cast<size_t>(std::max(1, config.fallback_window_size));
-        while (fallback_buffer.size() > window) {
-            fallback_buffer.pop_front();
+        if (window > AILLE_MAX_FALLBACK_WINDOW) {
+            window = AILLE_MAX_FALLBACK_WINDOW;
+        }
+
+        if (fallback_count_ > window) {
+            fallback_count_ = window;
+        }
+
+        fallback_buffer[fallback_head_] = value;
+        fallback_head_ = (fallback_head_ + 1) % window;
+        if (fallback_count_ < window) {
+            fallback_count_++;
         }
     }
     
@@ -337,6 +390,25 @@ private:
             }
         }
         return valid;
+    }
+
+    void applySafetyLayerFast(const ModelSignal* signals, size_t count, SignalSoA& valid) const {
+        for (size_t i = 0; i < count; ++i) {
+            const auto& sig = signals[i];
+            if (sig.confidence >= config.min_confidence_threshold) {
+                valid.values[valid.count] = sig.value;
+                valid.confidences[valid.count] = sig.confidence;
+                valid.timestamps_ns[valid.count] = sig.timestamp_ns;
+                valid.model_ids[valid.count] = sig.model_id;
+                valid.count++;
+            } else if (sig.confidence >= config.grace_confidence_threshold) {
+                valid.values[valid.count] = sig.value;
+                valid.confidences[valid.count] = sig.confidence * 0.8f;
+                valid.timestamps_ns[valid.count] = sig.timestamp_ns;
+                valid.model_ids[valid.count] = sig.model_id;
+                valid.count++;
+            }
+        }
     }
     
     bool checkConsensus(const std::vector<ModelSignal>& valid_signals,
@@ -383,62 +455,124 @@ private:
         return false;
     }
     
+    bool checkConsensusFast(const SignalSoA& valid_signals,
+                       float& consensus_value, int& models_agreed) {
+        if (valid_signals.count < static_cast<size_t>(config.min_models_required)) {
+            models_agreed = 0;
+            return false;
+        }
+
+        float values[AILLE_MAX_MODELS];
+        for (size_t i = 0; i < valid_signals.count; ++i) {
+            values[i] = valid_signals.values[i];
+        }
+
+        const size_t median_index = valid_signals.count / 2;
+        std::nth_element(values, values + median_index, values + valid_signals.count);
+        float median = values[median_index];
+        float median_sign = (median >= 0) ? 1.0f : -1.0f;
+
+        int agreement_count = 0;
+        for (size_t i = 0; i < valid_signals.count; ++i) {
+            if (((valid_signals.values[i] >= 0) ? 1.0f : -1.0f) == median_sign) agreement_count++;
+        }
+
+        models_agreed = agreement_count;
+        float agreement_ratio = static_cast<float>(agreement_count) / valid_signals.count;
+
+        if (agreement_ratio >= config.sign_agreement_threshold &&
+            agreement_count >= config.min_models_required) {
+            float weighted_sum = 0.0f;
+            float total_weight = 0.0f;
+            for (size_t i = 0; i < valid_signals.count; ++i) {
+                if (((valid_signals.values[i] >= 0) ? 1.0f : -1.0f) == median_sign) {
+                    weighted_sum += valid_signals.values[i] * valid_signals.confidences[i];
+                    total_weight += valid_signals.confidences[i];
+                }
+            }
+            if (total_weight > 0.0f) {
+                consensus_value = weighted_sum / total_weight;
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool validateConfig(const AILLEConfig& cfg, Decision& decision) const {
         if (cfg.min_confidence_threshold <= 0.0f || cfg.min_confidence_threshold > 1.0f) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: min_confidence_threshold must be in (0, 1]";
+            decision.setReasoning("Invalid config: min_confidence_threshold must be in (0, 1]");
             return false;
         }
         if (cfg.grace_confidence_threshold < 0.0f || cfg.grace_confidence_threshold > cfg.min_confidence_threshold) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: grace_confidence_threshold must be in [0, min_confidence_threshold]";
+            decision.setReasoning("Invalid config: grace_confidence_threshold must be in [0, min_confidence_threshold]");
             return false;
         }
         if (cfg.min_models_required < 1) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: min_models_required must be >= 1";
+            decision.setReasoning("Invalid config: min_models_required must be >= 1");
             return false;
         }
         if (cfg.fallback_window_size < 1) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: fallback_window_size must be >= 1";
+            decision.setReasoning("Invalid config: fallback_window_size must be >= 1");
             return false;
         }
         if (cfg.sign_agreement_threshold <= 0.0f || cfg.sign_agreement_threshold > 1.0f) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: sign_agreement_threshold must be in (0, 1]";
+            decision.setReasoning("Invalid config: sign_agreement_threshold must be in (0, 1]");
             return false;
         }
         if (cfg.max_model_count < 1) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: max_model_count must be >= 1";
+            decision.setReasoning("Invalid config: max_model_count must be >= 1");
             return false;
         }
         if (cfg.max_position_abs <= 0.0f || cfg.max_position_abs > 1.0f ||
             std::isnan(cfg.max_position_abs) || std::isinf(cfg.max_position_abs)) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "Invalid config: max_position_abs must be in (0, 1]";
+            decision.setReasoning("Invalid config: max_position_abs must be in (0, 1]");
             return false;
         }
         return true;
     }
 
     float getFallbackValue() const {
-        if (fallback_buffer.empty()) return 0.0f;
+        if (fallback_count_ == 0) return 0.0f;
         float fb = calculateFallbackValue();
         return ((fb >= 0) ? 1.0f : -1.0f) * config.fallback_position_scale;
     }
     
+    bool kill_switch_engaged_ = false;
+    bool hardware_fault_detected_ = false;
+
 public:
-    AILLEEngine() {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), kill_switch_engaged_(false), hardware_fault_detected_(false) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), kill_switch_engaged_(false), hardware_fault_detected_(false) {}
     
+    void engageKillSwitch() noexcept { kill_switch_engaged_ = true; }
+    void declareHardwareFault() noexcept { hardware_fault_detected_ = true; }
+
     [[nodiscard]] Decision makeDecision(const std::vector<ModelSignal>& model_signals) {
+        return makeDecision(model_signals.data(), model_signals.size());
+    }
+
+    [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         std::lock_guard<std::mutex> lock(engine_mtx_);
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()
         ).count();
+
+        if (kill_switch_engaged_ || hardware_fault_detected_) {
+            decision.status = FALLBACK_ACTIVATED;
+            decision.final_value = 0.0f;
+            decision.confidence = 0.0f;
+            decision.fallback_used = true;
+            decision.setReasoning(hardware_fault_detected_ ? "Hardware fault detected - fallback to zero" : "Kill switch engaged - fallback to zero");
+            return decision;
+        }
 
         if (!validateConfig(config, decision)) {
             return decision;
@@ -446,21 +580,32 @@ public:
         
         const uint64_t decision_time_ns = decision.timestamp_ns;
 
-        if (model_signals.empty()) {
+        if (count == 0) {
             decision.status = ERROR_NO_MODELS;
-            decision.reasoning = "No model inputs";
+            decision.setReasoning("No model inputs");
             return decision;
+        }
+
+        size_t process_count = count;
+        if (process_count > static_cast<size_t>(config.max_model_count)) {
+            process_count = static_cast<size_t>(config.max_model_count);
+        }
+        if (process_count > AILLE_MAX_MODELS) {
+            process_count = AILLE_MAX_MODELS;
         }
 
         // Validate inputs. HFT callers can set max_signal_age_ns to enforce
         // freshness in nanoseconds; the default rejects signals older than 1s.
-        std::unordered_set<int> seen_model_ids;
-        seen_model_ids.reserve(model_signals.size());
-        for (const auto& sig : model_signals) {
+        for (size_t i = 0; i < process_count; ++i) {
+#if __has_builtin(__builtin_prefetch) || defined(__GNUC__) || defined(__clang__)
+            __builtin_prefetch(&model_signals[i + 1], 0, 1);
+#endif
+            const auto& sig = model_signals[i];
+
             if (std::isnan(sig.value) || std::isinf(sig.value) ||
                 std::isnan(sig.confidence) || std::isinf(sig.confidence)) {
                 decision.status = REJECTED_LOW_CONFIDENCE;
-                decision.reasoning = "Invalid input (NaN/Inf) detected";
+                decision.setReasoning("Invalid input (NaN/Inf) detected");
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;
@@ -468,7 +613,7 @@ public:
             }
             if (sig.confidence < 0.0f || sig.confidence > 1.0f) {
                 decision.status = REJECTED_LOW_CONFIDENCE;
-                decision.reasoning = "Signal rejected: confidence out of range [0,1]";
+                decision.setReasoning("Signal rejected: confidence out of range [0,1]");
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;
@@ -476,7 +621,7 @@ public:
             }
             if (sig.timestamp_ns > decision_time_ns) {
                 decision.status = REJECTED_LOW_CONFIDENCE;
-                decision.reasoning = "Signal rejected: timestamp is in the future";
+                decision.setReasoning("Signal rejected: timestamp is in the future");
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;
@@ -485,15 +630,24 @@ public:
             if (config.max_signal_age_ns > 0 &&
                 decision_time_ns - sig.timestamp_ns > config.max_signal_age_ns) {
                 decision.status = REJECTED_LOW_CONFIDENCE;
-                decision.reasoning = "Signal rejected: stale timestamp";
+                decision.setReasoning("Signal rejected: stale timestamp");
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;
                 return decision;
             }
-            if (!seen_model_ids.insert(sig.model_id).second) {
+
+            bool is_duplicate = false;
+            for (size_t j = 0; j < i; ++j) {
+                if (model_signals[j].model_id == sig.model_id) {
+                    is_duplicate = true;
+                    break;
+                }
+            }
+
+            if (is_duplicate) {
                 decision.status = REJECTED_NO_CONSENSUS;
-                decision.reasoning = "Signal rejected: duplicate model_id";
+                decision.setReasoning("Signal rejected: duplicate model_id");
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;
@@ -501,7 +655,7 @@ public:
             }
             if (sig.value < -MAX_SIGNAL_VALUE || sig.value > MAX_SIGNAL_VALUE) {
                 decision.status = REJECTED_LOW_CONFIDENCE;
-                decision.reasoning = "Signal rejected: value out of reasonable bounds";
+                decision.setReasoning("Signal rejected: value out of reasonable bounds");
                 decision.final_value = getFallbackValue();
                 decision.confidence = 0.0f;
                 decision.fallback_used = true;
@@ -509,29 +663,21 @@ public:
             }
         }
 
-        std::vector<ModelSignal> scoped_signals;
-        const std::vector<ModelSignal>* scoped_signals_ptr = &model_signals;
-        size_t max_models = static_cast<size_t>(config.max_model_count);
-        if (model_signals.size() > max_models) {
-            scoped_signals.assign(model_signals.begin(),
-                                  model_signals.begin() + max_models);
-            scoped_signals_ptr = &scoped_signals;
-        }
-
-        std::vector<ModelSignal> valid = applySafetyLayer(*scoped_signals_ptr);
+        SignalSoA valid;
+        applySafetyLayerFast(model_signals, process_count, valid);
         
-        if (valid.empty()) {
+        if (valid.count == 0) {
             decision.status = REJECTED_LOW_CONFIDENCE;
             decision.final_value = getFallbackValue();
             decision.confidence = 0.1f;
             decision.fallback_used = true;
-            decision.reasoning = "All models failed confidence - fallback";
+            decision.setReasoning("All models failed confidence - fallback");
             return decision;
         }
         
         float consensus_value;
         int models_agreed;
-        bool consensus_ok = checkConsensus(valid, consensus_value, models_agreed);
+        bool consensus_ok = checkConsensusFast(valid, consensus_value, models_agreed);
         
         if (!consensus_ok) {
             decision.status = REJECTED_NO_CONSENSUS;
@@ -539,7 +685,7 @@ public:
             decision.confidence = 0.2f;
             decision.fallback_used = true;
             decision.models_agreed = models_agreed;
-            decision.reasoning = "No consensus - fallback";
+            decision.setReasoning("No consensus - fallback");
             return decision;
         }
         
@@ -547,15 +693,17 @@ public:
         decision.final_value = smoothPosition(consensus_value);
         
         float total_conf = 0.0f;
-        decision.contributing_models.reserve(valid.size());
-        for (const auto& sig : valid) {
-            total_conf += sig.confidence;
-            decision.contributing_models.push_back(sig.model_id);
+        for (size_t i = 0; i < valid.count; ++i) {
+            total_conf += valid.confidences[i];
+            decision.contributing_models[decision.num_contributing_models++] = valid.model_ids[i];
         }
-        decision.confidence = valid.empty() ? 0.0f : (total_conf / valid.size());
+        decision.confidence = (valid.count == 0) ? 0.0f : (total_conf / valid.count);
         decision.models_agreed = models_agreed;
         decision.fallback_used = false;
-        decision.reasoning = "Consensus: " + std::to_string(models_agreed) + " models";
+
+        char reasoning_buf[128];
+        snprintf(reasoning_buf, sizeof(reasoning_buf), "Consensus: %d models", models_agreed);
+        decision.setReasoning(reasoning_buf);
         
         updateFallbackBuffer(decision.final_value);
         return decision;
@@ -563,7 +711,8 @@ public:
     
     void reset() noexcept {
         std::lock_guard<std::mutex> lock(engine_mtx_);
-        fallback_buffer.clear();
+        fallback_head_ = 0;
+        fallback_count_ = 0;
     }
     AILLEConfig getConfig() const noexcept { return config; }
     void setConfig(const AILLEConfig& cfg) {
@@ -813,8 +962,10 @@ public:
         rec.confidence = d.confidence;
         rec.models_agreed = d.models_agreed;
         rec.fallback_used = d.fallback_used;
-        rec.reasoning = d.reasoning;
-        rec.contributing_models = d.contributing_models;
+        rec.reasoning = d.getReasoningString();
+        for (size_t i = 0; i < d.num_contributing_models; ++i) {
+            rec.contributing_models.push_back(d.contributing_models[i]);
+        }
         rec.symbol = symbol;
         rec.strategy_id = strategy;
         rec.prev_hash = last_hash;
