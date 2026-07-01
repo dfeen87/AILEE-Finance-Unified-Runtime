@@ -18,6 +18,7 @@
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
 #include "../extensions/aille_enclave.hpp"
+#include "../extensions/aille_btc.hpp"
 #include "../extensions/aille_observability.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
@@ -897,6 +898,78 @@ int main() {
     RUN_TEST(TestObservabilitySafetyLayerFinalVeto);
     RUN_TEST(TestObservabilityKillSwitchReducesRisk);
     RUN_TEST(TestObservabilityFailClosedHardwareFault);
+
+    std::cout << "\nRunning BTC Module Tests...\n";
+
+    if (sizeof(AILLE::BTCState) != 64) {
+        std::cerr << "FAIL: BTCState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::BTCAdvisory) != 64) {
+        std::cerr << "FAIL: BTCAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::BTCObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: BTCObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::BTCState btc_state;
+    btc_state.realized_vol = 0.05f;
+    btc_state.drawdown = 0.10f;
+    btc_state.trend_score = -0.2f;
+    btc_state.smoothed_vol = 0.06f;
+
+    AILLE::SafetyState safety;
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::BTCAdvisory adv = AILLE::evaluate_btc_state(btc_state, &safety);
+
+    if (adv.risk_score < 0.0f || adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::BTCAdvisory adv_ks = AILLE::evaluate_btc_state(btc_state, &safety);
+    if (!adv_ks.risk_elevated || adv_ks.recommended_weight > 0.0f || adv_ks.growth_favorable) {
+        std::cerr << "FAIL: BTC Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::AILLEConfig config;
+    AILLE::AILLEEngine engine(config);
+    AILLE::BTCAdvisory engine_adv;
+    engine.setSafetyState(&safety);
+    engine.set_btc_state(&btc_state);
+    engine.set_btc_advisory(&engine_adv);
+
+    std::vector<AILLE::ModelSignal> signals = {
+        AILLE::ModelSignal(1.5f, 0.9f, 1),
+        AILLE::ModelSignal(1.6f, 0.85f, 2),
+        AILLE::ModelSignal(1.4f, 0.95f, 3)
+    };
+    AILLE::Decision d = engine.makeDecision(signals.data(), signals.size());
+
+    if (engine_adv.recommended_weight != 0.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly update BTCAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
