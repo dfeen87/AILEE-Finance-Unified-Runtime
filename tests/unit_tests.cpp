@@ -28,6 +28,7 @@
 #include "../extensions/aille_natgas.hpp"
 #include "../extensions/aille_platinum.hpp"
 #include "../extensions/aille_forex_usd.hpp"
+#include "../extensions/aille_macro.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1424,6 +1425,80 @@ int main() {
 
     if (engine_platinum_adv.recommended_weight != 0.0f) {
         std::cerr << "FAIL: Engine integration did not correctly update PLATINUMAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning MACRO Module Tests...\n";
+
+    if (sizeof(AILLE::MacroSignalState) != 64) {
+        std::cerr << "FAIL: MacroSignalState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::MacroSignalAdvisory) != 64) {
+        std::cerr << "FAIL: MacroSignalAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::MacroSignalObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: MacroSignalObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::MacroSignalState macro_state;
+    macro_state.usd_strength = 0.8f;
+    macro_state.commodity_pressure = 0.5f;
+    macro_state.crypto_sentiment = 0.3f;
+    macro_state.macro_volatility = 0.6f;
+    macro_state.risk_on_score = 0.2f;
+    macro_state.inflation_pressure = 0.7f;
+    macro_state.recession_pressure = 0.6f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::MacroSignalAdvisory macro_adv = AILLE::evaluate_macro_advisory(macro_state, &safety);
+
+    if (macro_adv.macro_risk_score < 0.0f || macro_adv.macro_risk_score > 100.0f) {
+        std::cerr << "FAIL: MACRO Risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::MacroSignalAdvisory macro_adv_ks = AILLE::evaluate_macro_advisory(macro_state, &safety);
+    if (!macro_adv_ks.risk_elevated || macro_adv_ks.recommended_macro_weight > 0.0f || macro_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: MACRO Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+    safety.kill_switch = false; // reset
+
+    AILLE::MacroSignalAdvisory engine_macro_adv;
+    engine.set_macro_state(&macro_state);
+    engine.set_macro_advisory(&engine_macro_adv);
+
+    AILLE::BTCAdvisory engine_btc_adv_for_macro;
+    engine_btc_adv_for_macro.recommended_weight = 1.0f; // starting weight
+    engine.set_btc_advisory(&engine_btc_adv_for_macro);
+
+    AILLE::Decision macro_d = engine.makeDecision(signals.data(), signals.size());
+    (void)macro_d;
+
+    // Inside makeDecision, BTC weight is evaluated (which sets it based on BTC state) and then macro factor is applied.
+    // If macro_advisory is correctly set and evaluated, macro_factor will multiply the BTC recommended weight.
+    if (engine_macro_adv.recommended_macro_weight < 0.0f || engine_macro_adv.recommended_macro_weight > 1.0f) {
+        std::cerr << "FAIL: Engine integration did not correctly evaluate MacroSignalAdvisory.\n";
         tests_failed++;
     } else {
         tests_run++;
