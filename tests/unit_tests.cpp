@@ -18,6 +18,7 @@
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
 #include "../extensions/aille_enclave.hpp"
+#include "../extensions/v7_2_pipeline.hpp"
 #include "../extensions/aille_btc.hpp"
 #include "../extensions/aille_observability.hpp"
 #include "../extensions/aille_eth.hpp"
@@ -854,6 +855,10 @@ TEST(TestObservabilityFailClosedHardwareFault) {    AILLE::SafetyState safety;
     ASSERT_TRUE(std::string(safe_decision.getReasoningString()).find("Hardware fault detected") != std::string::npos);
 }
 
+TEST(V7_2_PipelineRunsWithoutCrash) {
+    AILLE::evaluate_v7_pipeline();
+    ASSERT_TRUE(true);
+}
 
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
@@ -907,6 +912,7 @@ int main() {
     RUN_TEST(TestObservabilitySafetyLayerFinalVeto);
     RUN_TEST(TestObservabilityKillSwitchReducesRisk);
     RUN_TEST(TestObservabilityFailClosedHardwareFault);
+    RUN_TEST(V7_2_PipelineRunsWithoutCrash);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
