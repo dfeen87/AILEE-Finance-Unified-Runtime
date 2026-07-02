@@ -45,7 +45,7 @@ rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_res
 
 # Clean build artifacts
 clean:
-	rm -f demo demo_debug demo_hotpath demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv dashboard_server spire_demo lantern_demo
+	rm -f demo demo_debug demo_hotpath demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv dashboard_server spire_demo lantern_demo crown_walk_demo
 	@echo "✓ Cleaned build artifacts"
 
 # Run the demo
@@ -75,9 +75,23 @@ lantern_demo: examples/v7_5_lantern_demo.cpp aille.hpp extensions/aille_btc.cpp 
 	@echo "  Run with: ./lantern_demo"
 	@echo ""
 
+# Crown Walk Demo target
+crown_walk_demo: examples/v7_6_crown_walk_demo.cpp \
+                 extensions/aille_crown_walk.cpp \
+                 extensions/aille_spire.cpp \
+                 extensions/aille_lantern.cpp \
+                 extensions/v7_3_pipeline.cpp \
+                 extensions/v7_2_pipeline.cpp \
+                 aille.hpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) examples/v7_6_crown_walk_demo.cpp extensions/aille_crown_walk.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/v7_3_pipeline.cpp extensions/v7_2_pipeline.cpp -o crown_walk_demo
+	@echo ""
+	@echo "✓ Crown Walk Demo compiled successfully!"
+	@echo "  Run with: ./crown_walk_demo"
+	@echo ""
+
 # Build and run unit tests
-test_suite: $(UNIT_TESTS_SRC) aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(UNIT_TESTS_SRC) extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp -o test_suite
+test_suite: $(UNIT_TESTS_SRC) aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_crown_walk.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OPTFLAGS) $(UNIT_TESTS_SRC) extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_crown_walk.cpp -o test_suite
 	@echo ""
 	@echo "✓ Test Suite compiled successfully!"
 	@echo "  Run with: ./test_suite"
@@ -131,6 +145,7 @@ help:
 	@echo "  make dashboard_server - Build Live Dashboard server"
 	@echo "  make spire_demo   - Build Spire v7.4 demo"
 	@echo "  make lantern_demo - Build Lantern v7.5 demo"
+	@echo "  make crown_walk_demo - Build Crown Walk v7.6 demo"
 	@echo "  make clean        - Remove build artifacts"
 	@echo "  make install      - Install header system-wide"
 	@echo "  make help         - Show this message"
@@ -139,7 +154,7 @@ help:
 	@echo "  make && ./demo"
 	@echo ""
 
-.PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server install uninstall help spire_demo lantern_demo
+.PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server install uninstall help spire_demo lantern_demo crown_walk_demo
 
 # Build Live Advisory Dashboard Server
 dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp

@@ -35,4 +35,8 @@ namespace aillee_spire {
         return compute_lantern();
     }
 
+    aillee_crown_walk::CrownWalkView get_crown_walk() noexcept {
+        return aillee_crown_walk::walk();
+    }
+
 } // namespace aillee_spire
