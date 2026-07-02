@@ -1705,6 +1705,34 @@ int main() {
         tests_failed++;
     }
 
+    std::cout << "\nRunning V7.8 Pilgrimage Tests...\n";
+    try {
+        auto report = aillee_spire::get_pilgrimage();
+        if (report.sync.resonance_alignment < 0.0) {
+            std::cerr << "FAIL: Pilgrimage resonance_alignment < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (report.sync.sync_alignment < 0.0) {
+            std::cerr << "FAIL: Pilgrimage sync_alignment < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (report.sync.dampening_alignment < 0.0) {
+            std::cerr << "FAIL: Pilgrimage dampening_alignment < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+    } catch (...) {
+        std::cerr << "FAIL: V7.8 Pilgrimage crashed.\n";
+        tests_failed++;
+    }
+
     std::cout << "\nTests Run: " << tests_run << std::endl;
     std::cout << "Tests Failed: " << tests_failed << std::endl;
 
