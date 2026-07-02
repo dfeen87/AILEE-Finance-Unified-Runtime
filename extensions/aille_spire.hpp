@@ -2,6 +2,7 @@
 #define AILLEE_SPIRE_HPP
 
 #include <cstddef>
+#include "aille_lantern.hpp"
 
 namespace aillee_spire {
 
@@ -23,6 +24,9 @@ namespace aillee_spire {
 
     // Returns a full snapshot of AILLEE’s external state
     AILLEE_Snapshot get_snapshot() noexcept;
+
+    // Returns the deterministic Lantern Layer identity and pulse
+    Lantern get_lantern() noexcept;
 
 } // namespace aillee_spire
 

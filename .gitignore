@@ -28,3 +28,5 @@ test_suite
 benchmark
 rest_api_server
 demo
+spire_demo
+lantern_demo
