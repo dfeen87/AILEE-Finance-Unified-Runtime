@@ -18,6 +18,7 @@
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
 #include "../extensions/v7_3_pipeline.hpp"
+#include "../extensions/aille_spire.hpp"
 #include "../extensions/aille_enclave.hpp"
 #include "../extensions/v7_2_pipeline.hpp"
 #include "../extensions/aille_btc.hpp"
@@ -1584,6 +1585,57 @@ int main() {
         tests_run++;
     } catch (...) {
         std::cerr << "FAIL: V7.3 Pipeline crashed.\n";
+        tests_failed++;
+    }
+
+    std::cout << "\nRunning V7.4 Spire Interface Tests...\n";
+    try {
+        auto snap = aillee_spire::get_snapshot();
+
+        if (snap.resonance_bell < 0.0) {
+            std::cerr << "FAIL: Spire snapshot resonance_bell < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (snap.sync_tick < 0.0) {
+            std::cerr << "FAIL: Spire snapshot sync_tick < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (snap.dampened_state < 0.0) {
+            std::cerr << "FAIL: Spire snapshot dampened_state < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (aillee_spire::get_resonance_bell() < 0.0) {
+            std::cerr << "FAIL: Spire get_resonance_bell < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (aillee_spire::get_sync_tick() < 0.0) {
+            std::cerr << "FAIL: Spire get_sync_tick < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (aillee_spire::get_dampened_state() < 0.0) {
+            std::cerr << "FAIL: Spire get_dampened_state < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+    } catch (...) {
+        std::cerr << "FAIL: V7.4 Spire Interface crashed.\n";
         tests_failed++;
     }
 
