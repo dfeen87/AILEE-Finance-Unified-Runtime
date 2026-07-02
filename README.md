@@ -604,6 +604,343 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
+# 🔧 **Deterministic Advisory Layer Overview**
+
+AILLEE Version 6.0.0 introduces a fully deterministic, allocator‑free advisory ecosystem spanning five independent modules:
+
+- **BRGAM** — BTC Risk & Growth Advisory  
+- **ERGAM** — ETH Risk & Growth Advisory  
+- **CRGAM‑X** — Commodity Advisory Modules (OIL, GOLD, SILVER, COPPER, NATGAS, PLATINUM)  
+- **FRGAM** — USD‑FOREX Advisory  
+- **MSM** — MacroSignal Advisory (global macro governor)
+
+These modules operate strictly in the **advisory domain**, not the execution domain. They never place trades, never predict markets, and never interpret raw news. Their sole purpose is to transform structured numeric inputs into deterministic risk and growth posture outputs.
+
+### **Why advisory‑only modules exist**
+AILLEE’s core safety architecture requires a hard separation between:
+
+- **Model signals** (untrusted, potentially volatile)  
+- **Advisory modules** (trusted, deterministic, allocator‑free)  
+- **Safety / Consensus / Fallback layers** (validated decision pipeline)
+
+Advisory modules provide stable, interpretable risk posture information that the engine can use without exposing itself to model fragility.
+
+### **Why they are allocator‑free**
+Allocator‑free modules guarantee:
+
+- No heap fragmentation  
+- No runtime allocation failures  
+- No nondeterministic memory behavior  
+- No hidden performance cliffs  
+
+Every advisory module is a pure function over fixed‑size structs.
+
+### **Why they are 64‑byte ABI‑stable**
+All advisory structs (State, Advisory, ObservabilityMetrics) are exactly **64 bytes**, ensuring:
+
+- Single cache‑line residency  
+- Predictable memory access  
+- Cross‑platform binary stability  
+- Deterministic struct layout  
+- Zero padding surprises across compilers
+
+### **How they integrate into the engine**
+Each module provides:
+
+```
+evaluate_<module>_advisory(const State&, const SafetyState*) noexcept
+```
+
+The engine stores pointers to each module’s State and Advisory structs and calls their evaluation functions inside `makeDecision()`.  
+MacroSignal (MSM) applies global macro influence by adjusting recommended weights **after** module evaluation and **before** consensus.
+
+### **How they differ from the model layer**
+Model layer → untrusted predictions  
+Advisory layer → deterministic risk posture  
+Safety layer → confidence filtering  
+Consensus layer → agreement validation  
+Fallback layer → stability guarantee  
+
+Advisory modules never replace models — they **validate and contextualize** them.
+
+---
+
+# 🧩 **Multi‑Asset Advisory Architecture Diagram**
+
+```
+Crypto Advisory Modules
+    • BRGAM (BTC)
+    • ERGAM (ETH)
+
+Commodity Advisory Modules (CRGAM-X)
+    • OIL
+    • GOLD
+    • SILVER
+    • COPPER
+    • NATGAS
+    • PLATINUM
+
+USD-Forex Advisory Module
+    • FRGAM
+
+MacroSignal Advisory Module
+    • MSM (Global Macro Governor)
+
+                ↓
+        Unified Advisory Pipeline
+                ↓
+AILLEEngine
+    Safety → Consensus → Fallback → Decision
+```
+
+This diagram anchors the advisory ecosystem and shows how it flows into the core AILLE decision architecture.
+
+---
+
+# 🧠 **Deterministic Engineering Principles**
+
+AILLEE enforces strict deterministic engineering rules across all modules:
+
+- **No heap allocations**  
+- **No dynamic containers** (`std::vector`, `std::string`, etc.)  
+- **No polymorphism or virtual dispatch**  
+- **No unpredictable branching**  
+- **No variable‑sized structs**  
+- **No runtime‑dependent behavior**  
+- **No hidden side effects**  
+- **No exceptions thrown from advisory modules**
+
+These constraints ensure:
+
+- Predictable performance  
+- Reproducible outputs  
+- Cross‑platform consistency  
+- Zero nondeterministic behavior  
+- Full auditability and safety compliance  
+
+AILLEE is engineered to behave identically across compilers, machines, and environments.
+
+---
+
+# 🧮 **Why 64 Bytes?**
+
+Every advisory module uses **exactly 64‑byte** structs for State, Advisory, and ObservabilityMetrics.
+
+### **Cache‑line alignment**
+64 bytes = one modern CPU cache line.  
+This ensures:
+
+- Zero cache fragmentation  
+- Predictable memory access  
+- Maximum throughput in hot paths
+
+### **ABI stability**
+Fixed‑size structs eliminate:
+
+- Compiler‑dependent padding  
+- Alignment surprises  
+- Cross‑platform inconsistencies
+
+### **Deterministic struct layout**
+Every field is placed intentionally, with explicit padding, guaranteeing identical binary layout across:
+
+- GCC  
+- Clang  
+- MSVC  
+- ARM / x86_64
+
+### **Cross‑platform binary compatibility**
+64‑byte structs allow AILLEE modules to be:
+
+- embedded in hardware  
+- streamed across IPC  
+- used in shared memory  
+- integrated with FPGA/ASIC manifests  
+
+This is a foundational design choice.
+
+---
+
+# 🧱 **Module Contract Specification**
+
+Every advisory module must follow this exact contract:
+
+### **Struct Requirements**
+- `State` struct — 64 bytes  
+- `Advisory` struct — 64 bytes  
+- `ObservabilityMetrics` struct — 64 bytes  
+- Explicit padding using `std::uint8_t`  
+- `static_assert(sizeof(...) == 64)`
+
+### **Function Requirements**
+```
+Advisory evaluate_<module>_advisory(
+    const State& state,
+    const SafetyState* safety
+) noexcept;
+```
+
+### **Behavioral Requirements**
+- Deterministic math only  
+- No heap allocations  
+- No predictions  
+- No execution logic  
+- No I/O  
+- No exceptions  
+- No polymorphism  
+- No runtime branching based on external state  
+
+This contract ensures all modules behave identically and predictably.
+
+---
+
+# 🌐 **MacroSignal Governance**
+
+The MacroSignal Advisory Module (MSM) is the global macro governor of AILLEE.
+
+### **The 7 macro inputs**
+MSM consumes normalized numeric signals:
+
+- `usd_strength`  
+- `commodity_pressure`  
+- `crypto_sentiment`  
+- `macro_volatility`  
+- `risk_on_score`  
+- `inflation_pressure`  
+- `recession_pressure`
+
+### **How macro_risk_score is computed**
+A deterministic weighted pressure index is computed from the 7 inputs, smoothed using Fibonacci/golden‑ratio smoothing, then mapped to a risk score in \([0, 100]\).
+
+### **How recommended_macro_weight influences other modules**
+After MSM evaluation:
+
+```
+module.recommended_weight *= macro_advisory.recommended_macro_weight;
+```
+
+This adjusts BTC, ETH, Commodity, and USD advisory weights **without modifying consensus logic**.
+
+### **Why macro influence is advisory‑only**
+Macro influence must never:
+
+- alter model signals  
+- alter consensus logic  
+- alter fallback logic  
+- alter final decision logic  
+
+It only adjusts advisory weights, preserving AILLEE’s safety guarantees.
+
+### **Why consensus logic remains untouched**
+Consensus operates solely on `ModelSignal[]`.  
+Advisory modules provide context — not votes.
+
+---
+
+# 🧪 **Deterministic Test Suite**
+
+AILLEE’s test suite validates every deterministic and safety invariant:
+
+### **Struct size asserts**
+```
+static_assert(sizeof(State) == 64);
+static_assert(sizeof(Advisory) == 64);
+static_assert(sizeof(ObservabilityMetrics) == 64);
+```
+
+### **No‑allocation asserts**
+Instrumentation ensures advisory modules never allocate memory.
+
+### **SafetyState invariants**
+Tests verify:
+
+- kill‑switch behavior  
+- fail‑closed semantics  
+- advisory isolation  
+
+### **Deterministic output tests**
+Identical inputs must always produce identical outputs across:
+
+- compilers  
+- platforms  
+- optimization levels  
+
+### **ABI stability tests**
+Binary layout is validated across GCC, Clang, and MSVC.
+
+This suite ensures AILLEE is not just code — it is a verified deterministic system.
+
+---
+
+# 📦 **Versioning & Release Notes**
+
+```
+### Version History
+- 6.0.0 — Unified Macro-Aware Advisory Engine
+- 5.1.0 — ABI Stabilization & SafetyState Hardening
+- 5.0.0 — Deterministic Consensus & Fallback Architecture
+- 4.x.x — Early Model-Signal Safety Framework
+```
+
+This gives newcomers a clear view of AILLEE’s evolution.
+
+---
+
+# 🧭 **Design Philosophy**
+
+AILLEE is built on six core principles:
+
+- **Determinism** — identical behavior across all environments  
+- **Safety** — layered validation prevents catastrophic failures  
+- **Auditability** — every decision is explainable and logged  
+- **Zero trust in models** — models propose, AILLEE validates  
+- **Defense‑in‑depth** — multiple layers must fail simultaneously  
+- **Advisory‑only boundaries** — no execution logic inside the engine  
+
+This philosophy is the foundation of AILLEE’s reliability.
+
+---
+
+# 🏛️ **Enterprise Integration**
+
+AILLEE is designed for institutional deployment:
+
+- Multi‑desk integration  
+- Risk oversight hooks  
+- Compliance workflows  
+- Audit trail ingestion  
+- Enterprise plugin architecture  
+- REST API and C++ integration paths  
+- Deterministic behavior across distributed systems  
+
+This positions AILLEE as a production‑grade risk mitigation framework.
+
+---
+
+# 🔮 **Roadmap**
+
+```
+6.1 — Advisory normalization layer
+6.2 — Multi-asset exposure balancer
+6.3 — Deterministic observability dashboards
+7.0 — Hardware-accelerated advisory kernels (FPGA/ASIC)
+```
+
+AILLEE continues to evolve toward hardware determinism and multi‑asset advisory intelligence.
+
+---
+
+# ⭐ **Philosophical Note**
+
+> **“Determinism is not a constraint — it is the foundation of reliability.”**
+
+> **“Safety is not a feature. It is the architecture.”**
+
+These statements capture the ethos of AILLEE:  
+In a world of fragile algorithms, AILLEE is engineered to remain stable, predictable, and auditable under all conditions.
+
+---
+
 ## 📖 Citation
 
 If you use AILLE in academic research:
