@@ -39,4 +39,8 @@ namespace aillee_spire {
         return aillee_crown_walk::walk();
     }
 
+    aillee_weathering::WeatheringReport get_weathering() noexcept {
+        return aillee_weathering::evaluate();
+    }
+
 } // namespace aillee_spire
