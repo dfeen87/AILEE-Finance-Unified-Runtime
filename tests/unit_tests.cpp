@@ -17,6 +17,7 @@
 #include "../aille.hpp"
 #include "../extensions/aille_hal.hpp"
 #include "../extensions/aille_ingest.hpp"
+#include "../extensions/v7_3_pipeline.hpp"
 #include "../extensions/aille_enclave.hpp"
 #include "../extensions/v7_2_pipeline.hpp"
 #include "../extensions/aille_btc.hpp"
@@ -1573,6 +1574,17 @@ int main() {
         tests_failed++;
     } else {
         tests_run++;
+    }
+
+    std::cout << "\nRunning V7.3 Pipeline Tests...\n";
+
+    // Call evaluate_v7_3_pipeline, if it doesn't crash, the test passes
+    try {
+        AILLE::evaluate_v7_3_pipeline();
+        tests_run++;
+    } catch (...) {
+        std::cerr << "FAIL: V7.3 Pipeline crashed.\n";
+        tests_failed++;
     }
 
     std::cout << "\nTests Run: " << tests_run << std::endl;
