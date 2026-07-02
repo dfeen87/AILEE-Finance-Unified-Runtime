@@ -984,7 +984,7 @@ https://github.com/chriskohlhoff/asio
 Thank you to Yhi Rose for the lightweight HTTP/HTTPS library:
 https://github.com/yhirose/cpp-httplib
 
-Their work directly supports the engineering path that makes Version 7 possible.
+Their work directly supports the engineering path that makes Version 6.3 of this software and forward, possible.
 
 I would like to acknowledge **Microsoft Copilot** (sounding boaard for synthesis), **Anthropic Claude** (markdown formatting help), **Google Jules** (coding assistance), and **OpenAI ChatGPT** (validation in AILEE) for their meaningful assistance in refining concepts, improving clarity, and strengthening the overall quality of this work.
 
