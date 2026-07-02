@@ -44,7 +44,7 @@ rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_res
 
 # Clean build artifacts
 clean:
-	rm -f demo demo_debug demo_hotpath demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv
+	rm -f demo demo_debug demo_hotpath demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv dashboard_server
 	@echo "✓ Cleaned build artifacts"
 
 # Run the demo
@@ -111,6 +111,7 @@ help:
 	@echo "  make test         - Run integration tests"
 	@echo "  make benchmark    - Build benchmark harness"
 	@echo "  make rest_api_server - Build REST API server"
+	@echo "  make dashboard_server - Build Live Dashboard server"
 	@echo "  make clean        - Remove build artifacts"
 	@echo "  make install      - Install header system-wide"
 	@echo "  make help         - Show this message"
@@ -119,4 +120,12 @@ help:
 	@echo "  make && ./demo"
 	@echo ""
 
-.PHONY: all demo debug clean run test benchmark rest_api_server install uninstall help
+.PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server install uninstall help
+
+# Build Live Advisory Dashboard Server
+dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp
+	$(CXX) $(CXXFLAGS) -Iexternal/websocketpp -Iexternal/asio/asio/include examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp -o dashboard_server -lpthread
+	@echo ""
+	@echo "✓ Dashboard Server compiled successfully!"
+	@echo "  Run with: ./dashboard_server"
+	@echo ""
