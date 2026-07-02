@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include "aille_lantern.hpp"
+#include "aille_crown_walk.hpp"
 
 namespace aillee_spire {
 
@@ -27,6 +28,9 @@ namespace aillee_spire {
 
     // Returns the deterministic Lantern Layer identity and pulse
     Lantern get_lantern() noexcept;
+
+    // Returns a full Crown Walk Traversal read-only view
+    aillee_crown_walk::CrownWalkView get_crown_walk() noexcept;
 
 } // namespace aillee_spire
 

@@ -19,6 +19,7 @@
 #include "../extensions/aille_ingest.hpp"
 #include "../extensions/v7_3_pipeline.hpp"
 #include "../extensions/aille_spire.hpp"
+#include "../extensions/aille_crown_walk.hpp"
 #include "../extensions/aille_enclave.hpp"
 #include "../extensions/v7_2_pipeline.hpp"
 #include "../extensions/aille_btc.hpp"
@@ -1658,6 +1659,34 @@ int main() {
         }
     } catch (...) {
         std::cerr << "FAIL: V7.5 Lantern Interface crashed.\n";
+        tests_failed++;
+    }
+
+    std::cout << "\nRunning V7.6 Crown Walk Tests...\n";
+    try {
+        auto view = aillee_crown_walk::walk();
+        if (view.foundational_stability < 0.0) {
+            std::cerr << "FAIL: Crown Walk foundational_stability < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (view.resonance_bell < 0.0) {
+            std::cerr << "FAIL: Crown Walk resonance_bell < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        if (view.lantern_pulse < 0.0) {
+            std::cerr << "FAIL: Crown Walk lantern_pulse < 0.0\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+    } catch (...) {
+        std::cerr << "FAIL: V7.6 Crown Walk crashed.\n";
         tests_failed++;
     }
 
