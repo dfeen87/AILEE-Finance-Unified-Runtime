@@ -1,8 +1,3 @@
-const canvas = document.getElementById('ailleCanvas');
-const ctx = canvas.getContext('2d');
-
-let width, height, centerX, centerY;
-
 // Configuration
 const colors = {
     bgCore: '#050a1f', // Deep navy
@@ -15,23 +10,61 @@ const colors = {
     green: '#00ff66'
 };
 
+// Distribute 9 nodes evenly around the circle
 const nodesData = [
-    { id: 'BTC', label: 'BTC', angle: Math.PI * 1.25, color: colors.neonOrange, risk: 0, weight: 1 },
-    { id: 'ETH', label: 'ETH', angle: Math.PI * 1.75, color: colors.electricBlue, risk: 0, weight: 1 },
-    { id: 'Commodities', label: 'Commodities', angle: Math.PI * 0.25, color: colors.silver, risk: 0, weight: 1 },
-    { id: 'USD_FOREX', label: 'USD-FOREX', angle: Math.PI * 0.75, color: colors.electricBlue, risk: 0, weight: 1 }
+    { id: 'BTC', label: 'BTC', angle: Math.PI * (0 / 4.5), color: colors.neonOrange, risk: 0, weight: 0 },
+    { id: 'ETH', label: 'ETH', angle: Math.PI * (1 / 4.5), color: colors.electricBlue, risk: 0, weight: 0 },
+    { id: 'USD_FOREX', label: 'USD-FOREX', angle: Math.PI * (2 / 4.5), color: colors.electricBlue, risk: 0, weight: 0 },
+    { id: 'OIL', label: 'OIL', angle: Math.PI * (3 / 4.5), color: colors.silver, risk: 0, weight: 0 },
+    { id: 'GOLD', label: 'GOLD', angle: Math.PI * (4 / 4.5), color: colors.gold, risk: 0, weight: 0 },
+    { id: 'SILVER', label: 'SILVER', angle: Math.PI * (5 / 4.5), color: colors.silver, risk: 0, weight: 0 },
+    { id: 'COPPER', label: 'COPPER', angle: Math.PI * (6 / 4.5), color: colors.neonOrange, risk: 0, weight: 0 },
+    { id: 'NATGAS', label: 'NATGAS', angle: Math.PI * (7 / 4.5), color: colors.electricBlue, risk: 0, weight: 0 },
+    { id: 'PLATINUM', label: 'PLATINUM', angle: Math.PI * (8 / 4.5), color: colors.silver, risk: 0, weight: 0 }
 ];
 
-let macroData = { risk: 0, weight: 1 };
+const canvas = document.getElementById('ailleCanvas');
+const textCanvas = document.getElementById('textCanvas');
+
+// Attempt to initialize WebGL first, fallback to 2D
+let webGLRenderer = null;
+let ctx = null;
+let textCtx = null;
+
+try {
+    webGLRenderer = new WebGLRenderer(canvas, colors, nodesData);
+} catch (e) {
+    console.warn("WebGL Renderer failed to initialize, falling back to Canvas 2D.", e);
+}
+
+if (!webGLRenderer || !webGLRenderer.gl) {
+    ctx = canvas.getContext('2d');
+    webGLRenderer = null;
+    textCanvas.style.display = 'none';
+} else {
+    textCtx = textCanvas.getContext('2d');
+}
+
+let width, height, centerX, centerY;
+
+let macroData = { risk: 0, weight: 0 };
+let totalExposure = 0;
 let time = 0;
 
 function resize() {
     width = window.innerWidth;
     height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
     centerX = width / 2;
     centerY = height / 2;
+
+    if (webGLRenderer) {
+        webGLRenderer.resize();
+        textCanvas.width = width;
+        textCanvas.height = height;
+    } else {
+        canvas.width = width;
+        canvas.height = height;
+    }
 }
 
 window.addEventListener('resize', resize);
@@ -48,6 +81,7 @@ function connectWebSocket() {
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         const advisories = data.advisories;
+        const balancing = data.exposure_balancing;
 
         if (advisories) {
             nodesData.forEach(node => {
@@ -60,6 +94,13 @@ function connectWebSocket() {
                 macroData.risk = advisories.MacroSignal.risk_score;
                 macroData.weight = advisories.MacroSignal.recommended_weight;
             }
+        }
+        if (balancing) {
+            totalExposure = balancing.total_exposure;
+        }
+
+        if (webGLRenderer) {
+            webGLRenderer.updateData(advisories, balancing);
         }
     };
 
@@ -183,6 +224,31 @@ function drawNodes() {
     });
 }
 
+function drawExposureBars() {
+    // Draw total exposure and per-asset exposure bars
+    const startX = 20;
+    const startY = Math.min(height - 40 - (nodesData.length * 25) - 30, height / 2 - 100);
+
+    ctx.fillStyle = colors.silver;
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`Total Exposure: ${totalExposure.toFixed(2)}`, startX, startY);
+
+    nodesData.forEach((node, i) => {
+        const y = startY + 25 + (i * 25);
+        ctx.fillStyle = colors.silver;
+        ctx.font = "12px sans-serif";
+        ctx.fillText(node.label, startX, y + 10);
+
+        const barWidth = 150 * node.weight;
+        ctx.fillStyle = node.color;
+        ctx.fillRect(startX + 80, y, barWidth, 12);
+
+        ctx.fillStyle = colors.silver;
+        ctx.fillText(node.weight.toFixed(2), startX + 80 + barWidth + 5, y + 10);
+    });
+}
+
 function drawMacroSignal() {
     // MacroSignal (MSM) orbiting ring / golden halo
     const orbitRadius = Math.min(width, height) * 0.4;
@@ -213,14 +279,64 @@ function drawMacroSignal() {
 }
 
 function render() {
-    ctx.clearRect(0, 0, width, height);
+    if (webGLRenderer) {
+        webGLRenderer.render();
 
-    time += 0.02;
+        textCtx.clearRect(0, 0, width, height);
 
-    drawBackground();
-    drawNodes();
-    drawCentralCore();
-    drawMacroSignal();
+        // Draw labels on text canvas
+        const radius = Math.min(width, height) * 0.3;
+        nodesData.forEach(node => {
+            const nx = centerX + Math.cos(node.angle) * radius;
+            const ny = centerY + Math.sin(node.angle) * radius;
+            textCtx.fillStyle = colors.silver;
+            textCtx.font = "12px sans-serif";
+            textCtx.textAlign = "center";
+            textCtx.fillText(`${node.label} (${node.risk.toFixed(1)}%)`, nx, ny - 30);
+        });
+
+        // Draw MacroSignal label
+        const orbitRadius = Math.min(width, height) * 0.4;
+        const msmAngle = time * (0.5 + macroData.risk / 100);
+        const mx = centerX + Math.cos(msmAngle) * orbitRadius;
+        const my = centerY + Math.sin(msmAngle) * orbitRadius;
+        textCtx.fillStyle = getColorForRisk(colors.gold, macroData.risk);
+        textCtx.font = "10px sans-serif";
+        textCtx.fillText(`MacroSignal (${macroData.risk.toFixed(1)}%)`, mx + 20, my);
+
+        // Draw Exposure Text Overlay
+        const startX = 20;
+        const startY = Math.min(height - 40 - (nodesData.length * 25) - 30, height / 2 - 100);
+
+        textCtx.fillStyle = colors.silver;
+        textCtx.font = "14px sans-serif";
+        textCtx.textAlign = "left";
+        textCtx.fillText(`Total Exposure: ${totalExposure.toFixed(2)}`, startX, startY);
+
+        nodesData.forEach((node, i) => {
+            const y = startY + 25 + (i * 25);
+            textCtx.fillStyle = colors.silver;
+            textCtx.font = "12px sans-serif";
+            textCtx.fillText(node.label, startX, y + 10);
+
+            const barWidth = 150 * node.weight;
+            textCtx.fillStyle = colors.silver;
+            textCtx.fillText(node.weight.toFixed(2), startX + 80 + barWidth + 5, y + 10);
+        });
+
+        time += 0.02;
+
+    } else {
+        ctx.clearRect(0, 0, width, height);
+
+        time += 0.02;
+
+        drawBackground();
+        drawNodes();
+        drawCentralCore();
+        drawMacroSignal();
+        drawExposureBars();
+    }
 
     requestAnimationFrame(render);
 }

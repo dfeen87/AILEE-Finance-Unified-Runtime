@@ -31,6 +31,11 @@ canvas {
     z-index: 1;
 }
 
+#textCanvas {
+    z-index: 2;
+    pointer-events: none;
+}
+
 /* Overlays Layer */
 .top-overlay, .bottom-banner {
     position: absolute;

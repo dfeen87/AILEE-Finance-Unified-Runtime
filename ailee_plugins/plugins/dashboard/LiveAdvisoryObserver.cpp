@@ -133,24 +133,34 @@ std::string LiveAdvisoryObserver::buildJSONPayload(const Decision& decision) con
     else json << "\"risk_score\":0,\"recommended_weight\":0";
     json << "},";
 
-    // Commodities average
-    json << "\"Commodities\":{";
-    float comm_risk = 0.0f;
-    float comm_weight = 0.0f;
-    int comm_count = 0;
-    if (oil_) { comm_risk += oil_->risk_score; comm_weight += oil_->recommended_weight; comm_count++; }
-    if (gold_) { comm_risk += gold_->risk_score; comm_weight += gold_->recommended_weight; comm_count++; }
-    if (silver_) { comm_risk += silver_->risk_score; comm_weight += silver_->recommended_weight; comm_count++; }
-    if (copper_) { comm_risk += copper_->risk_score; comm_weight += copper_->recommended_weight; comm_count++; }
-    if (natgas_) { comm_risk += natgas_->risk_score; comm_weight += natgas_->recommended_weight; comm_count++; }
-    if (platinum_) { comm_risk += platinum_->risk_score; comm_weight += platinum_->recommended_weight; comm_count++; }
+    json << "\"OIL\":{";
+    if (oil_) json << "\"risk_score\":" << oil_->risk_score << ",\"recommended_weight\":" << oil_->recommended_weight;
+    else json << "\"risk_score\":0,\"recommended_weight\":0";
+    json << "},";
 
-    if (comm_count > 0) {
-        json << "\"risk_score\":" << (comm_risk/comm_count) << ",";
-        json << "\"recommended_weight\":" << (comm_weight/comm_count);
-    } else {
-        json << "\"risk_score\":0,\"recommended_weight\":0";
-    }
+    json << "\"GOLD\":{";
+    if (gold_) json << "\"risk_score\":" << gold_->risk_score << ",\"recommended_weight\":" << gold_->recommended_weight;
+    else json << "\"risk_score\":0,\"recommended_weight\":0";
+    json << "},";
+
+    json << "\"SILVER\":{";
+    if (silver_) json << "\"risk_score\":" << silver_->risk_score << ",\"recommended_weight\":" << silver_->recommended_weight;
+    else json << "\"risk_score\":0,\"recommended_weight\":0";
+    json << "},";
+
+    json << "\"COPPER\":{";
+    if (copper_) json << "\"risk_score\":" << copper_->risk_score << ",\"recommended_weight\":" << copper_->recommended_weight;
+    else json << "\"risk_score\":0,\"recommended_weight\":0";
+    json << "},";
+
+    json << "\"NATGAS\":{";
+    if (natgas_) json << "\"risk_score\":" << natgas_->risk_score << ",\"recommended_weight\":" << natgas_->recommended_weight;
+    else json << "\"risk_score\":0,\"recommended_weight\":0";
+    json << "},";
+
+    json << "\"PLATINUM\":{";
+    if (platinum_) json << "\"risk_score\":" << platinum_->risk_score << ",\"recommended_weight\":" << platinum_->recommended_weight;
+    else json << "\"risk_score\":0,\"recommended_weight\":0";
     json << "},";
 
     json << "\"USD_FOREX\":{";
@@ -163,7 +173,24 @@ std::string LiveAdvisoryObserver::buildJSONPayload(const Decision& decision) con
     else json << "\"risk_score\":0,\"recommended_weight\":0";
     json << "}";
 
+    json << "},";
+
+    float total_exposure = 0.0f;
+    if (btc_) total_exposure += btc_->recommended_weight;
+    if (eth_) total_exposure += eth_->recommended_weight;
+    if (oil_) total_exposure += oil_->recommended_weight;
+    if (gold_) total_exposure += gold_->recommended_weight;
+    if (silver_) total_exposure += silver_->recommended_weight;
+    if (copper_) total_exposure += copper_->recommended_weight;
+    if (natgas_) total_exposure += natgas_->recommended_weight;
+    if (platinum_) total_exposure += platinum_->recommended_weight;
+    if (forex_) total_exposure += forex_->recommended_weight;
+    if (macro_) total_exposure += macro_->recommended_macro_weight;
+
+    json << "\"exposure_balancing\":{";
+    json << "\"total_exposure\":" << total_exposure;
     json << "}";
+
     json << "}";
 
     return json.str();
