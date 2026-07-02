@@ -4,6 +4,7 @@
 #include <cstddef>
 #include "aille_lantern.hpp"
 #include "aille_crown_walk.hpp"
+#include "aille_weathering.hpp"
 
 namespace aillee_spire {
 
@@ -31,6 +32,9 @@ namespace aillee_spire {
 
     // Returns a full Crown Walk Traversal read-only view
     aillee_crown_walk::CrownWalkView get_crown_walk() noexcept;
+
+    // Returns the deterministic Weathering Layer resilience report
+    aillee_weathering::WeatheringReport get_weathering() noexcept;
 
 } // namespace aillee_spire
 

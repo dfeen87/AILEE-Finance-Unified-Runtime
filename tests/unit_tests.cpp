@@ -34,6 +34,7 @@
 #include "../extensions/aille_forex_usd.hpp"
 #include "../extensions/aille_macro.hpp"
 #include "../extensions/aille_lantern.hpp"
+#include "../extensions/aille_weathering.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1659,6 +1660,20 @@ int main() {
         }
     } catch (...) {
         std::cerr << "FAIL: V7.5 Lantern Interface crashed.\n";
+        tests_failed++;
+    }
+
+    std::cout << "\nRunning V7.7 Weathering Tests...\n";
+    try {
+        auto report = aillee_weathering::evaluate();
+        if (report.stress.resilience_score < 0.0 || report.stress.resilience_score > 1.0) {
+            std::cerr << "FAIL: Weathering resilience_score out of bounds\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+    } catch (...) {
+        std::cerr << "FAIL: V7.7 Weathering layer crashed.\n";
         tests_failed++;
     }
 
