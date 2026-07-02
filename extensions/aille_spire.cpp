@@ -31,4 +31,8 @@ namespace aillee_spire {
         };
     }
 
+    Lantern get_lantern() noexcept {
+        return compute_lantern();
+    }
+
 } // namespace aillee_spire

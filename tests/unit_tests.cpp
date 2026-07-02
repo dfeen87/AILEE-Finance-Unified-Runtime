@@ -32,6 +32,7 @@
 #include "../extensions/aille_platinum.hpp"
 #include "../extensions/aille_forex_usd.hpp"
 #include "../extensions/aille_macro.hpp"
+#include "../extensions/aille_lantern.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -862,6 +863,12 @@ TEST(V7_2_PipelineRunsWithoutCrash) {
     ASSERT_TRUE(true);
 }
 
+TEST(V7_5_LanternRuns) {
+    auto lantern = aillee_spire::get_lantern();
+    ASSERT_TRUE(lantern.pulse >= 0.0);
+    ASSERT_TRUE(lantern.pulse <= 1.0);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -915,6 +922,7 @@ int main() {
     RUN_TEST(TestObservabilityKillSwitchReducesRisk);
     RUN_TEST(TestObservabilityFailClosedHardwareFault);
     RUN_TEST(V7_2_PipelineRunsWithoutCrash);
+    RUN_TEST(V7_5_LanternRuns);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
@@ -1636,6 +1644,20 @@ int main() {
 
     } catch (...) {
         std::cerr << "FAIL: V7.4 Spire Interface crashed.\n";
+        tests_failed++;
+    }
+
+    std::cout << "\nRunning V7.5 Lantern Interface Tests...\n";
+    try {
+        auto lantern = aillee_spire::get_lantern();
+        if (lantern.pulse < 0.0 || lantern.pulse > 1.0) {
+            std::cerr << "FAIL: Lantern pulse out of bounds\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+    } catch (...) {
+        std::cerr << "FAIL: V7.5 Lantern Interface crashed.\n";
         tests_failed++;
     }
 
