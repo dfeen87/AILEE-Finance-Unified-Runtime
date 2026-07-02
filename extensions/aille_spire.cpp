@@ -1,5 +1,6 @@
 #include "aille_spire.hpp"
 #include "v7_3_pipeline.hpp"
+#include "aille_pilgrimage.hpp"
 
 namespace {
     // Static instances of the bell-tower modules, representing the deterministic state
@@ -41,6 +42,10 @@ namespace aillee_spire {
 
     aillee_weathering::WeatheringReport get_weathering() noexcept {
         return aillee_weathering::evaluate();
+    }
+
+    aillee_pilgrimage::PilgrimageReport get_pilgrimage() noexcept {
+        return aillee_pilgrimage::perform();
     }
 
 } // namespace aillee_spire

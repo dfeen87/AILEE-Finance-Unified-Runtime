@@ -5,6 +5,7 @@
 #include "aille_lantern.hpp"
 #include "aille_crown_walk.hpp"
 #include "aille_weathering.hpp"
+#include "aille_pilgrimage.hpp"
 
 namespace aillee_spire {
 
@@ -35,6 +36,9 @@ namespace aillee_spire {
 
     // Returns the deterministic Weathering Layer resilience report
     aillee_weathering::WeatheringReport get_weathering() noexcept;
+
+    // Returns the deterministic Pilgrimage Layer synchronization report
+    aillee_pilgrimage::PilgrimageReport get_pilgrimage() noexcept;
 
 } // namespace aillee_spire
 
