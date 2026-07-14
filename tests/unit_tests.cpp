@@ -1479,6 +1479,13 @@ int main() {
     macro_state.risk_on_score = 0.2f;
     macro_state.inflation_pressure = 0.7f;
     macro_state.recession_pressure = 0.6f;
+    macro_state.btc_correlation[0] = 0.6f;
+    macro_state.btc_correlation[1] = 0.4f;
+    macro_state.eth_correlation[0] = 0.55f;
+    macro_state.eth_correlation[1] = 0.45f;
+    macro_state.com_correlation[0] = 0.3f;
+    macro_state.com_correlation[1] = 0.3f;
+    macro_state.historical_base = 0.5f;
 
     safety.hardware_fault = false;
     safety.kill_switch = false;
