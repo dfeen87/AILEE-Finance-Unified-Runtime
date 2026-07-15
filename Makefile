@@ -45,6 +45,7 @@ rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_res
 
 # Clean build artifacts
 clean:
+	rm -f websocket_server
 	rm -f demo demo_debug demo_hotpath demo_audit.csv benchmark rest_api_server rest_api_audit.csv test_suite test_audit.csv test_integrity.csv dashboard_server spire_demo lantern_demo crown_walk_demo
 	@echo "✓ Cleaned build artifacts"
 
@@ -173,6 +174,7 @@ help:
 	@echo "  make test         - Run integration tests"
 	@echo "  make benchmark    - Build benchmark harness"
 	@echo "  make rest_api_server - Build REST API server"
+	@echo "  make websocket_server - Build WebSocket Spire server"
 	@echo "  make dashboard_server - Build Live Dashboard server"
 	@echo "  make spire_demo   - Build Spire v7.4 demo"
 	@echo "  make lantern_demo - Build Lantern v7.5 demo"
@@ -195,4 +197,12 @@ dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/
 	@echo ""
 	@echo "✓ Dashboard Server compiled successfully!"
 	@echo "  Run with: ./dashboard_server"
+	@echo ""
+
+# WebSocket Server target
+websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_crown_walk.cpp extensions/aille_weathering.cpp extensions/aille_pilgrimage.cpp
+	$(CXX) $(CXXFLAGS) -Iexternal/websocketpp -Iexternal/asio/asio/include $(INCLUDES) $(OPTFLAGS) examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_crown_walk.cpp extensions/aille_weathering.cpp extensions/aille_pilgrimage.cpp -o websocket_server -lpthread
+	@echo ""
+	@echo "✓ WebSocket Server compiled successfully!"
+	@echo "  Run with: ./websocket_server"
 	@echo ""
