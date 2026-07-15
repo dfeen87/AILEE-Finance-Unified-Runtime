@@ -49,16 +49,8 @@ private:
     std::thread broadcast_thread_;
 
     // To hide the ASIO/WebSocket++ types from the header, we use an opaque pointer
-    struct WsServerImpl;
-    WsServerImpl* server_ptr_;
-
-    // Mutex to protect connection set
-    std::mutex connections_mtx_;
-    std::set<void*> connections_; // Stores connection_hdl internally as void* for header isolation
-
-    // internal callbacks
-    void onOpen(void* hdl);
-    void onClose(void* hdl);
+    // In C++17, void* is the safest way to completely hide dependencies without incomplete type issues on delete
+    void* server_ptr_;
 };
 
 } // namespace AILLE

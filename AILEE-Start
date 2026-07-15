@@ -1,0 +1,23 @@
+#!/bin/bash
+# AILEE Framework - WebSocket Server Startup Script
+
+set -e
+
+echo "========================================"
+echo "    AILEE Framework Initialization      "
+echo "========================================"
+
+# Step 1: Check dependencies
+if [ ! -d "external/websocketpp" ] || [ ! -d "external/asio" ]; then
+    echo "[*] Downloading required dependencies..."
+    ./setup_websocket.sh
+fi
+
+# Step 2: Build the WebSocket Server
+echo "[*] Building WebSocket Server..."
+make websocket_server
+
+# Step 3: Run the Server
+echo "[*] Launching AILEE Spire WebSocket Server..."
+echo ""
+exec ./websocket_server "$@"

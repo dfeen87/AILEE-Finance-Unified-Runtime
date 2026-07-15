@@ -38,7 +38,7 @@ struct WsServerImpl {
 };
 
 WebSocketServer::WebSocketServer(int port) : port_(port), running_(false), server_ptr_(new WsServerImpl()) {
-    WsServerImpl* impl = server_ptr_;
+    WsServerImpl* impl = static_cast<WsServerImpl*>(server_ptr_);
 
     impl->server.init_asio();
     impl->server.set_reuse_addr(true);
@@ -48,7 +48,7 @@ WebSocketServer::WebSocketServer(int port) : port_(port), running_(false), serve
     impl->server.set_access_channels(websocketpp::log::alevel::access_core);
 
     impl->server.set_open_handler([this](connection_hdl hdl) {
-        WsServerImpl* pImpl = server_ptr_;
+        WsServerImpl* pImpl = static_cast<WsServerImpl*>(server_ptr_);
         {
             std::lock_guard<std::mutex> lock(pImpl->mtx);
             pImpl->connections.insert(hdl);
@@ -63,7 +63,7 @@ WebSocketServer::WebSocketServer(int port) : port_(port), running_(false), serve
     });
 
     impl->server.set_close_handler([this](connection_hdl hdl) {
-        WsServerImpl* pImpl = server_ptr_;
+        WsServerImpl* pImpl = static_cast<WsServerImpl*>(server_ptr_);
         std::lock_guard<std::mutex> lock(pImpl->mtx);
         pImpl->connections.erase(hdl);
     });
@@ -71,8 +71,9 @@ WebSocketServer::WebSocketServer(int port) : port_(port), running_(false), serve
 
 WebSocketServer::~WebSocketServer() {
     stop();
+    join();
     if (server_ptr_) {
-        delete server_ptr_;
+        delete static_cast<WsServerImpl*>(server_ptr_);
         server_ptr_ = nullptr;
     }
 }
@@ -93,7 +94,7 @@ bool WebSocketServer::startAsync() {
 }
 
 void WebSocketServer::run() {
-    WsServerImpl* impl = server_ptr_;
+    WsServerImpl* impl = static_cast<WsServerImpl*>(server_ptr_);
     try {
         impl->server.listen(port_);
         impl->server.start_accept();
@@ -112,18 +113,22 @@ void WebSocketServer::stop() {
     if (!running_) return;
     running_ = false;
 
-    WsServerImpl* impl = server_ptr_;
+    WsServerImpl* impl = static_cast<WsServerImpl*>(server_ptr_);
     if (impl) {
         impl->server.stop_listening();
 
         // Close all connections
-        std::lock_guard<std::mutex> lock(impl->mtx);
-        for (auto it = impl->connections.begin(); it != impl->connections.end(); ++it) {
-            websocketpp::lib::error_code ec;
-            impl->server.close(*it, websocketpp::close::status::going_away, "Server shutting down", ec);
+        {
+            std::lock_guard<std::mutex> lock(impl->mtx);
+            for (auto it = impl->connections.begin(); it != impl->connections.end(); ++it) {
+                websocketpp::lib::error_code ec;
+                impl->server.close(*it, websocketpp::close::status::going_away, "Server shutting down", ec);
+            }
+            impl->connections.clear();
         }
-        impl->connections.clear();
 
+        // Give connections a brief moment to transmit the close frame
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         impl->server.stop();
     }
 }
@@ -138,7 +143,7 @@ void WebSocketServer::join() {
 }
 
 void WebSocketServer::broadcastLoop() {
-    WsServerImpl* impl = server_ptr_;
+    WsServerImpl* impl = static_cast<WsServerImpl*>(server_ptr_);
     while (running_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100ms interval
 
