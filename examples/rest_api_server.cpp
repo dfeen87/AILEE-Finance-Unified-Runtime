@@ -66,8 +66,7 @@ int main(int argc, char* argv[]) {
 
     // Create engine + audit logger...
     // (unchanged)
-
-    AILLE::RestAPIServer server(engine, port, host);
+AILLE::RestAPIServer server(engine, port, host);
 
     std::cout << "Starting REST API server...\n";
     std::cout << "Host: " << host << "\n";
