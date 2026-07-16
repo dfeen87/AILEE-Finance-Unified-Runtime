@@ -35,8 +35,8 @@ debug: $(EXAMPLE_SRC) aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cp
 	@echo ""
 
 # Build REST API server
-rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille.hpp extensions/aille_rest_api.hpp external/httplib.h
-	    $(CXX) $(CXXFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(OPTFLAGS) $(THREAD_FLAGS) \
+rest_api_server:
+    $(CXX) $(CXXFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(OPTFLAGS) $(THREAD_FLAGS) \
         $(REST_API_SRC) $(REST_API_IMPL) \
         aille_framework.cpp aille_audit.cpp \
         -o rest_api_server
