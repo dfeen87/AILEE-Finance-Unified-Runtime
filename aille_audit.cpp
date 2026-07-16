@@ -18,7 +18,7 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
-#include <cstring> // Required for std::strncpy and std::memcpy
+#include <cstring>   // Required for std::memcpy, std::memset, strnlen
 #include <algorithm> // Required for std::min
 
 namespace AILLE {
@@ -26,6 +26,18 @@ namespace AILLE {
 // ============================================================================
 // HELPERS FOR ARRAY/STRING CONVERSION
 // ============================================================================
+
+// Convert raw buffer back to a std::string for easy comparison and streaming
+template <size_t N>
+std::string bufferToString(const uint8_t (&src)[N]) {
+    // Falls back to global strnlen from <cstring>
+    return std::string(reinterpret_cast<const char*>(src), ::strnlen(reinterpret_cast<const char*>(src), N));
+}
+
+template <size_t N>
+std::string bufferToString(const char (&src)[N]) {
+    return std::string(src, ::strnlen(src, N));
+}
 
 // Safely copy a std::string into a raw uint8_t or char array
 template <size_t N>
@@ -40,16 +52,17 @@ void copyStringToBuffer(char (&dest)[N], const std::string& src) {
     std::memcpy(dest, src.data(), std::min(N - 1, src.size()));
 }
 
-// Convert raw buffer back to a std::string for easy comparison and streaming
-template <size_t N>
-std::string bufferToString(const uint8_t (&src)[N]) {
-    // If it's a null-terminated string stored in uint8_t
-    return std::string(reinterpret_cast<const char*>(src), std::strnlen(reinterpret_cast<const char*>(src), N));
+// Safely copy one raw array buffer directly to another raw array buffer
+template <size_t N, size_t M>
+void copyBufferToBuffer(uint8_t (&dest)[N], const uint8_t (&src)[M]) {
+    std::memset(dest, 0, N);
+    std::memcpy(dest, src, std::min(N, M));
 }
 
-template <size_t N>
-std::string bufferToString(const char (&src)[N]) {
-    return std::string(src, std::strnlen(src, N));
+template <size_t N, size_t M>
+void copyBufferToBuffer(char (&dest)[N], const char (&src)[M]) {
+    std::memset(dest, 0, N);
+    std::memcpy(dest, src, std::min(N, M));
 }
 
 // ============================================================================
@@ -225,10 +238,13 @@ std::string AuditLogger::statusToString(DecisionStatus status) const {
 }
 
 // Constructors & Destructors
-AuditLogger::AuditLogger() : next_decision_id(1), last_hash("0000000000000000") {}
+AuditLogger::AuditLogger() : next_decision_id(1) {
+    copyStringToBuffer(last_hash, "0000000000000000");
+}
 
 AuditLogger::AuditLogger(const std::string& log_filename) 
-    : next_decision_id(1), last_hash("0000000000000000") {
+    : next_decision_id(1) {
+    copyStringToBuffer(last_hash, "0000000000000000");
     open(log_filename);
 }
 
@@ -281,9 +297,9 @@ void AuditLogger::logDecision(const Decision& decision,
     // Copy C-style integer arrays securely
     std::memcpy(record.contributing_models, decision.contributing_models, sizeof(record.contributing_models));
     
-    copyStringToBuffer(record.prev_hash, last_hash);
+    copyBufferToBuffer(record.prev_hash, last_hash);
     copyStringToBuffer(record.hash, computeHash(record));
-    last_hash = bufferToString(record.hash);
+    copyBufferToBuffer(last_hash, record.hash);
     
     audit_trail.push_back(record);
     
