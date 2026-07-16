@@ -18,11 +18,10 @@
 #include <iomanip>
 #include <ctime>
 
-namespace AILLE {
+// Pull in full definitions for AILLE::Decision and AILLE::DecisionStatus
+#include "aille.hpp" 
 
-// Forward declaration
-struct Decision;
-enum DecisionStatus;
+namespace AILLE {
 
 // ============================================================================
 // AUDIT RECORD
@@ -411,29 +410,3 @@ public:
 };
 
 } // namespace AILLE
-
-/*
- * USAGE EXAMPLE:
- * 
- * // Initialize audit logger
- * AILLE::AuditLogger logger("aille_audit.csv");
- * 
- * // In your trading system:
- * Decision decision = aille_engine.makeDecision(signals);
- * 
- * // Log with compliance metadata
- * logger.logDecision(decision, 
- *                   "AAPL",           // Symbol
- *                   "momentum_v2",    // Strategy ID
- *                   "trader_001");    // User ID
- * 
- * // Generate monthly regulatory report
- * uint64_t month_start = get_month_start_timestamp();
- * uint64_t month_end = get_month_end_timestamp();
- * logger.generateReport("monthly_report_2025_01.txt", month_start, month_end);
- * 
- * // Verify integrity before submission
- * if (logger.verifyIntegrity()) {
- *     submit_to_regulator(logger.getAuditTrail());
- * }
- */
