@@ -28,6 +28,10 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <chrono>
+#include <cctype>
+#include <cstdio>
+#include <vector>
 
 // Forward declaration - httplib will be included separately
 namespace httplib {
@@ -49,10 +53,17 @@ public:
         json << "  \"fallback_used\": " << (decision.fallback_used ? "true" : "false") << ",\n";
         json << "  \"timestamp_ns\": " << decision.timestamp_ns << ",\n";
         json << "  \"reasoning\": \"" << escapeJSON(decision.reasoning) << "\",\n";
+
+        // contributing_models is a raw C array (e.g., int[64]), so we cannot use .size().
+        // We assume a fixed maximum contributing model count of 64, and emit all entries.
+        static constexpr size_t MAX_CONTRIBUTING_MODELS = 64;
+
         json << "  \"contributing_models\": [";
-        for (size_t i = 0; i < decision.contributing_models.size(); i++) {
+        for (size_t i = 0; i < MAX_CONTRIBUTING_MODELS; ++i) {
             json << decision.contributing_models[i];
-            if (i < decision.contributing_models.size() - 1) json << ", ";
+            if (i < MAX_CONTRIBUTING_MODELS - 1) {
+                json << ", ";
+            }
         }
         json << "]\n";
         json << "}";
@@ -179,11 +190,11 @@ private:
         if (colonPos == std::string::npos) return false;
         
         size_t valueStart = colonPos + 1;
-        while (valueStart < obj.length() && std::isspace(obj[valueStart])) valueStart++;
+        while (valueStart < obj.length() && std::isspace(static_cast<unsigned char>(obj[valueStart]))) valueStart++;
         
         size_t valueEnd = valueStart;
         while (valueEnd < obj.length() && 
-               (std::isdigit(obj[valueEnd]) || obj[valueEnd] == '.' || 
+               (std::isdigit(static_cast<unsigned char>(obj[valueEnd])) || obj[valueEnd] == '.' || 
                 obj[valueEnd] == '-' || obj[valueEnd] == '+' || obj[valueEnd] == 'e' || obj[valueEnd] == 'E')) {
             valueEnd++;
         }
@@ -206,10 +217,10 @@ private:
         if (colonPos == std::string::npos) return false;
         
         size_t valueStart = colonPos + 1;
-        while (valueStart < obj.length() && std::isspace(obj[valueStart])) valueStart++;
+        while (valueStart < obj.length() && std::isspace(static_cast<unsigned char>(obj[valueStart]))) valueStart++;
         
         size_t valueEnd = valueStart;
-        while (valueEnd < obj.length() && (std::isdigit(obj[valueEnd]) || obj[valueEnd] == '-')) {
+        while (valueEnd < obj.length() && (std::isdigit(static_cast<unsigned char>(obj[valueEnd])) || obj[valueEnd] == '-')) {
             valueEnd++;
         }
         
