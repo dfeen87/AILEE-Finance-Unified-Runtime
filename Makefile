@@ -212,7 +212,13 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 	@echo ""
 
 rest_api_server:
-    $(CXX) $(CXXFLAGS) $(OPTFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
+    $(CXX) $(CXXFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(OPTFLAGS) $(THREAD_FLAGS) \
         $(REST_API_SRC) $(REST_API_IMPL) \
         aille_framework.cpp aille_audit.cpp \
         -o rest_api_server
+	    @echo ""
+    @echo "✓ REST API Server compiled successfully!"
+    @echo "  Run with: ./rest_api_server [port] [host]"
+    @echo "  Default:  ./rest_api_server (port 8080, host 0.0.0.0)"
+    @echo ""
+
