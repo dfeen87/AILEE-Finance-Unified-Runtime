@@ -18,16 +18,10 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <cstring> // Required for std::strncpy and std::memcpy
+#include <algorithm> // Required for std::min
 
 namespace AILLE {
-
-// ============================================================================
-// AUDIT RECORD METHOD IMPLEMENTATIONS (IF ANY)
-// ============================================================================
-
-// If your AuditRecord constructor isn't inline in the header, define it here:
-// AuditRecord::AuditRecord() : ... {}
-
 
 // ============================================================================
 // AUDIT LOGGER METHOD IMPLEMENTATIONS
@@ -151,10 +145,10 @@ std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
        << "user_id=" << record.user_id << '\x1f'
        << "prev_hash=" << record.prev_hash << '\x1f'
        << "contributing_models=";
-    for (size_t i = 0; i < record.contributing_models.size(); ++i) {
-        if (i > 0) {
-            ss << ",";
-        }
+       
+    // Safe output since contributing_models is a fixed C-style array
+    for (size_t i = 0; i < 10; ++i) {
+        if (i > 0) ss << ",";
         ss << record.contributing_models[i];
     }
     return ss.str();
@@ -201,17 +195,16 @@ std::string AuditLogger::statusToString(DecisionStatus status) const {
     }
 }
 
-// Default Constructor
+// Constructors & Destructors
 AuditLogger::AuditLogger() : next_decision_id(1), last_hash("0000000000000000") {}
 
-// Parameterized Constructor
 AuditLogger::AuditLogger(const std::string& log_filename) 
     : next_decision_id(1), last_hash("0000000000000000") {
     open(log_filename);
 }
 
-// Destructor
 AuditLogger::~AuditLogger() {
+    // Note: close() is called here because it is defined inline in the header
     close();
 }
 
@@ -230,11 +223,7 @@ bool AuditLogger::open(const std::string& filename) {
     return true;
 }
 
-void AuditLogger::close() {
-    if (log_file.is_open()) {
-        log_file.close();
-    }
-}
+// NOTE: close() is removed from here since it is already inline at aille.hpp:1005
 
 void AuditLogger::logDecision(const Decision& decision,
                              const std::string& symbol,
@@ -249,13 +238,24 @@ void AuditLogger::logDecision(const Decision& decision,
     record.confidence = decision.confidence;
     record.models_agreed = decision.models_agreed;
     record.fallback_used = decision.fallback_used;
-    record.reasoning = decision.reasoning;
-    record.contributing_models = decision.contributing_models;
-    record.symbol = symbol;
-    record.strategy_id = strategy_id;
-    record.user_id = user_id;
-    record.prev_hash = last_hash;
     
+    // SAFE ARRAY COPIES: Handles C-style fixed char arrays safely
+    std::strncpy(record.reasoning, decision.reasoning, sizeof(record.reasoning) - 1);
+    record.reasoning[sizeof(record.reasoning) - 1] = '\0'; // Ensure null-termination
+    
+    std::strncpy(record.symbol, symbol.c_str(), sizeof(record.symbol) - 1);
+    record.symbol[sizeof(record.symbol) - 1] = '\0';
+
+    std::strncpy(record.strategy_id, strategy_id.c_str(), sizeof(record.strategy_id) - 1);
+    record.strategy_id[sizeof(record.strategy_id) - 1] = '\0';
+
+    std::strncpy(record.user_id, user_id.c_str(), sizeof(record.user_id) - 1);
+    record.user_id[sizeof(record.user_id) - 1] = '\0';
+
+    // Copy C-style integer arrays securely
+    std::memcpy(record.contributing_models, decision.contributing_models, sizeof(record.contributing_models));
+    
+    record.prev_hash = last_hash;
     record.hash = computeHash(record);
     last_hash = record.hash;
     
@@ -264,7 +264,7 @@ void AuditLogger::logDecision(const Decision& decision,
     if (log_file.is_open()) {
         std::ostringstream model_list;
         model_list << "[";
-        for (size_t i = 0; i < record.contributing_models.size(); i++) {
+        for (size_t i = 0; i < 10; i++) {
             if (i > 0) {
                 model_list << ",";
             }
