@@ -12,7 +12,17 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+
+// Telemetry
 #include "telemetry/TelemetryBridge.hpp"
+
+// Interfaces
+#include "interfaces/IAnalyticsObserver.hpp"
+#include "interfaces/IExecutionProvider.hpp"
+#include "interfaces/IMarketDataSource.hpp"
+#include "interfaces/IBreakingNewsProvider.hpp"
+#include "interfaces/ITradingAlertAdapter.hpp"
+#include "plugins/PluginRegistry.hpp"
 
 std::atomic<bool> keep_running(true);
 std::atomic<bool> notifier_running(true);
@@ -36,6 +46,78 @@ void notifier_loop() {
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 }
+
+/* -------------------------------------------------------------------------
+   TELEMETRY HOOK IMPLEMENTATIONS
+   These connect your interfaces directly to the terminal dashboard.
+   ------------------------------------------------------------------------- */
+
+// Analytics Observer → HFT decisions + queries
+class TelemetryAnalyticsObserver : public IAnalyticsObserver {
+public:
+    std::string name() const override { return "TelemetryAnalyticsObserver"; }
+
+    void onSignalEvaluated(const std::vector<ModelSignal>&) override {
+        telemetry_on_query();
+    }
+
+    void onDecisionRouted(const Decision&) override {
+        telemetry_on_hft_decision();
+    }
+};
+
+// Execution Provider → executions sent
+class TelemetryExecutionProvider : public IExecutionProvider {
+public:
+    std::string name() const override { return "TelemetryExecutionProvider"; }
+
+    void sendOrder(const Order&) override {
+        telemetry_on_execution_sent();
+    }
+};
+
+// Market Data Source → market updates
+class TelemetryMarketDataSource : public IMarketDataSource {
+public:
+    std::string name() const override { return "TelemetryMarketDataSource"; }
+
+    void onTick(const MarketTick&) override {
+        telemetry_on_market_update();
+    }
+};
+
+// Breaking News Provider → news events
+class TelemetryBreakingNewsProvider : public IBreakingNewsProvider {
+public:
+    std::string name() const override { return "TelemetryBreakingNewsProvider"; }
+
+    void onBreakingNews(const NewsItem&) override {
+        telemetry_on_breaking_news();
+    }
+};
+
+// Trading Alert Adapter → alerts triggered
+class TelemetryTradingAlertAdapter : public ITradingAlertAdapter {
+public:
+    std::string name() const override { return "TelemetryTradingAlertAdapter"; }
+
+    void onAlertTriggered(const Alert&) override {
+        telemetry_on_alert_triggered();
+    }
+};
+
+// Plugin Registry → plugin count
+class TelemetryPluginRegistry : public PluginRegistry {
+public:
+    void registerPlugin(const std::string& name, PluginPtr plugin) override {
+        telemetry_on_plugin_registered();
+        PluginRegistry::registerPlugin(name, plugin);
+    }
+};
+
+/* -------------------------------------------------------------------------
+   MAIN
+   ------------------------------------------------------------------------- */
 
 int main(int argc, char* argv[]) {
 
@@ -83,6 +165,25 @@ int main(int argc, char* argv[]) {
     // Create engine
     // -------------------------------
     AILLE::AILLEEngine engine(config);
+
+    // Attach telemetry observers
+    engine.addObserver(std::make_shared<TelemetryAnalyticsObserver>());
+
+    // Attach execution provider
+    engine.setExecutionProvider(std::make_shared<TelemetryExecutionProvider>());
+
+    // Attach market data source
+    engine.setMarketDataSource(std::make_shared<TelemetryMarketDataSource>());
+
+    // Attach breaking news provider
+    engine.setBreakingNewsProvider(std::make_shared<TelemetryBreakingNewsProvider>());
+
+    // Attach trading alert adapter
+    engine.setTradingAlertAdapter(std::make_shared<TelemetryTradingAlertAdapter>());
+
+    // Plugin registry with telemetry
+    auto pluginRegistry = std::make_shared<TelemetryPluginRegistry>();
+    engine.setPluginRegistry(pluginRegistry);
 
     // -------------------------------
     // Audit logger
