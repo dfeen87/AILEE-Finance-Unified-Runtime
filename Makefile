@@ -37,23 +37,21 @@ SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
 all: demo
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS)
-    $(CXX) $(CXXFLAGS) -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src \
-        $(EXAMPLE_SRC) $(EXT_SRCS) -o demo
-    @echo ""
-    @echo "✓ Demo compiled successfully!"
-    @echo ""
+	$(CXX) $(CXXFLAGS) -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src \
+		$(EXAMPLE_SRC) $(EXT_SRCS) -o demo
+	@echo ""
+	@echo "✓ Demo compiled successfully!"
+	@echo ""
+
+debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS)
+	$(CXX) $(CXXFLAGS) -g $(EXAMPLE_SRC) $(EXT_SRCS) -o demo_debug
+	@echo ""
+	@echo "✓ Debug build ready"
+	@echo ""
 
 rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp aille.hpp
-    $(CXX) $(CXXFLAGS) -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src \
-        $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
-        $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp \
-        -o rest_api_server
-    @echo ""
-    @echo "✓ REST API Server compiled successfully!"
-    @echo ""
-
-rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp aille.hpp
-	$(CXX) $(CXXFLAGS) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
+	$(CXX) $(CXXFLAGS) -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src \
+		$(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
 		$(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp \
 		-o rest_api_server
 	@echo ""
