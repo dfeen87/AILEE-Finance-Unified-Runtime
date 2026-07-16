@@ -38,8 +38,7 @@ REST_API_IMPL    = extensions/aille_rest_api.cpp
 UNIT_TESTS_SRC   = tests/unit_tests.cpp
 SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
 
-.PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \
-        spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo install uninstall help
+.PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \ spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo install uninstall help
 
 all: demo
 
