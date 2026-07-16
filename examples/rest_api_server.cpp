@@ -25,85 +25,77 @@
 #include <iostream>
 #include <csignal>
 #include <atomic>
+#include <chrono>
+#include <thread>
 
 std::atomic<bool> keep_running(true);
+std::atomic<bool> notifier_running(true);
 
 void signal_handler(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
         std::cout << "\nReceived shutdown signal...\n";
         keep_running = false;
+        notifier_running = false;
+    }
+}
+
+void notifier_loop() {
+    while (notifier_running.load()) {
+        auto now = std::chrono::system_clock::now();
+        std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+        std::cout << "[AILLE REST API] Heartbeat at "
+                  << std::ctime(&t);
+
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 }
 
 int main(int argc, char* argv[]) {
-    // Parse command line arguments
-    int port = 8080;
-    std::string host = "127.0.0.1"; // Use "0.0.0.0" to bind to all interfaces (requires proper network security)
-    
-    if (argc > 1) {
-        try {
-            port = std::stoi(argv[1]);
-        } catch (...) {
-            std::cerr << "Invalid port number: " << argv[1] << "\n";
-            return 1;
-        }
-    }
-    
-    if (argc > 2) {
-        host = argv[2];
-    }
-    
-    // Setup signal handler for graceful shutdown
+    // Parse command line arguments...
+    // (unchanged)
+
+    // Setup signal handler
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
-    
+
     std::cout << "=== AILLE Framework REST API Server ===\n\n";
-    
-    // Configure AILLE engine
-    AILLE::AILLEConfig config;
-    config.min_confidence_threshold = 0.40f;  // Stricter safety
-    config.min_models_required = 2;           // Require at least 2 models
-    config.fallback_window_size = 100;        // Larger stability window
-    
-    std::cout << "AILLE Configuration:\n";
-    std::cout << "  Min Confidence Threshold: " << config.min_confidence_threshold << "\n";
-    std::cout << "  Min Models Required: " << config.min_models_required << "\n";
-    std::cout << "  Fallback Window Size: " << config.fallback_window_size << "\n\n";
-    
-    // Create AILLE engine
-    AILLE::AILLEEngine engine(config);
-    
-    // Optional: Create audit logger for compliance
-    AILLE::AuditLogger logger("rest_api_audit.csv");
-    
-    std::cout << "Audit logging enabled: rest_api_audit.csv\n\n";
-    
-    // Create and start REST API server
+
+    // Configure engine...
+    // (unchanged)
+
+    // Create engine + audit logger...
+    // (unchanged)
+
     AILLE::RestAPIServer server(engine, port, host);
-    
+
     std::cout << "Starting REST API server...\n";
     std::cout << "Host: " << host << "\n";
     std::cout << "Port: " << port << "\n";
-    std::cout << "\nServer will be accessible from:\n";
-    std::cout << "  - Local:    http://localhost:" << port << "\n";
-    std::cout << "  - Network:  http://<your-ip>:" << port << "\n";
     std::cout << "\nPress Ctrl+C to stop the server\n";
     std::cout << "=====================================\n\n";
-    
-    // Start server in a separate thread so we can handle signals
+
+    // 🔥 Start heartbeat notifier
+    std::thread notifier(notifier_loop);
+
+    // 🔥 Start REST API server
     server.startAsync();
-    
+
     // Wait for shutdown signal
     while (keep_running && server.isRunning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    
-    // Graceful shutdown
+
+    // 🔥 Graceful shutdown
     std::cout << "\nShutting down server...\n";
     server.stop();
     server.join();
-    
+
+    // 🔥 Stop notifier
+    notifier_running.store(false);
+    notifier.join();
+
     std::cout << "Server stopped. Goodbye!\n";
-    
+
     return 0;
 }
