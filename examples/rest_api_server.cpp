@@ -66,35 +66,37 @@ int main(int argc, char* argv[]) {
 
     // Create engine + audit logger...
     // (unchanged)
+// Create and start REST API server
 AILLE::RestAPIServer server(engine, port, host);
 
-    std::cout << "Starting REST API server...\n";
-    std::cout << "Host: " << host << "\n";
-    std::cout << "Port: " << port << "\n";
-    std::cout << "\nPress Ctrl+C to stop the server\n";
-    std::cout << "=====================================\n\n";
+std::cout << "Starting REST API server...\n";
+std::cout << "Host: " << host << "\n";
+std::cout << "Port: " << port << "\n";
+std::cout << "\nPress Ctrl+C to stop the server\n";
+std::cout << "=====================================\n\n";
 
-    // 🔥 Start heartbeat notifier
-    std::thread notifier(notifier_loop);
+// 🔥 Start heartbeat notifier
+std::thread notifier(notifier_loop);
 
-    // 🔥 Start REST API server
-    server.startAsync();
+// 🔥 Start REST API server
+server.startAsync();
 
-    // Wait for shutdown signal
-    while (keep_running && server.isRunning()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
-    // 🔥 Graceful shutdown
-    std::cout << "\nShutting down server...\n";
-    server.stop();
-    server.join();
-
-    // 🔥 Stop notifier
-    notifier_running.store(false);
-    notifier.join();
-
-    std::cout << "Server stopped. Goodbye!\n";
-
-    return 0;
+// Wait for shutdown signal
+while (keep_running && server.isRunning()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
+
+// 🔥 Graceful shutdown
+std::cout << "\nShutting down server...\n";
+server.stop();
+server.join();
+
+// 🔥 Stop notifier
+notifier_running.store(false);
+notifier.join();
+
+std::cout << "Server stopped. Goodbye!\n";
+
+return 0;
+}
+
