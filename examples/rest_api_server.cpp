@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include "telemetry/TelemetryBridge.hpp"
 
 std::atomic<bool> keep_running(true);
 std::atomic<bool> notifier_running(true);
