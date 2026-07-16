@@ -9,6 +9,7 @@
  * Compatible with SEC, EU AI Act, and MiFID II requirements
  */
 
+#include "aille.hpp"
 #include <array>
 #include <cstdint>
 #include <string>
@@ -17,9 +18,6 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
-
-// Pull in full definitions for AILLE::Decision and AILLE::DecisionStatus
-#include "aille.hpp" 
 
 namespace AILLE {
 
