@@ -24,8 +24,9 @@
 namespace AILLE {
 
 // ============================================================================
-// HELPERS FOR ARRAY/STRING CONVERSION
+// HELPERS FOR ARRAY/STRING CONVERSION & CRYPTO
 // ============================================================================
+namespace {
 
 // Convert raw buffer back to a std::string for easy comparison and streaming
 template <size_t N>
@@ -64,15 +65,13 @@ void copyBufferToBuffer(char (&dest)[N], const char (&src)[M]) {
     std::memcpy(dest, src, std::min(N, M));
 }
 
-// ============================================================================
-// AUDIT LOGGER METHOD IMPLEMENTATIONS
-// ============================================================================
-
-uint32_t AuditLogger::rotateRight(uint32_t value, uint32_t bits) const {
+// Internal cryptographic rotation helper
+inline uint32_t internalRotateRight(uint32_t value, uint32_t bits) {
     return (value >> bits) | (value << (32 - bits));
 }
 
-std::string AuditLogger::sha256(const std::string& input) const {
+// Internal cryptographic SHA-256 implementation
+std::string internalSha256(const std::string& input) {
     static constexpr std::array<uint32_t, 64> k = {
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
         0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -117,11 +116,11 @@ std::string AuditLogger::sha256(const std::string& input) const {
                 | static_cast<uint32_t>(data[idx + 3]);
         }
         for (size_t i = 16; i < 64; ++i) {
-            uint32_t s0 = rotateRight(w[i - 15], 7) ^
-                          rotateRight(w[i - 15], 18) ^
+            uint32_t s0 = internalRotateRight(w[i - 15], 7) ^
+                          internalRotateRight(w[i - 15], 18) ^
                           (w[i - 15] >> 3);
-            uint32_t s1 = rotateRight(w[i - 2], 17) ^
-                          rotateRight(w[i - 2], 19) ^
+            uint32_t s1 = internalRotateRight(w[i - 2], 17) ^
+                          internalRotateRight(w[i - 2], 19) ^
                           (w[i - 2] >> 10);
             w[i] = w[i - 16] + s0 + w[i - 7] + s1;
         }
@@ -136,10 +135,10 @@ std::string AuditLogger::sha256(const std::string& input) const {
         uint32_t hh = h[7];
 
         for (size_t i = 0; i < 64; ++i) {
-            uint32_t s1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+            uint32_t s1 = internalRotateRight(e, 6) ^ internalRotateRight(e, 11) ^ internalRotateRight(e, 25);
             uint32_t ch = (e & f) ^ (~e & g);
             uint32_t temp1 = hh + s1 + ch + k[i] + w[i];
-            uint32_t s0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+            uint32_t s0 = internalRotateRight(a, 2) ^ internalRotateRight(a, 13) ^ internalRotateRight(a, 22);
             uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
             uint32_t temp2 = s0 + maj;
 
@@ -171,6 +170,22 @@ std::string AuditLogger::sha256(const std::string& input) const {
     return out.str();
 }
 
+} // anonymous namespace
+
+// ============================================================================
+// AUDIT LOGGER METHOD IMPLEMENTATIONS
+// ============================================================================
+
+// Implementation matches header's non-const declaration to keep build passing
+uint32_t AuditLogger::rotateRight(uint32_t value, uint32_t bits) {
+    return internalRotateRight(value, bits);
+}
+
+// Implementation matches header's non-const declaration to keep build passing
+std::string AuditLogger::sha256(const std::string& input) {
+    return internalSha256(input);
+}
+
 std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
     std::ostringstream ss;
     ss << "timestamp_ns=" << record.timestamp_ns << '\x1f'
@@ -187,7 +202,6 @@ std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
        << "prev_hash=" << bufferToString(record.prev_hash) << '\x1f'
        << "contributing_models=";
        
-    // Safe output since contributing_models is a fixed C-style array
     for (size_t i = 0; i < 10; ++i) {
         if (i > 0) ss << ",";
         ss << record.contributing_models[i];
@@ -195,8 +209,9 @@ std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
     return ss.str();
 }
 
+// Uses the internal SHA-256 logic so we don't violate const-guarantees
 std::string AuditLogger::computeHash(const AuditRecord& record) const {
-    return sha256(serializeRecord(record));
+    return internalSha256(serializeRecord(record));
 }
 
 std::string AuditLogger::getTimestamp(uint64_t ns) const {
@@ -280,9 +295,8 @@ void AuditLogger::logDecision(const Decision& decision,
     record.models_agreed = decision.models_agreed;
     record.fallback_used = decision.fallback_used;
     
-    // SAFE ARRAY COPIES: Handles C-style fixed char arrays safely
     std::strncpy(record.reasoning, decision.reasoning, sizeof(record.reasoning) - 1);
-    record.reasoning[sizeof(record.reasoning) - 1] = '\0'; // Ensure null-termination
+    record.reasoning[sizeof(record.reasoning) - 1] = '\0';
     
     std::strncpy(record.symbol, symbol.c_str(), sizeof(record.symbol) - 1);
     record.symbol[sizeof(record.symbol) - 1] = '\0';
@@ -293,7 +307,6 @@ void AuditLogger::logDecision(const Decision& decision,
     std::strncpy(record.user_id, user_id.c_str(), sizeof(record.user_id) - 1);
     record.user_id[sizeof(record.user_id) - 1] = '\0';
 
-    // Copy C-style integer arrays securely
     std::memcpy(record.contributing_models, decision.contributing_models, sizeof(record.contributing_models));
     
     copyBufferToBuffer(record.prev_hash, last_hash);
