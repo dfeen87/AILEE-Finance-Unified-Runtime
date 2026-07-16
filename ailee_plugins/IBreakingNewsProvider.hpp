@@ -45,29 +45,21 @@ struct BreakingNewsItem {
           published_ns(published_timestamp_ns) {}
 };
 
-class IBreakingNewsProvider {
+class TelemetryBreakingNewsProvider : public AILLE::Plugins::IBreakingNewsProvider {
 public:
-    virtual ~IBreakingNewsProvider() = default;
+    std::string name() const override {
+        return "TelemetryBreakingNewsProvider";
+    }
 
-    /// Return the provider's human-readable identifier.
-    virtual std::string name() const = 0;
-
-    /// Return recent breaking-news items relevant to a passive alert.
-    /// Implementations should use licensed/authorized feeds for outlets such as
-    /// the Wall Street Journal and return cached data quickly.
-    virtual std::vector<BreakingNewsItem> getBreakingNews(
+    std::vector<AILLE::Plugins::BreakingNewsItem> getBreakingNews(
         const std::string& symbol,
         AlertSide side,
-        uint64_t as_of_timestamp_ns) = 0;
+        uint64_t as_of_timestamp_ns) override
+    {
+        telemetry_on_breaking_news();
 
-protected:
-    static uint64_t nowNs() {
-        using namespace std::chrono;
-        return static_cast<uint64_t>(
-            duration_cast<nanoseconds>(
-                high_resolution_clock::now().time_since_epoch()
-            ).count()
-        );
+        // Return an empty vector (passive provider)
+        return {};
     }
 };
 
