@@ -3,28 +3,796 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AILLEE 7.0.0 Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <title>AILLEE Finance Unified Runtime Dashboard</title>
+
+    <!-- Neon Quant Theme -->
+    <style>
+        :root {
+            --bg-main: #020617;
+            --bg-panel: #0b1120;
+            --bg-panel-soft: #020617;
+            --border-soft: #1f2937;
+            --accent-cyan: #22d3ee;
+            --accent-purple: #a855f7;
+            --accent-gold: #facc15;
+            --accent-red: #f97373;
+            --accent-green: #4ade80;
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: radial-gradient(circle at top, #0f172a 0, #020617 45%, #000000 100%);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .dashboard-root {
+            display: grid;
+            grid-template-columns: 2.2fr 1.2fr;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas:
+                "header header"
+                "visual side"
+                "ticker side";
+            height: 100vh;
+            padding: 12px 16px;
+            gap: 10px;
+        }
+
+        /* Header */
+        header.top-overlay {
+            grid-area: header;
+            padding: 8px 12px;
+            background: linear-gradient(to right, rgba(15,23,42,0.9), rgba(24,24,27,0.9));
+            border-radius: 8px;
+            border: 1px solid rgba(148,163,184,0.35);
+            box-shadow: 0 0 24px rgba(56,189,248,0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        header.top-overlay h1 {
+            font-size: 1.1rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent-cyan);
+        }
+
+        header.top-overlay .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Visual Area */
+        .visual-area {
+            grid-area: visual;
+            position: relative;
+            background: radial-gradient(circle at center, #0f172a 0, #020617 55%, #000000 100%);
+            border-radius: 10px;
+            border: 1px solid rgba(31,41,55,0.9);
+            box-shadow: 0 0 40px rgba(59,130,246,0.35);
+            overflow: hidden;
+        }
+
+        #ailleCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(34,211,238,0.08), transparent 60%);
+        }
+
+        #textCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Side Panel */
+        .side-panel {
+            grid-area: side;
+            display: grid;
+            grid-template-rows: 1.2fr 1.2fr 1.4fr;
+            gap: 8px;
+        }
+
+        .panel {
+            background: var(--bg-panel);
+            border-radius: 8px;
+            border: 1px solid var(--border-soft);
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 0 0 18px rgba(15,23,42,0.8);
+        }
+
+        .panel-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title span.accent {
+            color: var(--accent-purple);
+        }
+
+        /* Asset Cards */
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .asset-card {
+            background: var(--bg-panel-soft);
+            border-radius: 6px;
+            border: 1px solid rgba(55,65,81,0.8);
+            padding: 6px;
+            font-size: 0.75rem;
+        }
+
+        .asset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .asset-symbol {
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        .asset-status {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .status-ok { color: var(--accent-green); }
+        .status-warn { color: var(--accent-gold); }
+        .status-fault { color: var(--accent-red); }
+
+        .asset-metrics {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Metrics Panel */
+        .metrics-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+        }
+
+        .metric-label {
+            color: var(--text-muted);
+        }
+
+        .metric-value {
+            color: var(--accent-cyan);
+        }
+
+        .metric-bar {
+            margin-top: 4px;
+            height: 4px;
+            border-radius: 999px;
+            background: #020617;
+            overflow: hidden;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(to right, var(--accent-purple), var(--accent-cyan));
+            width: 0%;
+            transition: width 0.25s ease-out;
+        }
+
+        /* System Health */
+        .health-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+        }
+
+        .health-label {
+            color: var(--text-muted);
+        }
+
+        .health-value {
+            color: var(--accent-gold);
+        }
+
+        .health-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--accent-red);
+        }
+
+        .health-ok { background: var(--accent-green); }
+        .health-warn { background: var(--accent-gold); }
+        .health-fault { background: var(--accent-red); }
+
+        /* Terminal + Command Console */
+        #terminal {
+            flex: 1;
+            background: #020617;
+            border-radius: 6px;
+            border: 1px solid #1f2937;
+            padding: 6px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #e5e7eb;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .log-heartbeat { color: #7dd3fc; }
+        .log-decision  { color: #a3e635; }
+        .log-error     { color: #f87171; }
+        .log-info      { color: #facc15; }
+
+        .console-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        #console-input {
+            flex: 1;
+            background: #020617;
+            border-radius: 4px;
+            border: 1px solid #374151;
+            padding: 4px 6px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #e5e7eb;
+        }
+
+        #console-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+
+        .console-button {
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            border: 1px solid #4b5563;
+            background: #0f172a;
+            color: var(--accent-cyan);
+            cursor: pointer;
+        }
+
+        .console-button:hover {
+            border-color: var(--accent-cyan);
+            background: #020617;
+        }
+
+        /* Ticker */
+        footer.bottom-banner {
+            grid-area: ticker;
+            background: linear-gradient(to right, rgba(24,24,27,0.95), rgba(15,23,42,0.95));
+            border-radius: 8px;
+            border: 1px solid rgba(55,65,81,0.9);
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .ticker-strip {
+            display: inline-flex;
+            gap: 18px;
+            white-space: nowrap;
+            animation: ticker-scroll 40s linear infinite;
+        }
+
+        .ticker-item {
+            color: var(--text-muted);
+        }
+
+        .ticker-symbol {
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        .ticker-value {
+            color: var(--accent-gold);
+        }
+
+        .ticker-status-ok { color: var(--accent-green); }
+        .ticker-status-warn { color: var(--accent-gold); }
+        .ticker-status-fault { color: var(--accent-red); }
+
+        .gold-text {
+            color: var(--accent-gold);
+            font-weight: 600;
+        }
+
+        @keyframes ticker-scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+        }
+
+        /* Decision Graph */
+        #graphCanvas {
+            width: 100%;
+            height: 80px;
+            background: #020617;
+            border-radius: 6px;
+            border: 1px solid #1f2937;
+        }
+    </style>
 </head>
+
 <body>
-    <div class="dashboard-container">
-        <!-- Visualization Canvas -->
+<div class="dashboard-root">
+    <!-- Header -->
+    <header class="top-overlay">
+        <h1>AILLEE Finance Unified Runtime — Multi‑Asset Advisory Intelligence</h1>
+        <p class="subtitle">
+            Deterministic • Allocator‑Free • ABI‑Stable • Real‑Time Telemetry • REST + WebSocket • Metrics‑Driven
+        </p>
+    </header>
+
+    <!-- Visual Area -->
+    <section class="visual-area">
         <canvas id="ailleCanvas"></canvas>
         <canvas id="textCanvas"></canvas>
+    </section>
 
-        <!-- Top Text Overlay -->
-        <header class="top-overlay">
-            <h1>AILLEE 7.0.0 &mdash; Unified Multi&#8209;Asset Advisory Intelligence</h1>
-            <p class="subtitle">Deterministic. Allocator&#8209;Free. ABI&#8209;Stable. Built for Modern Markets.</p>
-        </header>
+    <!-- Side Panel -->
+    <aside class="side-panel">
+        <!-- Asset Cards -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>Multi‑Asset Advisory Status</span>
+                <span class="accent">BTC • ETH • OIL • GOLD • SILVER • COPPER • NATGAS • PLATINUM • USD‑FOREX</span>
+            </div>
+            <div class="asset-grid" id="assetGrid">
+                <!-- Cards populated by JS -->
+            </div>
+        </div>
 
-        <!-- Bottom Banner Overlay -->
-        <footer class="bottom-banner">
-            <span>BTC &bull; ETH &bull; OIL &bull; GOLD &bull; SILVER &bull; COPPER &bull; NATGAS &bull; PLATINUM &bull; USD&#8209;FOREX &bull; <span class="gold-text">MacroSignal Governance</span></span>
-        </footer>
-    </div>
+        <!-- Metrics + Decision Graph -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>Engine Metrics & Decision Flow</span>
+                <span class="accent">Consensus • Confidence • Fallback</span>
+            </div>
 
-    <script src="webgl_renderer.js"></script>
-    <script src="app.js"></script>
+            <div class="metrics-row">
+                <span class="metric-label">Avg Confidence</span>
+                <span class="metric-value" id="metricConfidence">0.000</span>
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill" id="metricConfidenceBar"></div>
+            </div>
+
+            <div class="metrics-row">
+                <span class="metric-label">Consensus Strength</span>
+                <span class="metric-value" id="metricConsensus">0</span>
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill" id="metricConsensusBar"></div>
+            </div>
+
+            <div class="metrics-row">
+                <span class="metric-label">Fallback Rate</span>
+                <span class="metric-value" id="metricFallback">0%</span>
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill" id="metricFallbackBar"></div>
+            </div>
+
+            <canvas id="graphCanvas"></canvas>
+        </div>
+
+        <!-- Terminal + Command Console + Health -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>Runtime Console & System Health</span>
+                <span class="accent">WebSocket • REST • Hotpath</span>
+            </div>
+
+            <div class="health-row">
+                <span class="health-label">WebSocket</span>
+                <span class="health-value" id="healthWsText">Disconnected</span>
+                <span class="health-indicator" id="healthWs"></span>
+            </div>
+            <div class="health-row">
+                <span class="health-label">Server</span>
+                <span class="health-value" id="healthServerText">Unknown</span>
+                <span class="health-indicator health-warn" id="healthServer"></span>
+            </div>
+
+            <div id="terminal"></div>
+
+            <div class="console-row">
+                <input id="console-input" type="text" placeholder="Command (e.g. hotpath, ping, status)">
+                <button class="console-button" id="console-send">Send</button>
+                <button class="console-button" id="console-download">Logs</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Ticker -->
+    <footer class="bottom-banner">
+        <div class="ticker-strip" id="tickerStrip">
+            <!-- Populated by JS -->
+        </div>
+    </footer>
+</div>
+
+<script>
+    // ---------- Terminal Logging + Persistent Storage ----------
+    const LOG_STORAGE_KEY = "aille_dashboard_logs_v1";
+    let logs = [];
+
+    function loadStoredLogs() {
+        try {
+            const stored = localStorage.getItem(LOG_STORAGE_KEY);
+            if (stored) {
+                logs = JSON.parse(stored);
+                logs.forEach(entry => appendLog(entry.message, entry.type, false));
+            }
+        } catch {}
+    }
+
+    function storeLogs() {
+        try {
+            localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs.slice(-500)));
+        } catch {}
+    }
+
+    function appendLog(message, type = "info", store = true) {
+        const terminal = document.getElementById("terminal");
+        const entry = document.createElement("div");
+        entry.className = "log-" + type;
+        entry.textContent = message;
+        terminal.appendChild(entry);
+        terminal.scrollTop = terminal.scrollHeight;
+
+        if (store) {
+            logs.push({ message, type, ts: Date.now() });
+            storeLogs();
+        }
+    }
+
+    // ---------- WebSocket with Auto-Reconnect ----------
+    let ws = null;
+    let wsConnected = false;
+    let reconnectDelay = 2000;
+
+    function setWsHealth(connected) {
+        const indicator = document.getElementById("healthWs");
+        const text = document.getElementById("healthWsText");
+        if (connected) {
+            indicator.className = "health-indicator health-ok";
+            text.textContent = "Connected";
+        } else {
+            indicator.className = "health-indicator health-fault";
+            text.textContent = "Disconnected";
+        }
+    }
+
+    function connectWebSocket() {
+        try {
+            ws = new WebSocket("ws://localhost:8081/stream");
+        } catch {
+            appendLog("WebSocket init failed", "error");
+            setWsHealth(false);
+            scheduleReconnect();
+            return;
+        }
+
+        ws.onopen = () => {
+            wsConnected = true;
+            reconnectDelay = 2000;
+            setWsHealth(true);
+            appendLog("Connected to AILLEE Unified Runtime WebSocket", "info");
+        };
+
+        ws.onmessage = (event) => {
+            handleWsMessage(event.data);
+        };
+
+        ws.onerror = () => {
+            appendLog("WebSocket error — check unified server", "error");
+        };
+
+        ws.onclose = () => {
+            wsConnected = false;
+            setWsHealth(false);
+            appendLog("WebSocket disconnected", "error");
+            scheduleReconnect();
+        };
+    }
+
+    function scheduleReconnect() {
+        setTimeout(() => {
+            appendLog("Attempting WebSocket reconnect...", "info");
+            reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
+            connectWebSocket();
+        }, reconnectDelay);
+    }
+
+    // ---------- Decision Handling + Metrics + Graph ----------
+    const decisions = [];
+    let fallbackCount = 0;
+
+    function handleWsMessage(raw) {
+        try {
+            const data = JSON.parse(raw);
+
+            if (data.status !== undefined) {
+                decisions.push(data);
+                if (decisions.length > 200) decisions.shift();
+
+                if (data.fallback_used) fallbackCount++;
+
+                appendLog(
+                    `Decision → value=${data.final_value.toFixed(4)}, conf=${data.confidence.toFixed(3)}, models=${data.num_contributing_models}`,
+                    "decision"
+                );
+
+                updateMetrics();
+                updateGraph();
+                updateAssetsFromDecision(data);
+            } else {
+                appendLog(raw, "info");
+            }
+        } catch {
+            appendLog(raw, "info");
+        }
+    }
+
+    function updateMetrics() {
+        if (decisions.length === 0) return;
+
+        let sumConf = 0;
+        let sumConsensus = 0;
+        decisions.forEach(d => {
+            sumConf += d.confidence || 0;
+            sumConsensus += d.models_agreed || 0;
+        });
+
+        const avgConf = sumConf / decisions.length;
+        const avgConsensus = sumConsensus / decisions.length;
+        const fallbackRate = (fallbackCount / decisions.length) * 100;
+
+        document.getElementById("metricConfidence").textContent = avgConf.toFixed(3);
+        document.getElementById("metricConsensus").textContent = avgConsensus.toFixed(1);
+        document.getElementById("metricFallback").textContent = `${fallbackRate.toFixed(1)}%`;
+
+        document.getElementById("metricConfidenceBar").style.width = `${Math.min(avgConf * 100, 100)}%`;
+        document.getElementById("metricConsensusBar").style.width = `${Math.min((avgConsensus / 8) * 100, 100)}%`;
+        document.getElementById("metricFallbackBar").style.width = `${Math.min(fallbackRate, 100)}%`;
+    }
+
+    function updateGraph() {
+        const canvas = document.getElementById("graphCanvas");
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width = canvas.clientWidth;
+        const h = canvas.height = canvas.clientHeight;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#020617";
+        ctx.fillRect(0, 0, w, h);
+
+        if (decisions.length < 2) return;
+
+        const maxAbs = Math.max(...decisions.map(d => Math.abs(d.final_value || 0)), 0.01);
+        ctx.strokeStyle = "#22d3ee";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+
+        decisions.forEach((d, i) => {
+            const x = (i / (decisions.length - 1)) * w;
+            const norm = (d.final_value || 0) / maxAbs;
+            const y = h / 2 - norm * (h / 2 - 4);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(148,163,184,0.4)";
+        ctx.beginPath();
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+    }
+
+    // ---------- Asset Cards + Ticker ----------
+    const assets = [
+        "BTC","ETH","OIL","GOLD","SILVER","COPPER","NATGAS","PLATINUM","USD‑FOREX"
+    ];
+
+    const assetState = {};
+    assets.forEach(sym => {
+        assetState[sym] = {
+            status: "OK",
+            confidence: 0.0,
+            lastValue: 0.0
+        };
+    });
+
+    function initAssetCards() {
+        const grid = document.getElementById("assetGrid");
+        assets.forEach(sym => {
+            const card = document.createElement("div");
+            card.className = "asset-card";
+            card.id = `asset-${sym}`;
+
+            card.innerHTML = `
+                <div class="asset-header">
+                    <span class="asset-symbol">${sym}</span>
+                    <span class="asset-status status-ok" id="asset-status-${sym}">OK</span>
+                </div>
+                <div class="asset-metrics">
+                    <span>Conf: <span id="asset-conf-${sym}">0.000</span></span>
+                    <span>Val: <span id="asset-val-${sym}">0.0000</span></span>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+
+        updateTicker();
+    }
+
+    function updateAssetsFromDecision(d) {
+        // For now, treat all assets as sharing the same decision signal
+        assets.forEach(sym => {
+            assetState[sym].confidence = d.confidence || 0;
+            assetState[sym].lastValue = d.final_value || 0;
+            assetState[sym].status = d.fallback_used ? "FALLBACK" : "OK";
+
+            document.getElementById(`asset-conf-${sym}`).textContent =
+                assetState[sym].confidence.toFixed(3);
+            document.getElementById(`asset-val-${sym}`).textContent =
+                assetState[sym].lastValue.toFixed(4);
+
+            const statusEl = document.getElementById(`asset-status-${sym}`);
+            statusEl.textContent = assetState[sym].status;
+
+            if (assetState[sym].status === "OK") {
+                statusEl.className = "asset-status status-ok";
+            } else {
+                statusEl.className = "asset-status status-fault";
+            }
+        });
+
+        updateTicker();
+    }
+
+    function updateTicker() {
+        const strip = document.getElementById("tickerStrip");
+        strip.innerHTML = "";
+
+        assets.forEach(sym => {
+            const state = assetState[sym];
+            const item = document.createElement("span");
+            item.className = "ticker-item";
+            const statusClass =
+                state.status === "OK" ? "ticker-status-ok" : "ticker-status-fault";
+
+            item.innerHTML = `
+                <span class="ticker-symbol">${sym}</span>
+                <span class="ticker-value">${state.lastValue.toFixed(4)}</span>
+                <span class="${statusClass}">(${state.status})</span>
+            `;
+            strip.appendChild(item);
+        });
+
+        const macro = document.createElement("span");
+        macro.className = "ticker-item gold-text";
+        macro.textContent = "MacroSignal Governance • Engine Telemetry Online";
+        strip.appendChild(macro);
+    }
+
+    // ---------- Command Console ----------
+    document.getElementById("console-send").addEventListener("click", () => {
+        const input = document.getElementById("console-input");
+        const cmd = input.value.trim();
+        if (!cmd) return;
+
+        appendLog(`> ${cmd}`, "info");
+
+        if (cmd.toLowerCase() === "hotpath") {
+            appendLog("Triggering hotpath demo via REST /hotpath (pseudo)", "info");
+        } else if (cmd.toLowerCase() === "ping") {
+            appendLog("Ping: dashboard online", "info");
+        } else if (cmd.toLowerCase() === "status") {
+            appendLog(`Decisions: ${decisions.length}, Fallbacks: ${fallbackCount}`, "info");
+        } else {
+            appendLog("Unknown command", "error");
+        }
+
+        input.value = "";
+    });
+
+    document.getElementById("console-download").addEventListener("click", () => {
+        const blob = new Blob(
+            [logs.map(l => `[${l.type}] ${l.message}`).join("\n")],
+            { type: "text/plain" }
+        );
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "aille_dashboard_logs.txt";
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    // ---------- Heartbeat Simulation ----------
+    setInterval(() => {
+        appendLog("Heartbeat — AILLEE Runtime Active", "heartbeat");
+    }, 5000);
+
+    // ---------- Simple WebGL Placeholder ----------
+    function initVisual() {
+        const canvas = document.getElementById("ailleCanvas");
+        const ctx = canvas.getContext("2d");
+        const resize = () => {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+        };
+        window.addEventListener("resize", resize);
+        resize();
+
+        let t = 0;
+        function render() {
+            t += 0.01;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            for (let i = 0; i < 80; ++i) {
+                const angle = (i / 80) * Math.PI * 2 + t;
+                const radius = 40 + i * 3;
+                const x = cx + Math.cos(angle) * radius;
+                const y = cy + Math.sin(angle) * radius;
+
+                ctx.fillStyle = `rgba(34,211,238,${0.02 + i * 0.0008})`;
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            requestAnimationFrame(render);
+        }
+        render();
+    }
+
+    // ---------- Init ----------
+    loadStoredLogs();
+    initAssetCards();
+    initVisual();
+    connectWebSocket();
+</script>
 </body>
 </html>
