@@ -882,11 +882,110 @@
 
     render();
 }
+    // ------------------------------------------------------------
+// OVERLAY: FLOATING TICKERS + NEWS + CAPABILITY BANNERS
+// ------------------------------------------------------------
+function initTextOverlay() {
+    const canvas = document.getElementById("textCanvas");
+    const ctx = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    let t = 0;
+
+    const newsItems = [
+        "AILLEE Engine: Deterministic Advisory Pipeline Active",
+        "MacroSignal Governance: All Systems Nominal",
+        "Unified Runtime: Telemetry Stream Stable",
+        "Hotpath Simulation: Ready",
+        "Metrics Engine: Confidence Tracking Enabled",
+        "REST + WebSocket: Dual‑Channel Sync Online"
+    ];
+
+    function render() {
+        t += 0.015;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Pull latest decision
+        const latest = decisions[decisions.length - 1] || {
+            final_value: 0,
+            confidence: 0.0,
+            fallback_used: false
+        };
+
+        const conf = latest.confidence || 0.0;
+        const val = latest.final_value || 0.0;
+
+        // -----------------------------
+        // FLOATING NEWS FLASHES
+        // -----------------------------
+        const news = newsItems[Math.floor((t * 0.5) % newsItems.length)];
+
+        ctx.font = "16px monospace";
+        ctx.fillStyle = `rgba(250, 204, 21, ${0.7 + Math.sin(t) * 0.3})`;
+        ctx.textAlign = "center";
+        ctx.fillText(news, cx, cy - 140);
+
+        // -----------------------------
+        // CAPABILITY BANNERS
+        // -----------------------------
+        const capabilities = [
+            "Deterministic Engine",
+            "Allocator‑Free Runtime",
+            "Multi‑Asset Advisory",
+            "Real‑Time Telemetry",
+            "Metrics + Consensus",
+            "Fallback Detection"
+        ];
+
+        ctx.font = "14px monospace";
+        ctx.fillStyle = "rgba(34, 211, 238, 0.8)";
+        capabilities.forEach((cap, i) => {
+            const y = cy + 160 + Math.sin(t + i) * 10;
+            ctx.fillText(cap, cx, y);
+        });
+
+        // -----------------------------
+        // ROTATING TICKER RING
+        // -----------------------------
+        const ringRadius = Math.min(w, h) * 0.42;
+        const ringAngle = t * 0.4;
+
+        ctx.font = "13px monospace";
+        ctx.fillStyle = "rgba(168, 85, 247, 0.9)";
+
+        assets.forEach((sym, i) => {
+            const angle = ringAngle + i * (Math.PI * 2 / assets.length);
+            const x = cx + Math.cos(angle) * ringRadius;
+            const y = cy + Math.sin(angle) * ringRadius;
+
+            const valText = assetState[sym].lastValue.toFixed(2);
+
+            ctx.fillText(`${sym}: ${valText}`, x, y);
+        });
+
+        requestAnimationFrame(render);
+    }
+
+    render();
+}
 
     // ---------- Init ----------
     loadStoredLogs();
     initAssetCards();
     initVisual();
+    initTextOverlay();
 
     if (MOCK_MODE) {
         startMockFeed();
