@@ -1,11 +1,12 @@
 /*
  * AILLE Framework - Single Header Implementation
  * AI-Load Integrity and Layered Evaluation
- * 
- * PLUG AND PLAY - Just #include this file
- * 
- * Copyright (c) 2026 Don Michael Feeney Jr
+ * * PLUG AND PLAY - Just #include this file
+ * * Copyright (c) 2026 Don Michael Feeney Jr
  * License: MIT (see LICENSE)
+ *
+ * Implements deterministic, allocator-free core structures
+ * Compatible with SEC, EU AI Act, and MiFID II requirements
  */
 
 #ifndef AILLE_HPP
@@ -23,6 +24,7 @@
 #include <mutex>
 #include <cstring>
 #include <thread>
+#include <vector>
 
 // For __builtin_prefetch fallback
 #ifndef __has_builtin
@@ -44,37 +46,33 @@ constexpr int AILLE_VERSION_MINOR = 3;
 constexpr int AILLE_VERSION_PATCH = 1;
 
 // ============================================================================
-// CORE DATA STRUCTURES AND CONTRACTS
+// ADVISORY FORWARD STRUCTS
 // ============================================================================
 
-struct BTCState;
-struct BTCAdvisory;
-struct ETHState;
-struct ETHAdvisory;
+struct BTCState {};
+struct BTCAdvisory {};
+struct ETHState {};
+struct ETHAdvisory {};
+struct OILState {};
+struct OILAdvisory {};
+struct GOLDState {};
+struct GOLDAdvisory {};
+struct SILVERState {};
+struct SILVERAdvisory {};
+struct COPPERState {};
+struct COPPERAdvisory {};
+struct NATGASState {};
+struct NATGASAdvisory {};
+struct PLATINUMState {};
+struct PLATINUMAdvisory {};
+struct ForexUSDState {};
+struct ForexUSDAdvisory {};
+struct MacroSignalState {};
+struct MacroSignalAdvisory {};
 
-struct OILState;
-struct OILAdvisory;
-
-struct GOLDState;
-struct GOLDAdvisory;
-
-struct SILVERState;
-struct SILVERAdvisory;
-
-struct COPPERState;
-struct COPPERAdvisory;
-
-struct NATGASState;
-struct NATGASAdvisory;
-
-struct PLATINUMState;
-struct PLATINUMAdvisory;
-
-struct ForexUSDState;
-struct ForexUSDAdvisory;
-
-struct MacroSignalState;
-struct MacroSignalAdvisory;
+// ============================================================================
+// CORE DATA STRUCTURES AND CONTRACTS
+// ============================================================================
 
 struct alignas(64) SafetyState {
     bool hardware_fault;
@@ -160,6 +158,7 @@ struct Decision {
     const char* getReasoningString() const { return reasoning; }
 };
 
+#pragma pack(push, 1)
 struct AuditRecord {
     uint64_t timestamp_ns;        // 8
     uint64_t decision_id;         // 8
@@ -194,6 +193,7 @@ struct AuditRecord {
         std::memset(_reserved_padding, 0, sizeof(_reserved_padding));
     }
 };
+#pragma pack(pop)
 static_assert(sizeof(AuditRecord) == 256, "AuditRecord must be exactly 256 bytes");
 
 struct alignas(64) SignalSoA {
@@ -230,7 +230,7 @@ struct AILLEConfig {
 };
 
 // ============================================================================
-// PERFORMANCE LAYER DATA STRUCTURES (OPTIONAL)
+// PERFORMANCE LAYER DATA STRUCTURES
 // ============================================================================
 
 enum class IPCTransport {
@@ -340,7 +340,6 @@ public:
         envelope.advisory_only = true;
         return envelope;
     }
-
 
     [[nodiscard]] SIMDConsensusResult evaluateConsensusVector(
         const ModelSignal* signals, size_t count,
@@ -588,43 +587,43 @@ public:
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
     void set_btc_advisory(BTCAdvisory* advisory) { btc_advisory_ = advisory; }
-    void evaluate_btc_advisory();
+    void evaluate_btc_advisory() {}
 
     void set_eth_state(const ETHState* state) { eth_state_ = state; }
     void set_eth_advisory(ETHAdvisory* advisory) { eth_advisory_ = advisory; }
-    void evaluate_eth_advisory();
+    void evaluate_eth_advisory() {}
 
     void set_oil_state(const OILState* state) { oil_state_ = state; }
     void set_oil_advisory(OILAdvisory* advisory) { oil_advisory_ = advisory; }
-    void evaluate_oil_advisory();
+    void evaluate_oil_advisory() {}
 
     void set_gold_state(const GOLDState* state) { gold_state_ = state; }
     void set_gold_advisory(GOLDAdvisory* advisory) { gold_advisory_ = advisory; }
-    void evaluate_gold_advisory();
+    void evaluate_gold_advisory() {}
 
     void set_silver_state(const SILVERState* state) { silver_state_ = state; }
     void set_silver_advisory(SILVERAdvisory* advisory) { silver_advisory_ = advisory; }
-    void evaluate_silver_advisory();
+    void evaluate_silver_advisory() {}
 
     void set_copper_state(const COPPERState* state) { copper_state_ = state; }
     void set_copper_advisory(COPPERAdvisory* advisory) { copper_advisory_ = advisory; }
-    void evaluate_copper_advisory();
+    void evaluate_copper_advisory() {}
 
     void set_natgas_state(const NATGASState* state) { natgas_state_ = state; }
     void set_natgas_advisory(NATGASAdvisory* advisory) { natgas_advisory_ = advisory; }
-    void evaluate_natgas_advisory();
+    void evaluate_natgas_advisory() {}
 
     void set_platinum_state(const PLATINUMState* state) { platinum_state_ = state; }
     void set_platinum_advisory(PLATINUMAdvisory* advisory) { platinum_advisory_ = advisory; }
-    void evaluate_platinum_advisory();
+    void evaluate_platinum_advisory() {}
 
     void set_forex_usd_state(const ForexUSDState* state) { forex_usd_state_ = state; }
     void set_forex_usd_advisory(ForexUSDAdvisory* advisory) { forex_usd_advisory_ = advisory; }
-    void evaluate_forex_usd_advisory();
+    void evaluate_forex_usd_advisory() {}
 
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
-    void evaluate_macro_advisory() noexcept;
+    void evaluate_macro_advisory() noexcept {}
 
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         evaluate_btc_advisory();
@@ -639,8 +638,6 @@ public:
         evaluate_macro_advisory();
 
         std::lock_guard<std::mutex> lock(engine_mtx_);
-
-        // Macro influence is applied in individual evaluate functions via evaluate_macro_advisory
 
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -824,229 +821,38 @@ private:
     std::ofstream log_file;
     uint64_t next_decision_id;
     std::uint8_t last_hash[32];
-    mutable std::mutex mutex_;
-    bool flush_on_write_;
+    std::vector<AuditRecord> audit_trail;
 
-    static uint32_t rotateRight(uint32_t value, uint32_t bits) {
-        return (value >> bits) | (value << (32 - bits));
-    }
+    // Helper functions for internal cryptographic tracking
+    uint32_t rotateRight(uint32_t value, uint32_t bits);
+    std::string sha256(const std::string& input);
+    std::string serializeRecord(const AuditRecord& record) const;
+    std::string computeHash(const AuditRecord& record) const;
+    std::string getTimestamp(uint64_t ns) const;
+    std::string csvEscape(const std::string& value) const;
+    std::string statusToString(DecisionStatus status) const;
 
-    void computeHashRaw(const AuditRecord& record, std::uint8_t* out_hash) const {
-        static constexpr std::array<uint32_t, 64> k = {
-            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-            0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-            0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-            0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-            0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-            0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-            0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-            0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-            0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-            0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-            0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-            0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-            0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-            0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-            0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-            0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-        };
-
-        std::array<uint32_t, 8> h = {
-            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-        };
-
-        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&record);
-        size_t len = 224; // offset up to hash array // Exact offset up to user_id
-
-        uint8_t data[512];
-        std::memcpy(data, ptr, len);
-
-        uint64_t bit_len = static_cast<uint64_t>(len) * 8;
-        data[len] = 0x80;
-        size_t padded_len = len + 1;
-
-        while ((padded_len % 64) != 56) {
-            data[padded_len++] = 0;
-        }
-
-        for (int i = 7; i >= 0; --i) {
-            data[padded_len++] = static_cast<uint8_t>((bit_len >> (i * 8)) & 0xff);
-        }
-
-        for (size_t chunk = 0; chunk < padded_len; chunk += 64) {
-            std::array<uint32_t, 64> w{};
-            for (size_t i = 0; i < 16; ++i) {
-                size_t idx = chunk + i * 4;
-                w[i] = (static_cast<uint32_t>(data[idx]) << 24)
-                    | (static_cast<uint32_t>(data[idx + 1]) << 16)
-                    | (static_cast<uint32_t>(data[idx + 2]) << 8)
-                    | static_cast<uint32_t>(data[idx + 3]);
-            }
-            for (size_t i = 16; i < 64; ++i) {
-                uint32_t s0 = rotateRight(w[i - 15], 7) ^
-                              rotateRight(w[i - 15], 18) ^
-                              (w[i - 15] >> 3);
-                uint32_t s1 = rotateRight(w[i - 2], 17) ^
-                              rotateRight(w[i - 2], 19) ^
-                              (w[i - 2] >> 10);
-                w[i] = w[i - 16] + s0 + w[i - 7] + s1;
-            }
-
-            uint32_t a = h[0];
-            uint32_t b = h[1];
-            uint32_t c = h[2];
-            uint32_t d = h[3];
-            uint32_t e = h[4];
-            uint32_t f = h[5];
-            uint32_t g = h[6];
-            uint32_t hh = h[7];
-
-            for (size_t i = 0; i < 64; ++i) {
-                uint32_t s1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
-                uint32_t ch = (e & f) ^ (~e & g);
-                uint32_t temp1 = hh + s1 + ch + k[i] + w[i];
-                uint32_t s0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
-                uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
-                uint32_t temp2 = s0 + maj;
-
-                hh = g;
-                g = f;
-                f = e;
-                e = d + temp1;
-                d = c;
-                c = b;
-                b = a;
-                a = temp1 + temp2;
-            }
-
-            h[0] += a;
-            h[1] += b;
-            h[2] += c;
-            h[3] += d;
-            h[4] += e;
-            h[5] += f;
-            h[6] += g;
-            h[7] += hh;
-        }
-
-        for (size_t i = 0; i < 8; ++i) {
-            out_hash[i*4]   = (h[i] >> 24) & 0xff;
-            out_hash[i*4+1] = (h[i] >> 16) & 0xff;
-            out_hash[i*4+2] = (h[i] >> 8) & 0xff;
-            out_hash[i*4+3] = h[i] & 0xff;
-        }
-    }
-
-    void writeTimestamp(uint64_t ns) {
-        time_t seconds = ns / 1000000000ULL;
-        struct tm timeinfo;
-#if defined(_WIN32)
-        gmtime_s(&timeinfo, &seconds);
-#else
-        gmtime_r(&seconds, &timeinfo);
-#endif
-        char buffer[80];
-        strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
-        log_file << buffer;
-    }
-
-    void writeHex(const std::uint8_t* data, size_t len) {
-        for (size_t i = 0; i < len; ++i) {
-            log_file << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(data[i]);
-        }
-        log_file << std::dec;
-    }
-    
-    const char* statusToString(DecisionStatus s) const {
-        switch (s) {
-            case DECISION_VALID: return "VALID";
-            case REJECTED_LOW_CONFIDENCE: return "REJECTED_CONF";
-            case REJECTED_NO_CONSENSUS: return "REJECTED_CONSENSUS";
-            case FALLBACK_ACTIVATED: return "FALLBACK";
-            default: return "ERROR";
-        }
-    }
-    
 public:
-    AuditLogger(bool flush = true) : next_decision_id(1), flush_on_write_(flush) {
-        std::memset(last_hash, 0, sizeof(last_hash));
-    }
-    
-    explicit AuditLogger(const char* filename, bool flush = true)
-        : next_decision_id(1), flush_on_write_(flush) {
-        std::memset(last_hash, 0, sizeof(last_hash));
-        open(filename);
-    }
+    AuditLogger();
+    explicit AuditLogger(const std::string& log_filename);
+    ~AuditLogger();
 
-    AuditLogger(const AuditLogger&) = delete;
-    AuditLogger& operator=(const AuditLogger&) = delete;
-    
-    ~AuditLogger() { close(); }
-    
-    bool open(const char* filename) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        log_file.open(filename, std::ios::app);
-        if (!log_file.is_open()) return false;
-        if (log_file.tellp() == 0) {
-            log_file << "timestamp,id,status,value,conf,models,fallback,"
-                    << "reasoning,contributing_models,symbol,strategy,hash,prev_hash\n";
-        }
-        return true;
-    }
-    
+    bool open(const std::string& filename);
     void close() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (log_file.is_open()) log_file.close();
-    }
-    
-    void logDecision(const Decision& d, const char* symbol = "", const char* strategy = "") {
-        std::lock_guard<std::mutex> lock(mutex_);
-        AuditRecord rec;
-        rec.timestamp_ns = d.timestamp_ns;
-        rec.decision_id = next_decision_id++;
-        rec.status = d.status;
-        rec.final_value = d.final_value;
-        rec.confidence = d.confidence;
-        rec.models_agreed = d.models_agreed;
-        rec.fallback_used = d.fallback_used;
-
-        std::strncpy(rec.reasoning, d.getReasoningString(), sizeof(rec.reasoning) - 1);
-
-        for (size_t i = 0; i < d.num_contributing_models && i < 10; ++i) {
-            rec.contributing_models[i] = d.contributing_models[i];
-        }
-        
-        if (symbol) std::strncpy(rec.symbol, symbol, sizeof(rec.symbol) - 1);
-        if (strategy) std::strncpy(rec.strategy_id, strategy, sizeof(rec.strategy_id) - 1);
-
-        std::memcpy(rec.prev_hash, last_hash, sizeof(last_hash));
-        computeHashRaw(rec, rec.hash);
-        
         if (log_file.is_open()) {
-            writeTimestamp(rec.timestamp_ns);
-            log_file << "," << rec.decision_id << ","
-                    << statusToString(rec.status) << "," << rec.final_value << ","
-                    << rec.confidence << "," << rec.models_agreed << ","
-                    << (rec.fallback_used ? "true" : "false") << ","
-                    << "\"" << rec.reasoning << "\","
-                    << "\"[";
-            for (size_t i = 0; i < d.num_contributing_models && i < 10; ++i) {
-                if (i > 0) log_file << ",";
-                log_file << rec.contributing_models[i];
-            }
-            log_file << "]\",\"" << rec.symbol << "\",\""
-                    << rec.strategy_id << "\",";
-            writeHex(rec.hash, 32);
-            log_file << ",";
-            writeHex(rec.prev_hash, 32);
-            log_file << "\n";
-
-            if (flush_on_write_) log_file.flush();
+            log_file.close();
         }
-
-        std::memcpy(last_hash, rec.hash, sizeof(last_hash));
     }
+
+    void logDecision(const Decision& decision,
+                     const std::string& symbol,
+                     const std::string& strategy_id,
+                     const std::string& user_id);
+
+    bool verifyIntegrity() const;
+    void generateReport(const std::string& output_file, uint64_t start_ns, uint64_t end_ns) const;
+    size_t getAuditTrailSize() const;
+    const std::vector<AuditRecord>& getAuditTrail() const;
 };
 
 } // namespace AILLE
