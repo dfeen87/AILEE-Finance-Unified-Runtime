@@ -2,14 +2,11 @@
 # One command to build everything
 
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic
-OPTFLAGS = -O3 -march=native -flto
-DEBUGFLAGS = -g -O0 -DDEBUG
+CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -O3
 
 # Paths & Common Sources
 INCLUDES = -I. \
-           -I./interfaces \
-           -I./plugins \
+           -I./ailee_plugins \
            -I./extensions \
            -I./telemetry \
            -I./src \
@@ -18,7 +15,7 @@ INCLUDES = -I. \
 HTTPLIB_INCLUDES = -I./external
 THREAD_FLAGS = -pthread
 
-# Core Extension Sources (used across most binaries)
+# Core Extension Sources
 EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_eth.cpp \
            extensions/aille_oil.cpp \
@@ -36,16 +33,19 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_weathering.cpp
 
 # Target Source Files
-EXAMPLE_SRC = examples/example.cpp
-REST_API_SRC = examples/rest_api_server.cpp
+REST_API_SRC = examples/rest_api_server.cpp \
+               aille_framework.cpp \
+               aille_audit.cpp \
+               $(EXT_SRCS)
 
-# Target Source Files
-EXAMPLE_SRC = examples/example.cpp
-BENCHMARK_SRC = benchmarks/benchmark.cpp
-REST_API_SRC = examples/rest_api_server.cpp
-REST_API_IMPL = extensions/aille_rest_api.cpp
-UNIT_TESTS_SRC = tests/unit_tests.cpp
-SPIRE_DEMO_SRC = examples/v7_4_spire_demo.cpp
+# Build REST API server
+rest_api_server: $(REST_API_SRC)
+    $(CXX) $(CXXFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
+        $(REST_API_SRC) -o rest_api_server
+
+# Clean
+clean:
+    rm -f rest_api_server
 
 .PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server install uninstall help spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo websocket_server
 
