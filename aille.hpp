@@ -646,9 +646,6 @@ public:
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()
         ).count();
-        // Explicit reset: guarantees no stale contributing-model IDs can ever
-        // leak into a fallback / rejected / error Decision, regardless of
-        // which return path below is taken.
         decision.num_contributing_models = 0;
 
         if (safety_state_ && (safety_state_->kill_switch || safety_state_->hardware_fault)) {
@@ -787,10 +784,6 @@ public:
         decision.status = DECISION_VALID;
         decision.final_value = smoothPosition(consensus_value);
 
-        // Set the count explicitly from the authoritative source (valid.count)
-        // rather than relying solely on the loop's post-increment. This keeps
-        // decision.num_contributing_models correct even if the fill loop below
-        // is ever changed, and matches what the JSON serializer below relies on.
         decision.num_contributing_models = valid.count;
 
         float total_conf = 0.0f;
@@ -1055,23 +1048,6 @@ public:
         std::memcpy(last_hash, rec.hash, sizeof(last_hash));
     }
 };
-
-// ============================================================================
-// SIMPLE JSON SERIALIZATION
-// ============================================================================
-// NOTE: A SimpleJSON / REST-API JSON builder was referenced in the fix
-// request but did not exist anywhere in the header as supplied. It is added
-// here from scratch, built correctly around decision.num_contributing_models
-// from the start (rather than a fixed MAX_CONTRIBUTING_MODELS constant), so
-// there is no "all 64 slots" bug to retroactively fix in this file. If your
-// project has a separate aille.cpp / REST layer with its own
-// buildDecisionResponse(), apply the same loop shown below there.
-
-    // Builds a JSON object describing a Decision. Only emits
-    // decision.num_contributing_models entries from contributing_models —
-    // never the full AILLE_MAX_MODELS-sized backing array — so callers never
-    // see trailing zeros / phantom model IDs left over from array padding.
-    
 
 } // namespace AILLE
 
