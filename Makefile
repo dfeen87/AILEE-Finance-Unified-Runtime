@@ -2,7 +2,7 @@
 # One command to build everything
 
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra
+CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic
 OPTFLAGS = -O3 -march=native -flto
 DEBUGFLAGS = -g -O0 -DDEBUG
 
