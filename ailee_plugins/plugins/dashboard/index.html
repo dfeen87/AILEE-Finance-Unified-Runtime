@@ -447,6 +447,11 @@
 </div>
 
 <script>
+    // ---------- MODE TOGGLE ----------
+    // true = mock data (for Render / demo)
+    // false = live WebSocket from unified server
+    let MOCK_MODE = true;
+
     // ---------- Terminal Logging + Persistent Storage ----------
     const LOG_STORAGE_KEY = "aille_dashboard_logs_v1";
     let logs = [];
@@ -480,6 +485,20 @@
             storeLogs();
         }
     }
+
+    // ---------- Assets + State ----------
+    const assets = [
+        "BTC","ETH","OIL","GOLD","SILVER","COPPER","NATGAS","PLATINUM","USD‑FOREX"
+    ];
+
+    const assetState = {};
+    assets.forEach(sym => {
+        assetState[sym] = {
+            status: "OK",
+            confidence: 0.0,
+            lastValue: 0.0
+        };
+    });
 
     // ---------- WebSocket with Auto-Reconnect ----------
     let ws = null;
@@ -532,6 +551,7 @@
     }
 
     function scheduleReconnect() {
+        if (MOCK_MODE) return; // in mock mode we don't reconnect
         setTimeout(() => {
             appendLog("Attempting WebSocket reconnect...", "info");
             reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
@@ -627,19 +647,6 @@
     }
 
     // ---------- Asset Cards + Ticker ----------
-    const assets = [
-        "BTC","ETH","OIL","GOLD","SILVER","COPPER","NATGAS","PLATINUM","USD‑FOREX"
-    ];
-
-    const assetState = {};
-    assets.forEach(sym => {
-        assetState[sym] = {
-            status: "OK",
-            confidence: 0.0,
-            lastValue: 0.0
-        };
-    });
-
     function initAssetCards() {
         const grid = document.getElementById("assetGrid");
         assets.forEach(sym => {
@@ -697,7 +704,9 @@
             const item = document.createElement("span");
             item.className = "ticker-item";
             const statusClass =
-                state.status === "OK" ? "ticker-status-ok" : "ticker-status-fault";
+                state.status === "OK" ? "ticker-status-ok" :
+                state.status === "WARN" ? "ticker-status-warn" :
+                "ticker-status-fault";
 
             item.innerHTML = `
                 <span class="ticker-symbol">${sym}</span>
@@ -713,6 +722,52 @@
         strip.appendChild(macro);
     }
 
+    // ---------- MOCK DATA ENGINE ----------
+    function generateMockDecision() {
+        return {
+            status: 1,
+            final_value: (Math.random() * 0.04 - 0.02),   // -0.02 to +0.02
+            confidence: Math.random() * 0.9 + 0.1,        // 0.1 to 1.0
+            fallback_used: Math.random() < 0.1,           // 10% fallback
+            num_contributing_models: Math.floor(Math.random() * 4) + 2,
+            models_agreed: Math.floor(Math.random() * 3) + 1,
+            reasoning: "Mock pipeline evaluation"
+        };
+    }
+
+    function generateMockAssets() {
+        const out = {};
+        assets.forEach(sym => {
+            out[sym] = {
+                value: (Math.random() * 100).toFixed(2),
+                confidence: (Math.random()).toFixed(3),
+                status: Math.random() < 0.85 ? "OK" : "WARN"
+            };
+        });
+        return out;
+    }
+
+    function startMockFeed() {
+        appendLog("MOCK MODE ENABLED — generating synthetic telemetry", "info");
+        setWsHealth(true);
+        document.getElementById("healthServerText").textContent = "Mock Runtime";
+        document.getElementById("healthServer").className = "health-indicator health-ok";
+
+        setInterval(() => {
+            const mockDecision = generateMockDecision();
+            handleWsMessage(JSON.stringify(mockDecision));
+
+            const mockAssets = generateMockAssets();
+            Object.keys(mockAssets).forEach(sym => {
+                assetState[sym].confidence = parseFloat(mockAssets[sym].confidence);
+                assetState[sym].lastValue = parseFloat(mockAssets[sym].value);
+                assetState[sym].status = mockAssets[sym].status;
+            });
+
+            updateTicker();
+        }, 1200);
+    }
+
     // ---------- Command Console ----------
     document.getElementById("console-send").addEventListener("click", () => {
         const input = document.getElementById("console-input");
@@ -722,11 +777,15 @@
         appendLog(`> ${cmd}`, "info");
 
         if (cmd.toLowerCase() === "hotpath") {
-            appendLog("Triggering hotpath demo via REST /hotpath (pseudo)", "info");
+            appendLog("Triggering hotpath demo (mock)", "info");
         } else if (cmd.toLowerCase() === "ping") {
             appendLog("Ping: dashboard online", "info");
         } else if (cmd.toLowerCase() === "status") {
             appendLog(`Decisions: ${decisions.length}, Fallbacks: ${fallbackCount}`, "info");
+        } else if (cmd.toLowerCase() === "mock off") {
+            MOCK_MODE = false;
+            appendLog("Switching to LIVE mode (WebSocket)", "info");
+            connectWebSocket();
         } else {
             appendLog("Unknown command", "error");
         }
@@ -792,7 +851,12 @@
     loadStoredLogs();
     initAssetCards();
     initVisual();
-    connectWebSocket();
+
+    if (MOCK_MODE) {
+        startMockFeed();
+    } else {
+        connectWebSocket();
+    }
 </script>
 </body>
 </html>
