@@ -206,3 +206,9 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 	@echo "✓ WebSocket Server compiled successfully!"
 	@echo "  Run with: ./websocket_server"
 	@echo ""
+
+rest_api_server:
+    $(CXX) $(CXXFLAGS) $(OPTFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
+        $(REST_API_SRC) $(REST_API_IMPL) \
+        aille_framework.cpp aille_audit.cpp \
+        -o rest_api_server
