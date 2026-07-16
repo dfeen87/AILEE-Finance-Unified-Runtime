@@ -16,7 +16,7 @@
 // Telemetry
 #include "telemetry/TelemetryBridge.hpp"
 
-// Interfaces
+// Interfaces (namespaced)
 #include "ailee_plugins/IAnalyticsObserver.hpp"
 #include "ailee_plugins/IExecutionProvider.hpp"
 #include "ailee_plugins/IMarketDataSource.hpp"
@@ -24,6 +24,8 @@
 #include "ailee_plugins/ITradingAlertAdapter.hpp"
 #include "ailee_plugins/PluginRegistry.hpp"
 
+using namespace AILLE;
+using namespace AILLE::Plugins;
 
 std::atomic<bool> keep_running(true);
 std::atomic<bool> notifier_running(true);
@@ -50,7 +52,6 @@ void notifier_loop() {
 
 /* -------------------------------------------------------------------------
    TELEMETRY HOOK IMPLEMENTATIONS
-   These connect your interfaces directly to the terminal dashboard.
    ------------------------------------------------------------------------- */
 
 // Analytics Observer → HFT decisions + queries
@@ -122,9 +123,6 @@ public:
 
 int main(int argc, char* argv[]) {
 
-    // -------------------------------
-    // Parse command line arguments
-    // -------------------------------
     int port = 8080;
     std::string host = "127.0.0.1";
 
@@ -141,18 +139,12 @@ int main(int argc, char* argv[]) {
         host = argv[2];
     }
 
-    // -------------------------------
-    // Setup signal handler
-    // -------------------------------
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
     std::cout << "=== AILLE Framework REST API Server ===\n\n";
 
-    // -------------------------------
-    // Configure AILLE engine
-    // -------------------------------
-    AILLE::AILLEConfig config;
+    AILLEConfig config;
     config.min_confidence_threshold = 0.40f;
     config.min_models_required = 2;
     config.fallback_window_size = 100;
@@ -162,40 +154,31 @@ int main(int argc, char* argv[]) {
     std::cout << "  Min Models Required: " << config.min_models_required << "\n";
     std::cout << "  Fallback Window Size: " << config.fallback_window_size << "\n\n";
 
-    // -------------------------------
-    // Create engine
-    // -------------------------------
-    AILLE::AILLEEngine engine(config);
+    AILLEEngine engine(config);
 
     // Attach telemetry observers
-    engine.addObserver(std::make_shared<TelemetryAnalyticsObserver>());
+    engine.plugins().addObserver(std::make_shared<TelemetryAnalyticsObserver>());
 
     // Attach execution provider
-    engine.setExecutionProvider(std::make_shared<TelemetryExecutionProvider>());
+    engine.plugins().setExecutionProvider(std::make_shared<TelemetryExecutionProvider>());
 
     // Attach market data source
-    engine.setMarketDataSource(std::make_shared<TelemetryMarketDataSource>());
+    engine.plugins().setMarketDataSource(std::make_shared<TelemetryMarketDataSource>());
 
     // Attach breaking news provider
-    engine.setBreakingNewsProvider(std::make_shared<TelemetryBreakingNewsProvider>());
+    engine.plugins().setBreakingNewsProvider(std::make_shared<TelemetryBreakingNewsProvider>());
 
     // Attach trading alert adapter
-    engine.setTradingAlertAdapter(std::make_shared<TelemetryTradingAlertAdapter>());
+    engine.plugins().setTradingAlertAdapter(std::make_shared<TelemetryTradingAlertAdapter>());
 
     // Plugin registry with telemetry
     auto pluginRegistry = std::make_shared<TelemetryPluginRegistry>();
-    engine.setPluginRegistry(pluginRegistry);
+    engine.plugins().setPluginRegistry(pluginRegistry);
 
-    // -------------------------------
-    // Audit logger
-    // -------------------------------
-    AILLE::AuditLogger logger("rest_api_audit.csv");
+    AuditLogger logger("rest_api_audit.csv");
     std::cout << "Audit logging enabled: rest_api_audit.csv\n\n";
 
-    // -------------------------------
-    // Create REST API server
-    // -------------------------------
-    AILLE::RestAPIServer server(engine, port, host);
+    RestAPIServer server(engine, port, host);
 
     std::cout << "Starting REST API server...\n";
     std::cout << "Host: " << host << "\n";
@@ -203,26 +186,14 @@ int main(int argc, char* argv[]) {
     std::cout << "\nPress Ctrl+C to stop the server\n";
     std::cout << "=====================================\n\n";
 
-    // -------------------------------
-    // Start heartbeat notifier
-    // -------------------------------
     std::thread notifier(notifier_loop);
 
-    // -------------------------------
-    // Start REST API server
-    // -------------------------------
     server.startAsync();
 
-    // -------------------------------
-    // Wait for shutdown signal
-    // -------------------------------
     while (keep_running && server.isRunning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    // -------------------------------
-    // Graceful shutdown
-    // -------------------------------
     std::cout << "\nShutting down server...\n";
     server.stop();
     server.join();
