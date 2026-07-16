@@ -197,24 +197,9 @@ help:
 
 # Build Live Advisory Dashboard Server
 dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_weathering.cpp
-	$(CXX) $(CXXFLAGS) -Iexternal/websocketpp -Iexternal/asio/asio/include examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_weathering.cpp -o dashboard_server -lpthread
-	@echo ""
-	@echo "✓ Dashboard Server compiled successfully!"
-	@echo "  Run with: ./dashboard_server"
-	@echo ""
 
 # WebSocket Server target
 websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_crown_walk.cpp extensions/aille_weathering.cpp extensions/aille_pilgrimage.cpp
-	$(CXX) $(CXXFLAGS) -Iexternal/websocketpp -Iexternal/asio/asio/include $(INCLUDES) $(OPTFLAGS) examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_btc.cpp extensions/aille_eth.cpp extensions/aille_oil.cpp extensions/aille_gold.cpp extensions/aille_silver.cpp extensions/aille_copper.cpp extensions/aille_natgas.cpp extensions/aille_platinum.cpp extensions/aille_forex_usd.cpp extensions/aille_macro.cpp extensions/v7_2_pipeline.cpp extensions/v7_3_pipeline.cpp extensions/aille_spire.cpp extensions/aille_lantern.cpp extensions/aille_crown_walk.cpp extensions/aille_weathering.cpp extensions/aille_pilgrimage.cpp -o websocket_server -lpthread
-	@echo ""
-	@echo "✓ WebSocket Server compiled successfully!"
-	@echo "  Run with: ./websocket_server"
-	@echo ""
 
 rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp ; $(CXX) $(CXXFLAGS) $(INCLUDES) $(HTTPLIB_INCLUDES) $(OPTFLAGS) $(THREAD_FLAGS) $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp -o rest_api_server
-	@echo ""
-    @echo "✓ REST API Server compiled successfully!"
-    @echo "  Run with: ./rest_api_server [port] [host]"
-    @echo "  Default:  ./rest_api_server (port 8080, host 0.0.0.0)"
-    @echo ""
 
