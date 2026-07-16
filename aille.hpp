@@ -1067,47 +1067,11 @@ public:
 // project has a separate aille.cpp / REST layer with its own
 // buildDecisionResponse(), apply the same loop shown below there.
 
-class SimpleJSON {
-public:
-    static const char* statusToString(DecisionStatus s) {
-        switch (s) {
-            case DECISION_VALID: return "VALID";
-            case REJECTED_LOW_CONFIDENCE: return "REJECTED_LOW_CONFIDENCE";
-            case REJECTED_NO_CONSENSUS: return "REJECTED_NO_CONSENSUS";
-            case FALLBACK_ACTIVATED: return "FALLBACK_ACTIVATED";
-            case ERROR_NO_MODELS: return "ERROR_NO_MODELS";
-            default: return "UNKNOWN";
-        }
-    }
-
     // Builds a JSON object describing a Decision. Only emits
     // decision.num_contributing_models entries from contributing_models —
     // never the full AILLE_MAX_MODELS-sized backing array — so callers never
     // see trailing zeros / phantom model IDs left over from array padding.
-    [[nodiscard]] static std::string buildDecisionResponse(const Decision& decision) {
-        std::ostringstream json;
-        json << "{\n";
-        json << "  \"status\": \"" << statusToString(decision.status) << "\",\n";
-        json << "  \"final_value\": " << decision.final_value << ",\n";
-        json << "  \"confidence\": " << decision.confidence << ",\n";
-        json << "  \"models_agreed\": " << decision.models_agreed << ",\n";
-        json << "  \"fallback_used\": " << (decision.fallback_used ? "true" : "false") << ",\n";
-        json << "  \"timestamp_ns\": " << decision.timestamp_ns << ",\n";
-        json << "  \"reasoning\": \"" << decision.getReasoningString() << "\",\n";
-
-        // Correct loop: bounded by num_contributing_models, not
-        // AILLE_MAX_MODELS / MAX_CONTRIBUTING_MODELS. Deterministic, no
-        // trailing zeros, no phantom model IDs.
-        json << "  \"contributing_models\": [";
-        for (size_t i = 0; i < decision.num_contributing_models; ++i) {
-            json << decision.contributing_models[i];
-            if (i + 1 < decision.num_contributing_models) json << ", ";
-        }
-        json << "]\n";
-        json << "}";
-        return json.str();
-    }
-};
+    
 
 } // namespace AILLE
 
