@@ -17,12 +17,13 @@
 #include "telemetry/TelemetryBridge.hpp"
 
 // Interfaces
-#include "interfaces/IAnalyticsObserver.hpp"
-#include "interfaces/IExecutionProvider.hpp"
-#include "interfaces/IMarketDataSource.hpp"
-#include "interfaces/IBreakingNewsProvider.hpp"
-#include "interfaces/ITradingAlertAdapter.hpp"
-#include "plugins/PluginRegistry.hpp"
+#include "ailee_plugins/IAnalyticsObserver.hpp"
+#include "ailee_plugins/IExecutionProvider.hpp"
+#include "ailee_plugins/IMarketDataSource.hpp"
+#include "ailee_plugins/IBreakingNewsProvider.hpp"
+#include "ailee_plugins/ITradingAlertAdapter.hpp"
+#include "ailee_plugins/PluginRegistry.hpp"
+
 
 std::atomic<bool> keep_running(true);
 std::atomic<bool> notifier_running(true);
