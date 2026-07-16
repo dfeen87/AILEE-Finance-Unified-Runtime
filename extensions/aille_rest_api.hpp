@@ -40,6 +40,91 @@ namespace httplib {
 
 namespace AILLE {
 
+// REST API JSON builder (safe, deterministic, engine-compatible)
+class SimpleJSON {
+public:
+    static std::string buildDecisionResponse(const Decision& decision) {
+        std::ostringstream json;
+        json << "{\n";
+        json << "  \"status\": \"" << statusToString(decision.status) << "\",\n";
+        json << "  \"final_value\": " << decision.final_value << ",\n";
+        json << "  \"confidence\": " << decision.confidence << ",\n";
+        json << "  \"models_agreed\": " << decision.models_agreed << ",\n";
+        json << "  \"fallback_used\": " << (decision.fallback_used ? "true" : "false") << ",\n";
+        json << "  \"timestamp_ns\": " << decision.timestamp_ns << ",\n";
+        json << "  \"reasoning\": \"" << escapeJSON(decision.reasoning) << "\",\n";
+
+        json << "  \"contributing_models\": [";
+        for (size_t i = 0; i < decision.num_contributing_models; ++i) {
+            json << decision.contributing_models[i];
+            if (i + 1 < decision.num_contributing_models) json << ", ";
+        }
+        json << "]\n";
+        json << "}";
+        return json.str();
+    }
+
+    static std::string buildHealthResponse(bool healthy) {
+        std::ostringstream json;
+        json << "{\n";
+        json << "  \"status\": \"" << (healthy ? "healthy" : "unhealthy") << "\",\n";
+        json << "  \"service\": \"AILLE Framework REST API\",\n";
+        json << "  \"timestamp\": " << getCurrentTimestampNS() << "\n";
+        json << "}";
+        return json.str();
+    }
+
+    static std::string buildErrorResponse(const std::string& error) {
+        std::ostringstream json;
+        json << "{\n";
+        json << "  \"error\": \"" << escapeJSON(error) << "\"\n";
+        json << "}";
+        return json.str();
+    }
+
+private:
+    static std::string statusToString(DecisionStatus status) {
+        switch (status) {
+            case DECISION_VALID: return "valid";
+            case REJECTED_LOW_CONFIDENCE: return "rejected_low_confidence";
+            case REJECTED_NO_CONSENSUS: return "rejected_no_consensus";
+            case FALLBACK_ACTIVATED: return "fallback_activated";
+            case ERROR_NO_MODELS: return "error_no_models";
+            default: return "unknown";
+        }
+    }
+
+    static std::string escapeJSON(const std::string& str) {
+        std::string result;
+        result.reserve(str.length());
+        for (char c : str) {
+            switch (c) {
+                case '"': result += "\\\""; break;
+                case '\\': result += "\\\\"; break;
+                case '\n': result += "\\n"; break;
+                case '\r': result += "\\r"; break;
+                case '\t': result += "\\t"; break;
+                default:
+                    if (static_cast<unsigned char>(c) < 0x20) {
+                        char buf[8];
+                        std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned char>(c));
+                        result += buf;
+                    } else {
+                        result += c;
+                    }
+                    break;
+            }
+        }
+        return result;
+    }
+
+    static uint64_t getCurrentTimestampNS() {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch()
+        ).count();
+    }
+};
+
 // Simple JSON parser for input
 class SimpleJSONParser {
 public:
