@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: ailee-risk-growth-api
+    env: docker
+    plan: free
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
