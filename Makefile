@@ -7,7 +7,14 @@ OPTFLAGS = -O3 -march=native -flto
 DEBUGFLAGS = -g -O0 -DDEBUG
 
 # Paths & Common Sources
-INCLUDES = -I.
+INCLUDES = -I. \
+           -I./interfaces \
+           -I./plugins \
+           -I./extensions \
+           -I./telemetry \
+           -I./src \
+           -I./examples
+
 HTTPLIB_INCLUDES = -I./external
 THREAD_FLAGS = -pthread
 
@@ -27,6 +34,10 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_spire.cpp \
            extensions/aille_lantern.cpp \
            extensions/aille_weathering.cpp
+
+# Target Source Files
+EXAMPLE_SRC = examples/example.cpp
+REST_API_SRC = examples/rest_api_server.cpp
 
 # Target Source Files
 EXAMPLE_SRC = examples/example.cpp
