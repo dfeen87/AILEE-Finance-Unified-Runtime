@@ -47,7 +47,7 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
     // Decision endpoint
     svr.Post("/api/decision", [this](const httplib::Request& req, httplib::Response& res) {
         try {
-            // Parse the request body
+            // Parse the request body into a dynamic vector of ModelSignal
             std::vector<ModelSignal> signals;
             
             if (!SimpleJSONParser::parseModelSignals(req.body, signals)) {
@@ -68,8 +68,9 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
                 return;
             }
             
-            // Make the decision using AILLE engine
-            Decision decision = engine_.makeDecision(signals);
+            // Make the decision using AILLE engine.
+            // The engine expects: makeDecision(const ModelSignal* model_signals, size_t count)
+            Decision decision = engine_.makeDecision(signals.data(), signals.size());
             
             // Build and send response
             res.set_content(SimpleJSON::buildDecisionResponse(decision), "application/json");
