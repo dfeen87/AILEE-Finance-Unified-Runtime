@@ -30,7 +30,6 @@ namespace AILLE {
 // Convert raw buffer back to a std::string for easy comparison and streaming
 template <size_t N>
 std::string bufferToString(const uint8_t (&src)[N]) {
-    // Falls back to global strnlen from <cstring>
     return std::string(reinterpret_cast<const char*>(src), ::strnlen(reinterpret_cast<const char*>(src), N));
 }
 
@@ -69,11 +68,11 @@ void copyBufferToBuffer(char (&dest)[N], const char (&src)[M]) {
 // AUDIT LOGGER METHOD IMPLEMENTATIONS
 // ============================================================================
 
-uint32_t AuditLogger::rotateRight(uint32_t value, uint32_t bits) {
+uint32_t AuditLogger::rotateRight(uint32_t value, uint32_t bits) const {
     return (value >> bits) | (value << (32 - bits));
 }
 
-std::string AuditLogger::sha256(const std::string& input) {
+std::string AuditLogger::sha256(const std::string& input) const {
     static constexpr std::array<uint32_t, 64> k = {
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
         0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
