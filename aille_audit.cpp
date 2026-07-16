@@ -24,6 +24,35 @@
 namespace AILLE {
 
 // ============================================================================
+// HELPERS FOR ARRAY/STRING CONVERSION
+// ============================================================================
+
+// Safely copy a std::string into a raw uint8_t or char array
+template <size_t N>
+void copyStringToBuffer(uint8_t (&dest)[N], const std::string& src) {
+    std::memset(dest, 0, N);
+    std::memcpy(dest, src.data(), std::min(N - 1, src.size()));
+}
+
+template <size_t N>
+void copyStringToBuffer(char (&dest)[N], const std::string& src) {
+    std::memset(dest, 0, N);
+    std::memcpy(dest, src.data(), std::min(N - 1, src.size()));
+}
+
+// Convert raw buffer back to a std::string for easy comparison and streaming
+template <size_t N>
+std::string bufferToString(const uint8_t (&src)[N]) {
+    // If it's a null-terminated string stored in uint8_t
+    return std::string(reinterpret_cast<const char*>(src), std::strnlen(reinterpret_cast<const char*>(src), N));
+}
+
+template <size_t N>
+std::string bufferToString(const char (&src)[N]) {
+    return std::string(src, std::strnlen(src, N));
+}
+
+// ============================================================================
 // AUDIT LOGGER METHOD IMPLEMENTATIONS
 // ============================================================================
 
@@ -143,7 +172,7 @@ std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
        << "symbol=" << record.symbol << '\x1f'
        << "strategy_id=" << record.strategy_id << '\x1f'
        << "user_id=" << record.user_id << '\x1f'
-       << "prev_hash=" << record.prev_hash << '\x1f'
+       << "prev_hash=" << bufferToString(record.prev_hash) << '\x1f'
        << "contributing_models=";
        
     // Safe output since contributing_models is a fixed C-style array
@@ -204,7 +233,6 @@ AuditLogger::AuditLogger(const std::string& log_filename)
 }
 
 AuditLogger::~AuditLogger() {
-    // Note: close() is called here because it is defined inline in the header
     close();
 }
 
@@ -222,8 +250,6 @@ bool AuditLogger::open(const std::string& filename) {
     
     return true;
 }
-
-// NOTE: close() is removed from here since it is already inline at aille.hpp:1005
 
 void AuditLogger::logDecision(const Decision& decision,
                              const std::string& symbol,
@@ -255,9 +281,9 @@ void AuditLogger::logDecision(const Decision& decision,
     // Copy C-style integer arrays securely
     std::memcpy(record.contributing_models, decision.contributing_models, sizeof(record.contributing_models));
     
-    record.prev_hash = last_hash;
-    record.hash = computeHash(record);
-    last_hash = record.hash;
+    copyStringToBuffer(record.prev_hash, last_hash);
+    copyStringToBuffer(record.hash, computeHash(record));
+    last_hash = bufferToString(record.hash);
     
     audit_trail.push_back(record);
     
@@ -284,8 +310,8 @@ void AuditLogger::logDecision(const Decision& decision,
                 << csvEscape(record.symbol) << ","
                 << csvEscape(record.strategy_id) << ","
                 << csvEscape(record.user_id) << ","
-                << record.hash << ","
-                << record.prev_hash << "\n";
+                << bufferToString(record.hash) << ","
+                << bufferToString(record.prev_hash) << "\n";
         
         log_file.flush();
     }
@@ -297,13 +323,13 @@ bool AuditLogger::verifyIntegrity() const {
     std::string expected_prev_hash = "0000000000000000";
 
     for (const auto& record : audit_trail) {
-        if (record.prev_hash != expected_prev_hash) {
+        if (bufferToString(record.prev_hash) != expected_prev_hash) {
             return false;
         }
-        if (record.hash != computeHash(record)) {
+        if (bufferToString(record.hash) != computeHash(record)) {
             return false;
         }
-        expected_prev_hash = record.hash;
+        expected_prev_hash = bufferToString(record.hash);
     }
 
     return true;
