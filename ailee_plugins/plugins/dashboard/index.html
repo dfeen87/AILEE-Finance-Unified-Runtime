@@ -811,41 +811,77 @@
         appendLog("Heartbeat — AILLEE Runtime Active", "heartbeat");
     }, 5000);
 
-    // ---------- Simple WebGL Placeholder ----------
+    // ------------------------------------------------------------
+    // DYNAMIC SPIRAL VISUAL — ENGINE CORE ANIMATION
+    // ------------------------------------------------------------
     function initVisual() {
         const canvas = document.getElementById("ailleCanvas");
         const ctx = canvas.getContext("2d");
-        const resize = () => {
-            canvas.width = canvas.clientWidth;
-            canvas.height = canvas.clientHeight;
-        };
-        window.addEventListener("resize", resize);
-        resize();
 
-        let t = 0;
-        function render() {
-            t += 0.01;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-
-            for (let i = 0; i < 80; ++i) {
-                const angle = (i / 80) * Math.PI * 2 + t;
-                const radius = 40 + i * 3;
-                const x = cx + Math.cos(angle) * radius;
-                const y = cy + Math.sin(angle) * radius;
-
-                ctx.fillStyle = `rgba(34,211,238,${0.02 + i * 0.0008})`;
-                ctx.beginPath();
-                ctx.arc(x, y, 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            requestAnimationFrame(render);
-        }
-        render();
+    function resize() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
     }
+    window.addEventListener("resize", resize);
+    resize();
+
+    let t = 0;
+
+    function render() {
+        t += 0.008;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Pull dynamic values from latest decision
+        const latest = decisions[decisions.length - 1] || {
+            final_value: 0,
+            confidence: 0.0,
+            fallback_used: false
+        };
+
+        const conf = latest.confidence || 0.0;
+        const val = latest.final_value || 0.0;
+        const fallback = latest.fallback_used;
+
+        // Color logic
+        let baseColor = fallback
+            ? "rgba(249, 115, 115,"   // red
+            : conf > 0.6
+                ? "rgba(34, 211, 238," // cyan
+                : "rgba(168, 85, 247,"; // purple
+
+        // Spiral parameters
+        const layers = 120;
+        const maxRadius = Math.min(w, h) * 0.45;
+        const swirl = t * (1 + conf * 2);
+
+        for (let i = 0; i < layers; i++) {
+            const pct = i / layers;
+
+            const radius = pct * maxRadius * (1 + val * 3);
+            const angle = pct * 12 + swirl;
+
+            const x = cx + Math.cos(angle) * radius;
+            const y = cy + Math.sin(angle) * radius;
+
+            const alpha = 0.02 + pct * 0.015 + conf * 0.1;
+
+            ctx.fillStyle = `${baseColor}${alpha})`;
+            ctx.beginPath();
+            ctx.arc(x, y, 2 + conf * 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    render();
+}
 
     // ---------- Init ----------
     loadStoredLogs();
