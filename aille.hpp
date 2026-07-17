@@ -49,26 +49,26 @@ constexpr int AILLE_VERSION_PATCH = 1;
 // ADVISORY FORWARD STRUCTS
 // ============================================================================
 
-struct BTCState {};
-struct BTCAdvisory {};
-struct ETHState {};
-struct ETHAdvisory {};
-struct OILState {};
-struct OILAdvisory {};
-struct GOLDState {};
-struct GOLDAdvisory {};
-struct SILVERState {};
-struct SILVERAdvisory {};
-struct COPPERState {};
-struct COPPERAdvisory {};
-struct NATGASState {};
-struct NATGASAdvisory {};
-struct PLATINUMState {};
-struct PLATINUMAdvisory {};
-struct ForexUSDState {};
-struct ForexUSDAdvisory {};
-struct MacroSignalState {};
-struct MacroSignalAdvisory {};
+struct BTCState;
+struct BTCAdvisory;
+struct ETHState;
+struct ETHAdvisory;
+struct OILState;
+struct OILAdvisory;
+struct GOLDState;
+struct GOLDAdvisory;
+struct SILVERState;
+struct SILVERAdvisory;
+struct COPPERState;
+struct COPPERAdvisory;
+struct NATGASState;
+struct NATGASAdvisory;
+struct PLATINUMState;
+struct PLATINUMAdvisory;
+struct ForexUSDState;
+struct ForexUSDAdvisory;
+struct MacroSignalState;
+struct MacroSignalAdvisory;
 
 // ============================================================================
 // CORE DATA STRUCTURES AND CONTRACTS
@@ -217,16 +217,26 @@ struct AILLEConfig {
     uint64_t max_signal_age_ns;
     float max_position_abs;
     
+    // Dynamic rule options and configuration version tag
+    bool enable_dynamic_fallback;
+    float fallback_alpha;
+    float fallback_beta;
+    const char* config_version;
+
     AILLEConfig() :
-        min_confidence_threshold(0.35f),
-        grace_confidence_threshold(0.25f),
+        min_confidence_threshold(0.20f),     // Optimized from 0.35f
+        grace_confidence_threshold(0.10f),   // Optimized from 0.25f
         min_models_required(2),
         sign_agreement_threshold(0.66f),
         fallback_window_size(50),
         fallback_position_scale(0.1f),
         max_model_count(10),
         max_signal_age_ns(1000000000ULL),
-        max_position_abs(1.0f) {}
+        max_position_abs(1.0f),
+        enable_dynamic_fallback(false),
+        fallback_alpha(0.05f),
+        fallback_beta(0.05f),
+        config_version("4.1.0") {}
 };
 
 // ============================================================================
@@ -409,6 +419,7 @@ private:
     mutable std::mutex engine_mtx_;
     
     alignas(64) float fallback_buffer[AILLE_MAX_FALLBACK_WINDOW]{};
+    alignas(64) float confidence_buffer[AILLE_MAX_FALLBACK_WINDOW]{};
     size_t fallback_head_;
     size_t fallback_count_;
 
@@ -421,7 +432,7 @@ private:
         return sum / static_cast<float>(fallback_count_);
     }
     
-    void updateFallbackBuffer(float value) {
+    void updateFallbackBuffer(float value, float confidence) {
         size_t window = static_cast<size_t>(std::max(1, config.fallback_window_size));
         if (window > AILLE_MAX_FALLBACK_WINDOW) {
             window = AILLE_MAX_FALLBACK_WINDOW;
@@ -432,6 +443,7 @@ private:
         }
 
         fallback_buffer[fallback_head_] = value;
+        confidence_buffer[fallback_head_] = confidence;
         fallback_head_ = (fallback_head_ + 1) % window;
         if (fallback_count_ < window) {
             fallback_count_++;
@@ -555,7 +567,20 @@ private:
     float getFallbackValue() const {
         if (fallback_count_ == 0) return 0.0f;
         float fb = calculateFallbackValue();
-        return ((fb >= 0) ? 1.0f : -1.0f) * config.fallback_position_scale;
+        float sign = (fb >= 0.0f) ? 1.0f : -1.0f;
+
+        float scale = config.fallback_position_scale;
+        if (config.enable_dynamic_fallback) {
+            float sum_conf = 0.0f;
+            for (size_t i = 0; i < fallback_count_; ++i) {
+                sum_conf += confidence_buffer[i];
+            }
+            float ma_conf = sum_conf / static_cast<float>(fallback_count_);
+            scale = config.fallback_alpha * ma_conf + config.fallback_beta;
+            if (scale < 0.1f) scale = 0.1f;
+            if (scale > 0.5f) scale = 0.5f;
+        }
+        return sign * scale;
     }
     
     SafetyState* safety_state_ = nullptr;
@@ -587,43 +612,43 @@ public:
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
     void set_btc_advisory(BTCAdvisory* advisory) { btc_advisory_ = advisory; }
-    void evaluate_btc_advisory() {}
+    void evaluate_btc_advisory();
 
     void set_eth_state(const ETHState* state) { eth_state_ = state; }
     void set_eth_advisory(ETHAdvisory* advisory) { eth_advisory_ = advisory; }
-    void evaluate_eth_advisory() {}
+    void evaluate_eth_advisory();
 
     void set_oil_state(const OILState* state) { oil_state_ = state; }
     void set_oil_advisory(OILAdvisory* advisory) { oil_advisory_ = advisory; }
-    void evaluate_oil_advisory() {}
+    void evaluate_oil_advisory();
 
     void set_gold_state(const GOLDState* state) { gold_state_ = state; }
     void set_gold_advisory(GOLDAdvisory* advisory) { gold_advisory_ = advisory; }
-    void evaluate_gold_advisory() {}
+    void evaluate_gold_advisory();
 
     void set_silver_state(const SILVERState* state) { silver_state_ = state; }
     void set_silver_advisory(SILVERAdvisory* advisory) { silver_advisory_ = advisory; }
-    void evaluate_silver_advisory() {}
+    void evaluate_silver_advisory();
 
     void set_copper_state(const COPPERState* state) { copper_state_ = state; }
     void set_copper_advisory(COPPERAdvisory* advisory) { copper_advisory_ = advisory; }
-    void evaluate_copper_advisory() {}
+    void evaluate_copper_advisory();
 
     void set_natgas_state(const NATGASState* state) { natgas_state_ = state; }
     void set_natgas_advisory(NATGASAdvisory* advisory) { natgas_advisory_ = advisory; }
-    void evaluate_natgas_advisory() {}
+    void evaluate_natgas_advisory();
 
     void set_platinum_state(const PLATINUMState* state) { platinum_state_ = state; }
     void set_platinum_advisory(PLATINUMAdvisory* advisory) { platinum_advisory_ = advisory; }
-    void evaluate_platinum_advisory() {}
+    void evaluate_platinum_advisory();
 
     void set_forex_usd_state(const ForexUSDState* state) { forex_usd_state_ = state; }
     void set_forex_usd_advisory(ForexUSDAdvisory* advisory) { forex_usd_advisory_ = advisory; }
-    void evaluate_forex_usd_advisory() {}
+    void evaluate_forex_usd_advisory();
 
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
-    void evaluate_macro_advisory() noexcept {}
+    void evaluate_macro_advisory() noexcept;
 
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         evaluate_btc_advisory();
@@ -796,7 +821,7 @@ public:
         snprintf(reasoning_buf, sizeof(reasoning_buf), "Consensus: %d models", models_agreed);
         decision.setReasoning(reasoning_buf);
         
-        updateFallbackBuffer(decision.final_value);
+        updateFallbackBuffer(decision.final_value, decision.confidence);
         return decision;
     }
     
@@ -804,6 +829,8 @@ public:
         std::lock_guard<std::mutex> lock(engine_mtx_);
         fallback_head_ = 0;
         fallback_count_ = 0;
+        std::memset(fallback_buffer, 0, sizeof(fallback_buffer));
+        std::memset(confidence_buffer, 0, sizeof(confidence_buffer));
     }
     AILLEConfig getConfig() const noexcept { return config; }
     void setConfig(const AILLEConfig& cfg) {
@@ -847,7 +874,7 @@ public:
     void logDecision(const Decision& decision,
                      const std::string& symbol,
                      const std::string& strategy_id,
-                     const std::string& user_id);
+                     const std::string& user_id = "default_user");
 
     bool verifyIntegrity() const;
     void generateReport(const std::string& output_file, uint64_t start_ns, uint64_t end_ns) const;
