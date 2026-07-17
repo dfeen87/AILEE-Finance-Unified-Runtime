@@ -22,7 +22,10 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/v7_3_pipeline.cpp \
            extensions/aille_spire.cpp \
            extensions/aille_lantern.cpp \
-           extensions/aille_weathering.cpp
+           extensions/aille_weathering.cpp \
+           extensions/aille_crown_walk.cpp \
+           extensions/aille_pilgrimage.cpp \
+           aille_audit.cpp
 
 EXAMPLE_SRC      = examples/example.cpp
 BENCHMARK_SRC    = benchmarks/benchmark.cpp

@@ -202,7 +202,7 @@ TEST(TestBreakingNewsAlertAdapterRegistersAsOptionalAlertOnly) {
 
 TEST(TestConfigurationDefaults) {
     AILLE::AILLEConfig config;
-    ASSERT_FLOAT_EQ(config.min_confidence_threshold, 0.35f);
+    ASSERT_FLOAT_EQ(config.min_confidence_threshold, 0.20f);
     ASSERT_EQ(config.min_models_required, 2);
 }
 

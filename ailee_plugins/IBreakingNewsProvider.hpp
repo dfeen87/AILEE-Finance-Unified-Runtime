@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "ITradingAlertAdapter.hpp"
+#include "../src/telemetry/TelemetryBridge.hpp"
 
 namespace AILLE {
 namespace Plugins {
@@ -43,6 +44,16 @@ struct BreakingNewsItem {
           url(std::move(source_url)),
           sentiment(std::move(sentiment_label)),
           published_ns(published_timestamp_ns) {}
+};
+
+class IBreakingNewsProvider {
+public:
+    virtual ~IBreakingNewsProvider() = default;
+    virtual std::string name() const = 0;
+    virtual std::vector<BreakingNewsItem> getBreakingNews(
+        const std::string& symbol,
+        AlertSide side,
+        uint64_t as_of_timestamp_ns) = 0;
 };
 
 class TelemetryBreakingNewsProvider : public AILLE::Plugins::IBreakingNewsProvider {
