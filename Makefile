@@ -7,6 +7,7 @@ CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -O3
 
 HTTPLIB_INCLUDES = -I./external
 THREAD_FLAGS = -pthread
+WEBSOCKET_FLAGS = -std=c++17 -I./external/websocketpp -I./external/asio/asio/include -DASIO_STANDALONE -pthread
 
 EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_eth.cpp \
@@ -18,6 +19,7 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_platinum.cpp \
            extensions/aille_forex_usd.cpp \
            extensions/aille_macro.cpp \
+           extensions/aille_stabilizer.cpp \
            extensions/v7_2_pipeline.cpp \
            extensions/v7_3_pipeline.cpp \
            extensions/aille_spire.cpp \
@@ -137,7 +139,7 @@ benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS)
 	@echo ""
 
 dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp $(EXT_SRCS)
-	$(CXX) $(CXXFLAGS) examples/dashboard_server.cpp \
+	$(CXX) $(CXXFLAGS) $(WEBSOCKET_FLAGS) examples/dashboard_server.cpp \
 		ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp \
 		$(EXT_SRCS) -o dashboard_server
 	@echo ""
@@ -145,7 +147,7 @@ dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/
 	@echo ""
 
 websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp $(EXT_SRCS)
-	$(CXX) $(CXXFLAGS) examples/websocket_server.cpp \
+	$(CXX) $(CXXFLAGS) $(WEBSOCKET_FLAGS) -I. -I./extensions examples/websocket_server.cpp \
 		extensions/aille_websocket.cpp $(EXT_SRCS) -o websocket_server
 	@echo ""
 	@echo "✓ WebSocket Server compiled successfully!"
@@ -159,9 +161,10 @@ clean:
 	@echo "✓ Cleaned build artifacts"
 
 install: aille.hpp
-	@echo "Installing AILLE header..."
+	@echo "Installing AILLE v8.5.0 Framework..."
+	@echo "Copying headers to system path..."
 	sudo cp aille.hpp /usr/local/include/
-	@echo "✓ Header installed"
+	@echo "✓ Header installed (Version 8.5.0)"
 
 uninstall:
 	sudo rm -f /usr/local/include/aille.hpp

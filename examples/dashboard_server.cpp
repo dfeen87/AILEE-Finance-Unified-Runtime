@@ -7,6 +7,17 @@
  */
 
 #include "../aille.hpp"
+#include "../extensions/aille_btc.hpp"
+#include "../extensions/aille_eth.hpp"
+#include "../extensions/aille_oil.hpp"
+#include "../extensions/aille_gold.hpp"
+#include "../extensions/aille_silver.hpp"
+#include "../extensions/aille_copper.hpp"
+#include "../extensions/aille_natgas.hpp"
+#include "../extensions/aille_platinum.hpp"
+#include "../extensions/aille_forex_usd.hpp"
+#include "../extensions/aille_macro.hpp"
+#include "../extensions/aille_stabilizer.hpp"
 #include "../ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.hpp"
 
 #include <iostream>
@@ -42,6 +53,8 @@ int main() {
     ForexUSDAdvisory forex_adv;
     MacroSignalState macro_state;
     MacroSignalAdvisory macro_adv;
+    MarketStabilizerState stabilizer_state;
+    MarketStabilizerAdvisory stabilizer_adv;
 
     AILLEConfig config;
     AILLEEngine engine(config);
@@ -67,11 +80,14 @@ int main() {
     engine.set_forex_usd_advisory(&forex_adv);
     engine.set_macro_state(&macro_state);
     engine.set_macro_advisory(&macro_adv);
+    engine.set_stabilizer_state(&stabilizer_state);
+    engine.set_stabilizer_advisory(&stabilizer_adv);
 
     LiveAdvisoryObserver observer(
         9002,
         &btc_adv, &eth_adv, &oil_adv, &gold_adv, &silver_adv,
-        &copper_adv, &natgas_adv, &platinum_adv, &forex_adv, &macro_adv
+        &copper_adv, &natgas_adv, &platinum_adv, &forex_adv, &macro_adv,
+        &stabilizer_adv
     );
 
     observer.startServer();
@@ -87,6 +103,12 @@ int main() {
         forex_state.usd_index = 100.0f + 5.0f * std::sin(tick * 0.05f);
         macro_state.inflation_pressure = 0.5f + 0.1f * std::cos(tick * 0.02f);
         oil_state.realized_vol = 0.3f + 0.1f * std::sin(tick * 0.08f);
+
+        // Mock stabilizer updates
+        stabilizer_state.systemic_volatility = 0.4f + 0.4f * std::sin(tick * 0.07f);
+        stabilizer_state.bid_ask_spread_deviation = 0.3f + 0.3f * std::cos(tick * 0.11f);
+        stabilizer_state.order_book_depth_deficit = 0.2f * std::sin(tick * 0.05f);
+        stabilizer_state.consecutive_crash_count = (tick % 15 == 0) ? 3.0f : 0.0f;
 
         std::vector<ModelSignal> signals = {
             ModelSignal(0.8f, 0.9f, 1),

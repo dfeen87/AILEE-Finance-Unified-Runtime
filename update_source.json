@@ -1,0 +1,6 @@
+{
+  "version": "8.5.0",
+  "name": "aille",
+  "update_channel": "production",
+  "fallback_payload_url": "https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/releases/download/v8.5.0/aille_runtime_v8.5.0.tar.gz"
+}
