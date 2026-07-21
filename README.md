@@ -20,6 +20,11 @@
 
 </div>
 
+<p align="center">
+  <img src="bull/america.jpeg" width="420">
+</p>
+
+
 ---
 
 ## Table of Contents
