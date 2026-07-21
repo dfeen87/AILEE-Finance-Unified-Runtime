@@ -161,10 +161,10 @@ clean:
 	@echo "✓ Cleaned build artifacts"
 
 install: aille.hpp
-	@echo "Installing AILLE v8.1.0 Framework..."
+	@echo "Installing AILLE v8.5.0 Framework..."
 	@echo "Copying headers to system path..."
 	sudo cp aille.hpp /usr/local/include/
-	@echo "✓ Header installed (Version 8.1.0)"
+	@echo "✓ Header installed (Version 8.5.0)"
 
 uninstall:
 	sudo rm -f /usr/local/include/aille.hpp
