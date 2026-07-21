@@ -427,6 +427,11 @@
                 <span class="health-value" id="healthServerText">Unknown</span>
                 <span class="health-indicator health-warn" id="healthServer"></span>
             </div>
+            <div class="health-row">
+                <span class="health-label">Stabilizer Guard</span>
+                <span class="health-value" id="stabilizerStatusText">Inactive (1.00x)</span>
+                <span class="health-indicator health-ok" id="stabilizerStatus"></span>
+            </div>
 
             <div id="terminal"></div>
 
@@ -566,15 +571,30 @@
     function handleWsMessage(raw) {
         try {
             const data = JSON.parse(raw);
+            const decisionObj = data.decision || data;
+            const finalVal = decisionObj.final_value !== undefined ? decisionObj.final_value : (data.final_value || 0.0);
+            const confidenceVal = decisionObj.confidence !== undefined ? decisionObj.confidence : (data.confidence || 0.0);
+            const fallbackUsedVal = decisionObj.fallback_used !== undefined ? decisionObj.fallback_used : (data.fallback_used || false);
 
-            if (data.status !== undefined) {
-                decisions.push(data);
+            if (finalVal !== undefined) {
+                // Keep uniform format
+                const normalizedDecision = {
+                    status: decisionObj.status !== undefined ? decisionObj.status : 1,
+                    final_value: finalVal,
+                    confidence: confidenceVal,
+                    fallback_used: fallbackUsedVal,
+                    models_agreed: decisionObj.models_agreed !== undefined ? decisionObj.models_agreed : 2,
+                    num_contributing_models: decisionObj.num_contributing_models !== undefined ? decisionObj.num_contributing_models : 3,
+                    reasoning: decisionObj.reasoning || "Engine cycle update"
+                };
+
+                decisions.push(normalizedDecision);
                 if (decisions.length > 200) decisions.shift();
 
-                if (data.fallback_used) fallbackCount++;
+                if (fallbackUsedVal) fallbackCount++;
 
                 appendLog(
-                    `Decision → value=${data.final_value.toFixed(4)}, conf=${data.confidence.toFixed(3)}, models=${data.num_contributing_models}`,
+                    `Decision → value=${finalVal.toFixed(4)}, conf=${confidenceVal.toFixed(3)}, models_agreed=${normalizedDecision.models_agreed}`,
                     "decision"
                 );
 
@@ -671,26 +691,55 @@
     }
 
     function updateAssetsFromDecision(d) {
-        // For now, treat all assets as sharing the same decision signal
-        assets.forEach(sym => {
-            assetState[sym].confidence = d.confidence || 0;
-            assetState[sym].lastValue = d.final_value || 0;
-            assetState[sym].status = d.fallback_used ? "FALLBACK" : "OK";
+        const decisionObj = d.decision || d;
+        const advisoriesObj = d.advisories || {};
+        const fallbackUsed = decisionObj.fallback_used !== undefined ? decisionObj.fallback_used : (d.fallback_used || false);
 
-            document.getElementById(`asset-conf-${sym}`).textContent =
-                assetState[sym].confidence.toFixed(3);
-            document.getElementById(`asset-val-${sym}`).textContent =
-                assetState[sym].lastValue.toFixed(4);
+        assets.forEach(sym => {
+            const symKey = sym === "USD‑FOREX" ? "USD_FOREX" : sym;
+            const adv = advisoriesObj[symKey] || {};
+
+            const conf = adv.recommended_weight !== undefined ? adv.recommended_weight : (decisionObj.confidence || 0);
+            const val = adv.risk_score !== undefined ? adv.risk_score : (decisionObj.final_value || 0);
+            const status = fallbackUsed ? "FALLBACK" : (adv.risk_score > 60 ? "WARN" : "OK");
+
+            assetState[sym].confidence = conf;
+            assetState[sym].lastValue = val;
+            assetState[sym].status = status;
+
+            document.getElementById(`asset-conf-${sym}`).textContent = conf.toFixed(3);
+            document.getElementById(`asset-val-${sym}`).textContent = val.toFixed(1);
 
             const statusEl = document.getElementById(`asset-status-${sym}`);
-            statusEl.textContent = assetState[sym].status;
+            statusEl.textContent = status;
 
-            if (assetState[sym].status === "OK") {
+            if (status === "OK") {
                 statusEl.className = "asset-status status-ok";
+            } else if (status === "WARN") {
+                statusEl.className = "asset-status status-warn";
             } else {
                 statusEl.className = "asset-status status-fault";
             }
         });
+
+        // MarketStabilizer update on UI
+        const stabilizer = advisoriesObj["MarketStabilizer"] || {};
+        const stabIndicator = document.getElementById("stabilizerStatus");
+        const stabText = document.getElementById("stabilizerStatusText");
+        if (stabIndicator && stabText) {
+            const risk = stabilizer.risk_score || 0;
+            const factor = stabilizer.stabilization_factor !== undefined ? stabilizer.stabilization_factor : 1.0;
+            if (factor < 0.20) {
+                stabIndicator.className = "health-indicator health-fault";
+                stabText.textContent = `CRITICAL (${risk.toFixed(1)}%, Factor: ${factor.toFixed(2)}x)`;
+            } else if (factor < 1.0) {
+                stabIndicator.className = "health-indicator health-warn";
+                stabText.textContent = `ACTIVE (${risk.toFixed(1)}%, Factor: ${factor.toFixed(2)}x)`;
+            } else {
+                stabIndicator.className = "health-indicator health-ok";
+                stabText.textContent = `Inactive (1.00x)`;
+            }
+        }
 
         updateTicker();
     }
@@ -724,14 +773,37 @@
 
     // ---------- MOCK DATA ENGINE ----------
     function generateMockDecision() {
+        const factor = Math.random();
+        let stabFactor = 1.0;
+        let clampLimit = 1.0;
+        let riskScore = Math.random() * 30.0;
+        if (factor < 0.35) {
+            stabFactor = 0.15;
+            clampLimit = 0.20;
+            riskScore = 85.0;
+        } else if (factor < 0.75) {
+            stabFactor = 0.50;
+            clampLimit = 0.50;
+            riskScore = 55.0;
+        }
+
         return {
-            status: 1,
-            final_value: (Math.random() * 0.04 - 0.02),   // -0.02 to +0.02
-            confidence: Math.random() * 0.9 + 0.1,        // 0.1 to 1.0
-            fallback_used: Math.random() < 0.1,           // 10% fallback
-            num_contributing_models: Math.floor(Math.random() * 4) + 2,
-            models_agreed: Math.floor(Math.random() * 3) + 1,
-            reasoning: "Mock pipeline evaluation"
+            decision: {
+                status: 1,
+                final_value: (Math.random() * 0.04 - 0.02),   // -0.02 to +0.02
+                confidence: Math.random() * 0.9 + 0.1,        // 0.1 to 1.0
+                fallback_used: Math.random() < 0.1,           // 10% fallback
+                num_contributing_models: Math.floor(Math.random() * 4) + 2,
+                models_agreed: Math.floor(Math.random() * 3) + 1,
+                reasoning: "Mock pipeline evaluation"
+            },
+            advisories: {
+                MarketStabilizer: {
+                    risk_score: riskScore,
+                    stabilization_factor: stabFactor,
+                    dynamic_clamp_limit: clampLimit
+                }
+            }
         };
     }
 

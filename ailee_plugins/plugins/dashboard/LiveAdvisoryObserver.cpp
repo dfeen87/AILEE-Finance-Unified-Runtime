@@ -7,6 +7,17 @@
  */
 
 #include "LiveAdvisoryObserver.hpp"
+#include "../../../extensions/aille_btc.hpp"
+#include "../../../extensions/aille_eth.hpp"
+#include "../../../extensions/aille_oil.hpp"
+#include "../../../extensions/aille_gold.hpp"
+#include "../../../extensions/aille_silver.hpp"
+#include "../../../extensions/aille_copper.hpp"
+#include "../../../extensions/aille_natgas.hpp"
+#include "../../../extensions/aille_platinum.hpp"
+#include "../../../extensions/aille_forex_usd.hpp"
+#include "../../../extensions/aille_macro.hpp"
+#include "../../../extensions/aille_stabilizer.hpp"
 #include <sstream>
 #include <iostream>
 
@@ -25,10 +36,11 @@ LiveAdvisoryObserver::LiveAdvisoryObserver(
     const NATGASAdvisory* natgas,
     const PLATINUMAdvisory* platinum,
     const ForexUSDAdvisory* forex,
-    const MacroSignalAdvisory* macro
+    const MacroSignalAdvisory* macro,
+    const MarketStabilizerAdvisory* stabilizer
 ) : port_(port), btc_(btc), eth_(eth), oil_(oil), gold_(gold), silver_(silver),
     copper_(copper), natgas_(natgas), platinum_(platinum), forex_(forex), macro_(macro),
-    running_(false) {
+    stabilizer_(stabilizer), running_(false) {
 
     ws_server_.init_asio();
 
@@ -171,6 +183,11 @@ std::string LiveAdvisoryObserver::buildJSONPayload(const Decision& decision) con
     json << "\"MacroSignal\":{";
     if (macro_) json << "\"risk_score\":" << macro_->macro_risk_score << ",\"recommended_weight\":" << macro_->recommended_macro_weight;
     else json << "\"risk_score\":0,\"recommended_weight\":0";
+    json << "},";
+
+    json << "\"MarketStabilizer\":{";
+    if (stabilizer_) json << "\"risk_score\":" << stabilizer_->stabilization_risk_score << ",\"stabilization_factor\":" << stabilizer_->stabilization_factor << ",\"dynamic_clamp_limit\":" << stabilizer_->dynamic_clamp_limit;
+    else json << "\"risk_score\":0,\"stabilization_factor\":1,\"dynamic_clamp_limit\":1";
     json << "}";
 
     json << "},";

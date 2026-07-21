@@ -33,6 +33,7 @@
 #include "../extensions/aille_platinum.hpp"
 #include "../extensions/aille_forex_usd.hpp"
 #include "../extensions/aille_macro.hpp"
+#include "../extensions/aille_stabilizer.hpp"
 #include "../extensions/aille_lantern.hpp"
 #include "../extensions/aille_weathering.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
@@ -1593,6 +1594,86 @@ int main() {
     } else {
         tests_run++;
     }
+
+    std::cout << "\nRunning MARKET STABILIZER (MSGAM) Tests...\n";
+
+    if (sizeof(AILLE::MarketStabilizerState) != 64) {
+        std::cerr << "FAIL: MarketStabilizerState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::MarketStabilizerAdvisory) != 64) {
+        std::cerr << "FAIL: MarketStabilizerAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::MarketStabilizerObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: MarketStabilizerObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::MarketStabilizerState stab_state;
+    stab_state.systemic_volatility = 0.1f;
+    stab_state.bid_ask_spread_deviation = 0.1f;
+    stab_state.order_book_depth_deficit = 0.1f;
+    stab_state.consecutive_crash_count = 0.0f;
+    stab_state.regime_stress_factor = 0.0f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::MarketStabilizerAdvisory stab_adv = AILLE::evaluate_market_stabilizer_advisory(stab_state, &safety);
+
+    if (stab_adv.stabilization_factor != 1.0f || stab_adv.governor_active != 0) {
+        std::cerr << "FAIL: MarketStabilizer should be inactive under normal conditions.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    // High stress trigger
+    stab_state.systemic_volatility = 0.9f;
+    stab_state.bid_ask_spread_deviation = 0.9f;
+    stab_state.order_book_depth_deficit = 0.9f;
+
+    AILLE::MarketStabilizerAdvisory stab_adv_stress = AILLE::evaluate_market_stabilizer_advisory(stab_state, &safety);
+
+    if (stab_adv_stress.stabilization_risk_score <= 75.0f || stab_adv_stress.stabilization_factor > 0.20f || stab_adv_stress.dynamic_clamp_limit > 0.25f) {
+        std::cerr << "FAIL: MarketStabilizer did not trigger dynamic clamp or stabilization factor correctly.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::MarketStabilizerAdvisory engine_stab_adv;
+    engine.set_stabilizer_state(&stab_state);
+    engine.set_stabilizer_advisory(&engine_stab_adv);
+
+    AILLE::Decision stab_d = engine.makeDecision(signals.data(), signals.size());
+
+    if (engine_stab_adv.stabilization_factor > 0.20f) {
+        std::cerr << "FAIL: Engine integration did not correctly update MarketStabilizerAdvisory.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (std::abs(stab_d.final_value) > engine_stab_adv.dynamic_clamp_limit) {
+        std::cerr << "FAIL: Engine did not dynamically clamp final decision under stress.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    // Reset for subsequent tests
+    engine.set_stabilizer_state(nullptr);
+    engine.set_stabilizer_advisory(nullptr);
 
     std::cout << "\nRunning V7.3 Pipeline Tests...\n";
 

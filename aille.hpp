@@ -70,6 +70,42 @@ struct ForexUSDAdvisory;
 struct MacroSignalState;
 struct MacroSignalAdvisory;
 
+struct alignas(64) MarketStabilizerState final {
+    float systemic_volatility;
+    float bid_ask_spread_deviation;
+    float order_book_depth_deficit;
+    float consecutive_crash_count;
+    float regime_stress_factor;
+    float arbitrage_discrepancy;
+    float historical_stabilizer_weight;
+    std::uint8_t _padding[36]; // 64 - 7*4 = 36 bytes padding
+
+    constexpr MarketStabilizerState()
+        : systemic_volatility(0.0f), bid_ask_spread_deviation(0.0f),
+          order_book_depth_deficit(0.0f), consecutive_crash_count(0.0f),
+          regime_stress_factor(0.0f), arbitrage_discrepancy(0.0f),
+          historical_stabilizer_weight(0.5f), _padding{} {}
+};
+static_assert(sizeof(MarketStabilizerState) == 64, "MarketStabilizerState must be exactly 64 bytes");
+
+struct alignas(64) MarketStabilizerAdvisory final {
+    float stabilization_risk_score;  // 4
+    float stabilization_factor;      // 4
+    float dynamic_clamp_limit;       // 4
+    std::uint8_t risk_elevated;      // 1 (0 or 1)
+    std::uint8_t governor_active;     // 1 (0 or 1)
+    std::uint8_t spread_guard_active; // 1 (0 or 1)
+    std::uint8_t _reserved0;          // 1
+
+    std::uint8_t _padding[48];        // 48 bytes padding -> 64 bytes total
+
+    constexpr MarketStabilizerAdvisory()
+        : stabilization_risk_score(0.0f), stabilization_factor(1.0f),
+          dynamic_clamp_limit(1.0f), risk_elevated(0), governor_active(0),
+          spread_guard_active(0), _reserved0(0), _padding{} {}
+};
+static_assert(sizeof(MarketStabilizerAdvisory) == 64, "MarketStabilizerAdvisory must be exactly 64 bytes");
+
 // ============================================================================
 // CORE DATA STRUCTURES AND CONTRACTS
 // ============================================================================
@@ -452,7 +488,11 @@ private:
     
     float smoothPosition(float signal, float scale = 100.0f) const {
         float bounded = std::tanh(signal * scale);
-        return std::clamp(bounded, -config.max_position_abs, config.max_position_abs);
+        float clamp_limit = config.max_position_abs;
+        if (stabilizer_advisory_ && stabilizer_advisory_->stabilization_risk_score > 75.0f) {
+            clamp_limit = std::min(clamp_limit, stabilizer_advisory_->dynamic_clamp_limit);
+        }
+        return std::clamp(bounded, -clamp_limit, clamp_limit);
     }
     
     void applySafetyLayerFast(const ModelSignal* signals, size_t count, SignalSoA& valid) const {
@@ -604,10 +644,12 @@ private:
     ForexUSDAdvisory* forex_usd_advisory_ = nullptr;
     const MacroSignalState* macro_state_ = nullptr;
     MacroSignalAdvisory* macro_advisory_ = nullptr;
+    const MarketStabilizerState* stabilizer_state_ = nullptr;
+    MarketStabilizerAdvisory* stabilizer_advisory_ = nullptr;
 
 public:
-    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr) {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr) {}
     
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
@@ -650,6 +692,10 @@ public:
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
     void evaluate_macro_advisory() noexcept;
 
+    void set_stabilizer_state(const MarketStabilizerState* s) noexcept { stabilizer_state_ = s; }
+    void set_stabilizer_advisory(MarketStabilizerAdvisory* a) noexcept { stabilizer_advisory_ = a; }
+    void evaluate_stabilizer_advisory() noexcept;
+
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         evaluate_btc_advisory();
         evaluate_eth_advisory();
@@ -661,6 +707,7 @@ public:
         evaluate_platinum_advisory();
         evaluate_forex_usd_advisory();
         evaluate_macro_advisory();
+        evaluate_stabilizer_advisory();
 
         std::lock_guard<std::mutex> lock(engine_mtx_);
 
