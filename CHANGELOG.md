@@ -1,0 +1,21 @@
+# CHANGELOG
+
+All notable changes to the AILLE project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [8.1.0] - 2026-03-31
+
+### Added
+- Created Layer 7.9 Market Stabilization Governor Advisory Module (MSGAM) to mitigate risk under market stress.
+- Implemented `MarketStabilizerState` and `MarketStabilizerAdvisory` (strictly 64 bytes each, aligned, allocator-free) inside `aille.hpp` and `extensions/aille_stabilizer.hpp/.cpp`.
+- Integrated automatic recommended weight scaling based on decoupling or high volatility.
+- Added 7 robust unit tests asserting the MSGAM properties and correct integration within the engine decision pipeline.
+- Enhanced the WebSocket visual observer (`LiveAdvisoryObserver.hpp`/`.cpp`) to stream MSGAM state parameters to the HTML frontend dashboard.
+- Integrated Stabilizer Guard glowing widget and state representation in `index.html` frontend dashboard.
+
+## [8.0.0] - 2026-02-15
+
+### Added
+- Initial v8.0.0 Release with foundational multi-asset advisory engine.
