@@ -41,6 +41,7 @@
 #include "../extensions/aille_governor_reconciliation.hpp"
 #include "../extensions/aille_portfolio_constraints.hpp"
 #include "../extensions/aille_temporal_consistency.hpp"
+#include "../extensions/aille_stress_regime_override.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1307,6 +1308,218 @@ TEST(TestLayer12TemporalConsistencyWalkthrough) {
     ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Oscillated & clamped") == 0);
 }
 
+TEST(TestLayer13StressRegimeOverrideSizing) {
+    ASSERT_TRUE(sizeof(AILLE::StressOverrideRules) == 64);
+    ASSERT_TRUE(sizeof(AILLE::SafeBaseline) == 64);
+    ASSERT_TRUE(sizeof(AILLE::StressTraceStep) == 64);
+    ASSERT_TRUE(sizeof(AILLE::StressPortfolioState) == 64);
+}
+
+TEST(TestLayer13StressRegimeOverrideWalkthrough) {
+    // 1. Setup baseline
+    AILLE::SafeBaselineContainer baselines;
+    baselines.count = 3;
+    baselines.baselines[0].asset_id = AILLE::AssetId::CASH;
+    baselines.baselines[0].baseline_allocation = 0.70;
+    baselines.baselines[0].flags = 1; // IS_SAFE_SET
+    baselines.baselines[1].asset_id = AILLE::AssetId::BTC;
+    baselines.baselines[1].baseline_allocation = 0.20;
+    baselines.baselines[1].flags = 0;
+    baselines.baselines[2].asset_id = AILLE::AssetId::ETH;
+    baselines.baselines[2].baseline_allocation = 0.10;
+    baselines.baselines[2].flags = 0;
+
+    // 2. Setup previous allocations S_t
+    AILLE::AssetAllocations prev_allocs;
+    prev_allocs.count = 3;
+    prev_allocs.allocations[0].asset_id = AILLE::AssetId::CASH;
+    prev_allocs.allocations[0].allocation = 0.55;
+    prev_allocs.allocations[0].risk_score = 0.0;
+    prev_allocs.allocations[1].asset_id = AILLE::AssetId::BTC;
+    prev_allocs.allocations[1].allocation = 0.30;
+    prev_allocs.allocations[1].risk_score = 60.0;
+    prev_allocs.allocations[2].asset_id = AILLE::AssetId::ETH;
+    prev_allocs.allocations[2].allocation = 0.15;
+    prev_allocs.allocations[2].risk_score = 80.0;
+
+    // 3. Setup rules
+    AILLE::StressOverrideRules rules{};
+    rules.volatility_threshold = 0.50;
+    rules.drawdown_threshold = 0.10;
+    rules.correlation_threshold = 0.80;
+    rules.residual_threshold = 0.20;
+    rules.crash_dampening_factor = 0.50;
+    rules.fallback_lambda = 0.70;
+    rules.mode = static_cast<uint8_t>(AILLE::StressMode::NORMAL);
+
+    // 4. Scenario A: NORMAL Flow (no override)
+    {
+        AILLE::AssetAllocations curr_allocs;
+        curr_allocs.count = 3;
+        curr_allocs.allocations[0].asset_id = AILLE::AssetId::CASH;
+        curr_allocs.allocations[0].allocation = 0.43;
+        curr_allocs.allocations[0].risk_score = 0.0;
+        curr_allocs.allocations[1].asset_id = AILLE::AssetId::BTC;
+        curr_allocs.allocations[1].allocation = 0.45;
+        curr_allocs.allocations[1].risk_score = 60.0;
+        curr_allocs.allocations[2].asset_id = AILLE::AssetId::ETH;
+        curr_allocs.allocations[2].allocation = 0.12;
+        curr_allocs.allocations[2].risk_score = 80.0;
+
+        AILLE::StressPortfolioState state{};
+        state.stress_level = static_cast<uint8_t>(AILLE::StressMode::NORMAL);
+        state.volatility_index = 0.10;
+        state.drawdown_index = 0.02;
+        state.correlation_index = 0.30;
+        state.temporal_residual_sum = 0.05;
+
+        AILLE::StressTraceSteps trace{};
+
+        AILLE::apply_stress_regime_override(rules, state, prev_allocs, curr_allocs, baselines, trace, false);
+
+        // Allocations remain unchanged
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[0].allocation, 0.43);
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[1].allocation, 0.45);
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[2].allocation, 0.12);
+
+        // No trace steps should have flags set
+        ASSERT_EQ(trace.count, 3ULL);
+        ASSERT_EQ(trace.steps[0].flags, 0);
+        ASSERT_EQ(trace.steps[1].flags, 0);
+        ASSERT_EQ(trace.steps[2].flags, 0);
+    }
+
+    // 5. Scenario B: EXPOSURE FREEZE Active
+    {
+        AILLE::AssetAllocations curr_allocs;
+        curr_allocs.count = 3;
+        curr_allocs.allocations[0].asset_id = AILLE::AssetId::CASH;
+        curr_allocs.allocations[0].allocation = 0.43;
+        curr_allocs.allocations[0].risk_score = 0.0;
+        curr_allocs.allocations[1].asset_id = AILLE::AssetId::BTC;
+        curr_allocs.allocations[1].allocation = 0.45; // Increase (prev is 0.30) -> Should be frozen to 0.30, then dampened to 0.15
+        curr_allocs.allocations[1].risk_score = 60.0;
+        curr_allocs.allocations[2].asset_id = AILLE::AssetId::ETH;
+        curr_allocs.allocations[2].allocation = 0.12; // Decrease (prev is 0.15) -> NOT frozen, dampened to 0.06
+        curr_allocs.allocations[2].risk_score = 80.0;
+
+        AILLE::StressPortfolioState state{};
+        state.stress_level = static_cast<uint8_t>(AILLE::StressMode::NORMAL);
+        state.volatility_index = 0.40; // Volatility (0.40) > 0.5 * 0.50 (0.25) -> triggers freeze & STRESS mode
+        state.drawdown_index = 0.02;
+        state.correlation_index = 0.30;
+        state.temporal_residual_sum = 0.05;
+
+        AILLE::StressTraceSteps trace{};
+
+        AILLE::apply_stress_regime_override(rules, state, prev_allocs, curr_allocs, baselines, trace, false);
+
+        // CASH: unchanged
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[0].allocation, 0.43);
+        // BTC: frozen to prev 0.30, then scaled by 0.50 -> 0.15
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[1].allocation, 0.15);
+        // ETH: scaled by 0.50 -> 0.06 (no freeze)
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[2].allocation, 0.06);
+
+        ASSERT_EQ(trace.count, 3ULL);
+        // BTC flag has bit 1 (frozen) and bit 0 (dampened) set
+        ASSERT_TRUE((trace.steps[1].flags & (1 << 1)) != 0);
+        ASSERT_TRUE((trace.steps[1].flags & (1 << 0)) != 0);
+        // ETH flag has bit 0 (dampened) but not bit 1 (frozen)
+        ASSERT_TRUE((trace.steps[2].flags & (1 << 0)) != 0);
+        ASSERT_TRUE((trace.steps[2].flags & (1 << 1)) == 0);
+    }
+
+    // 6. Scenario C: STRESS mode (Crash Dampening)
+    {
+        AILLE::AssetAllocations curr_allocs;
+        curr_allocs.count = 3;
+        curr_allocs.allocations[0].asset_id = AILLE::AssetId::CASH;
+        curr_allocs.allocations[0].allocation = 0.43;
+        curr_allocs.allocations[0].risk_score = 0.0;
+        curr_allocs.allocations[1].asset_id = AILLE::AssetId::BTC;
+        curr_allocs.allocations[1].allocation = 0.40; // No freeze in play (vol below threshold).
+        curr_allocs.allocations[1].risk_score = 60.0;
+        curr_allocs.allocations[2].asset_id = AILLE::AssetId::ETH;
+        curr_allocs.allocations[2].allocation = 0.12;
+        curr_allocs.allocations[2].risk_score = 80.0;
+
+        AILLE::StressPortfolioState state{};
+        state.stress_level = static_cast<uint8_t>(AILLE::StressMode::STRESS); // effective mode = STRESS
+        state.volatility_index = 0.10;
+        state.drawdown_index = 0.02;
+        state.correlation_index = 0.30;
+        state.temporal_residual_sum = 0.05;
+
+        AILLE::StressTraceSteps trace{};
+
+        AILLE::apply_stress_regime_override(rules, state, prev_allocs, curr_allocs, baselines, trace, false);
+
+        // CASH: unchanged (non-risk bearing)
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[0].allocation, 0.43);
+        // BTC: scaled by 0.50 -> 0.40 * 0.50 = 0.20
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[1].allocation, 0.20);
+        // ETH: scaled by 0.50 -> 0.12 * 0.50 = 0.06
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[2].allocation, 0.06);
+
+        ASSERT_EQ(trace.count, 3ULL);
+        // BTC has bit 0 (dampened) set
+        ASSERT_TRUE((trace.steps[1].flags & (1 << 0)) != 0);
+        // ETH has bit 0 (dampened) set
+        ASSERT_TRUE((trace.steps[2].flags & (1 << 0)) != 0);
+    }
+
+    // 7. Scenario D: CRISIS mode (Fallback Compression)
+    {
+        AILLE::AssetAllocations curr_allocs;
+        curr_allocs.count = 3;
+        curr_allocs.allocations[0].asset_id = AILLE::AssetId::CASH;
+        curr_allocs.allocations[0].allocation = 0.43;
+        curr_allocs.allocations[0].risk_score = 0.0;
+        curr_allocs.allocations[1].asset_id = AILLE::AssetId::BTC;
+        curr_allocs.allocations[1].allocation = 0.40;
+        curr_allocs.allocations[1].risk_score = 60.0;
+        curr_allocs.allocations[2].asset_id = AILLE::AssetId::ETH;
+        curr_allocs.allocations[2].allocation = 0.12;
+        curr_allocs.allocations[2].risk_score = 80.0;
+
+        AILLE::StressPortfolioState state{};
+        state.stress_level = static_cast<uint8_t>(AILLE::StressMode::CRISIS); // triggers CRISIS
+        state.volatility_index = 0.10;
+        state.drawdown_index = 0.02;
+        state.correlation_index = 0.30;
+        state.temporal_residual_sum = 0.05;
+
+        AILLE::StressTraceSteps trace{};
+
+        AILLE::apply_stress_regime_override(rules, state, prev_allocs, curr_allocs, baselines, trace, false);
+
+        // Since it is CRISIS:
+        // First, crash dampening applies to risk-bearing (BTC, ETH):
+        // BTC dampened: 0.40 * 0.5 = 0.20
+        // ETH dampened: 0.12 * 0.5 = 0.06
+        // Next, fallback compression applies to all:
+        // (1 - lambda) * allocation + lambda * baseline
+        // lambda = 0.70
+        // CASH: (0.30 * 0.43) + (0.70 * 0.70) = 0.129 + 0.490 = 0.619
+        // BTC: (0.30 * 0.20) + (0.70 * 0.20) = 0.06 + 0.14 = 0.20
+        // ETH: (0.30 * 0.06) + (0.70 * 0.10) = 0.018 + 0.070 = 0.088
+
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[0].allocation, 0.619);
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[1].allocation, 0.20);
+        ASSERT_FLOAT_EQ(curr_allocs.allocations[2].allocation, 0.088);
+
+        ASSERT_EQ(trace.count, 3ULL);
+        // CASH has fallback applied (bit 2) but not dampened
+        ASSERT_TRUE((trace.steps[0].flags & (1 << 2)) != 0);
+        ASSERT_TRUE((trace.steps[0].flags & (1 << 0)) == 0);
+
+        // BTC has dampened and fallback
+        ASSERT_TRUE((trace.steps[1].flags & (1 << 0)) != 0);
+        ASSERT_TRUE((trace.steps[1].flags & (1 << 2)) != 0);
+    }
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -1372,6 +1585,8 @@ int main() {
     RUN_TEST(TestLayer11PortfolioConstraintsDeterministicWalk);
     RUN_TEST(TestLayer12TemporalConsistencySizing);
     RUN_TEST(TestLayer12TemporalConsistencyWalkthrough);
+    RUN_TEST(TestLayer13StressRegimeOverrideSizing);
+    RUN_TEST(TestLayer13StressRegimeOverrideWalkthrough);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

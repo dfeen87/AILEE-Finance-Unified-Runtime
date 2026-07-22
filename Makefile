@@ -32,6 +32,7 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_governor_reconciliation.cpp \
            extensions/aille_portfolio_constraints.cpp \
            extensions/aille_temporal_consistency.cpp \
+           extensions/aille_stress_regime_override.cpp \
            aille_audit.cpp
 
 EXAMPLE_SRC      = examples/example.cpp
