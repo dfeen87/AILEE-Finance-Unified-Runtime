@@ -53,3 +53,37 @@ def test_layer10_compliance_hard_block():
     assert res.decision.final_value == 0.0
     assert res.decision.resolved_type == GovernorType.COMPLIANCE
     assert (res.decision.flags_applied & ReconciliationFlags.HARD_BLOCK) != 0
+
+
+def test_layer10_reconciliation_hardening():
+    # 1. Determinism
+    proposals = [
+        GovernorProposal(asset_id=AssetId.BTC, governor_type=GovernorType.STRATEGY, proposed_value=100.0)
+    ]
+
+    res1 = reconcile_governors(proposals, AssetId.BTC)
+    res2 = reconcile_governors(proposals, AssetId.BTC)
+
+    assert res1.decision.final_value == res2.decision.final_value
+    assert res1.residual.residual_value == res2.residual.residual_value
+    assert len(res1.trace_steps) == len(res2.trace_steps)
+
+    # 2. Failure Mode (Empty proposal input list)
+    res_empty = reconcile_governors([], AssetId.BTC)
+    assert res_empty.decision.final_value == 0.0
+    assert res_empty.decision.resolved_type == GovernorType.STRATEGY
+
+    # 3. Risk Boundary Condition (Exactly 75.0 vs 75.1)
+    boundary_proposals1 = [
+        GovernorProposal(asset_id=AssetId.BTC, governor_type=GovernorType.STRATEGY, proposed_value=100.0),
+        GovernorProposal(asset_id=AssetId.BTC, governor_type=GovernorType.RISK, proposed_value=50.0, risk_score=75.0) # not severe (>75.0 is severe)
+    ]
+    res_boundary1 = reconcile_governors(boundary_proposals1, AssetId.BTC)
+    assert res_boundary1.decision.final_value == 100.0 # no severe clamp
+
+    boundary_proposals2 = [
+        GovernorProposal(asset_id=AssetId.BTC, governor_type=GovernorType.STRATEGY, proposed_value=100.0),
+        GovernorProposal(asset_id=AssetId.BTC, governor_type=GovernorType.RISK, proposed_value=50.0, risk_score=75.1) # severe (>75.0 is severe)
+    ]
+    res_boundary2 = reconcile_governors(boundary_proposals2, AssetId.BTC)
+    assert res_boundary2.decision.final_value == 50.0 # severe clamp applied!

@@ -3,6 +3,7 @@
 """Unit tests for Layer 11 — Deterministic Portfolio-Wide Constraint Engine."""
 
 import pytest
+import math
 from core.finance_kernel.arbitration_layer import AssetId
 from core.finance_kernel.portfolio_constraints import (
     ConstraintRule,
@@ -99,3 +100,32 @@ def test_layer11_deterministic_walkthrough():
     # Trace steps must be captured
     assert len(result.trace_steps) > 0
     assert any(step.stage == ConstraintStage.CORRELATION_DAMPEN and step.action_taken == ConstraintAction.DAMPENED for step in result.trace_steps)
+
+
+def test_layer11_portfolio_constraints_hardening():
+    # 1. Determinism
+    proposed = [
+        AssetAllocation(AssetId.BTC, 0.35, 60.0),
+        AssetAllocation(AssetId.CASH, 0.65, 0.0)
+    ]
+    rules = []
+    sectors = []
+    correlations = []
+    budget = RiskBudget(25.0, is_active=False)
+
+    result1 = apply_portfolio_constraints(proposed, rules, sectors, correlations, budget)
+    result2 = apply_portfolio_constraints(proposed, rules, sectors, correlations, budget)
+
+    assert result1.summary.final_portfolio_risk == result2.summary.final_portfolio_risk
+    assert result1.allocations[0].allocation == result2.allocations[0].allocation
+    assert len(result1.trace_steps) == len(result2.trace_steps)
+
+    # 2. Boundary Condition (Risk budget exactly met vs breached)
+    budget.is_active = True
+    budget.max_portfolio_risk = 21.0 # BTC risk is 0.35 * 60 = 21.0. Met exactly!
+    result_met = apply_portfolio_constraints(proposed, rules, sectors, correlations, budget)
+    assert math.isclose(result_met.allocations[0].allocation, 0.35, abs_tol=1e-9) # No scaling down
+
+    budget.max_portfolio_risk = 20.99 # Breached!
+    result_breached = apply_portfolio_constraints(proposed, rules, sectors, correlations, budget)
+    assert result_breached.allocations[0].allocation < 0.35 # Scaled down!

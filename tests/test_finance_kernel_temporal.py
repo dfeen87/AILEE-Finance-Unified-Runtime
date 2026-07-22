@@ -3,6 +3,7 @@
 """Unit tests for Layer 12 — Deterministic Temporal Consistency Guard."""
 
 import pytest
+import math
 from core.finance_kernel.arbitration_layer import AssetId
 from core.finance_kernel.temporal_consistency import (
     TemporalState,
@@ -114,3 +115,56 @@ def test_temporal_consistency_walkthrough():
     assert trace.steps[0].log == "Oscillated & clamped"
     assert trace.steps[0].before_value == pytest.approx(0.15)
     assert trace.steps[0].after_value == pytest.approx(0.30)
+
+
+def test_layer12_temporal_consistency_hardening():
+    # 1. Determinism
+    prev_states = TemporalStates([
+        TemporalState(AssetId.BTC, prev_allocation=0.10, prev_risk_score=60.0, prev_prev_allocation=0.08)
+    ])
+    curr_states1 = TemporalStates([
+        TemporalState(AssetId.BTC, prev_allocation=0.12, prev_risk_score=60.0)
+    ])
+    curr_states2 = TemporalStates([
+        TemporalState(AssetId.BTC, prev_allocation=0.12, prev_risk_score=60.0)
+    ])
+
+    prev_portfolio = TemporalPortfolioState()
+    curr_portfolio1 = TemporalPortfolioState()
+    curr_portfolio2 = TemporalPortfolioState()
+    residuals1 = TemporalResiduals()
+    residuals2 = TemporalResiduals()
+    trace1 = TemporalTraceSteps()
+    trace2 = TemporalTraceSteps()
+
+    enforce_temporal_consistency(prev_states, curr_states1, prev_portfolio, curr_portfolio1, residuals1, trace1, max_drift_threshold=0.05)
+    enforce_temporal_consistency(prev_states, curr_states2, prev_portfolio, curr_portfolio2, residuals2, trace2, max_drift_threshold=0.05)
+
+    assert curr_states1.states[0].prev_allocation == curr_states2.states[0].prev_allocation
+    assert curr_portfolio1.residual_sum == curr_portfolio2.residual_sum
+    assert len(trace1.steps) == len(trace2.steps)
+
+    # 2. Boundary Condition (Drift exactly at max_drift_threshold)
+    # prev is 0.10. max_drift is 0.05. Target is 0.15. Exactly met!
+    curr_states_met = TemporalStates([
+        TemporalState(AssetId.BTC, prev_allocation=0.15, prev_risk_score=60.0)
+    ])
+    curr_portfolio_met = TemporalPortfolioState()
+    residuals_met = TemporalResiduals()
+    trace_met = TemporalTraceSteps()
+
+    enforce_temporal_consistency(prev_states, curr_states_met, prev_portfolio, curr_portfolio_met, residuals_met, trace_met, max_drift_threshold=0.05)
+    assert math.isclose(curr_states_met.states[0].prev_allocation, 0.15, abs_tol=1e-9) # Not clamped!
+    assert trace_met.steps[0].action_taken == TemporalAction.NO_CHANGE
+
+    # Proposed is 0.1501 -> Drift is 0.0501 > 0.05. Clamped!
+    curr_states_clamped = TemporalStates([
+        TemporalState(AssetId.BTC, prev_allocation=0.1501, prev_risk_score=60.0)
+    ])
+    curr_portfolio_clamped = TemporalPortfolioState()
+    residuals_clamped = TemporalResiduals()
+    trace_clamped = TemporalTraceSteps()
+
+    enforce_temporal_consistency(prev_states, curr_states_clamped, prev_portfolio, curr_portfolio_clamped, residuals_clamped, trace_clamped, max_drift_threshold=0.05)
+    assert math.isclose(curr_states_clamped.states[0].prev_allocation, 0.15, abs_tol=1e-9) # Clamped back to 0.10 + 0.05
+    assert trace_clamped.steps[0].action_taken == TemporalAction.CLAMPED

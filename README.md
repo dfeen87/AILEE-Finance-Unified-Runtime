@@ -267,6 +267,72 @@ AILLEE Version 9.0.0 formally introduces the fully deterministic, allocator-free
 - **Layer 14 — Deterministic Meta‑Governance Lock**
   The final deterministic meta-guard sealing the entire AILEE Finance Runtime with an allocator-free machine that reconciles and locks all prior normal, constraint, stress, temporal, and routing states, validating consistency to set `EXECUTION_READY`.
 
+### Deterministic Governance Stack Specifications (Layers 8–14)
+
+To guarantee absolute binary stability, predictable cache locality, and zero heap fragmentation across all platforms, every core algorithm in Layers 8–14 is designed as a pure functional pipeline operating over strictly aligned, fixed-size **64-byte structs** (`alignas(64)` and `static_assert(sizeof(...) == 64)`).
+
+#### 1. Layer 8 — Deterministic Cross-Asset Arbitration
+* **Core Function:** `arbitrate(...)` — Pure functional cross-asset resolver mapping advisories to a single decision vector.
+* **64-byte Structs:**
+  * `Advisory` — Atomic representation of an asset-level advisory input.
+  * `AllocationDecision` — Contains the deterministic allocated fraction for a single asset.
+  * `ArbitrationTraceStep` — Trace record containing log and weighting details for a ladder stage.
+
+#### 2. Layer 9 — Deterministic Liquidity Routing
+* **Core Function:** `route_liquidity(...)` — Resolves and executes step-wise liquidity transfers between assets under varying stress indices.
+* **64-byte Structs:**
+  * `LiquidityCap` — Max inflow/outflow limits per asset under a given stress level.
+  * `RoutingRule` — Describes primary and fallback routing targets and ratios.
+  * `ShockBounds` — Caps on step-wise asset-level and portfolio-level shifts.
+  * `CrossAssetDecision` — Opaque container holding current and target asset allocation ratios.
+  * `StressProfile` — Stores composite volatility, drawdown, and correlation metrics.
+  * `LiquidityState` — Asset-level active value and block/freeze flags.
+  * `LiquidityFlow` — Specific routed amount from source asset to target asset.
+  * `RoutingTraceStep` — Record logging proposed flow, actual flow, and any blockage reasons.
+  * `RoutingResult` — Summary containing final total shift value and active flow count.
+
+#### 3. Layer 10 — Multi-Governor Reconciliation Engine
+* **Core Function:** `reconcile_governors(...)` — Reconciles diverging proposals across a static hierarchy.
+* **64-byte Structs:**
+  * `GovernorProposal` — Target allocation proposed by a single specialized governor.
+  * `GovernorDecision` — Resolved decision value and active governor category.
+  * `ReconciliationTraceStep` — Log step detailing applied clamps, vetos, or passes.
+  * `ReconciliationResidual` — Calculated L1 tension distance for a single asset.
+  * `ReconciledResultSummary` — Portfolio-level residual sum and total trace count.
+
+#### 4. Layer 11 — Deterministic Portfolio-Wide Constraint Engine
+* **Core Function:** `apply_portfolio_constraints(...)` — Ultimate multi-stage constraint guardrail.
+* **64-byte Structs:**
+  * `ConstraintRule` — Individual asset directional and absolute exposure caps.
+  * `SectorDefinition` — Proportional scale cap for defined asset sectors.
+  * `CorrelationProfile` — Pairwise correlation coefficient between asset pairs.
+  * `RiskBudget` — Portfolio-wide maximum linear risk budget limit.
+  * `AssetAllocation` — Contains asset ID, allocated ratio, and individual risk score.
+  * `ConstraintTraceStep` — Trace step for exposure, sector, correlation, and risk budget stages.
+  * `ConstraintResultSummary` — Captures remaining violations and final portfolio risk.
+
+#### 5. Layer 12 — Deterministic Temporal Consistency Guard
+* **Core Function:** `enforce_temporal_consistency(...)` — Prevents sudden allocation shifts, circular loops, and drift.
+* **64-byte Structs:**
+  * `TemporalState` — Asset tracking history covering consecutive frames.
+  * `TemporalResidual` — Deviation of final allocations from zero-drift expectation baseline.
+  * `TemporalTraceStep` — Log step detailing drift clamps and oscillation dampening.
+  * `TemporalPortfolioState` — Tracks accumulated temporal residual sum and portfolio risk.
+
+#### 6. Layer 13 — Deterministic Stress-Regime Override
+* **Core Function:** `apply_stress_regime_override(...)` — Applies de-risking and compression overrides during distress.
+* **64-byte Structs:**
+  * `StressOverrideRules` — Parameter threshold and scaling factor settings.
+  * `SafeBaseline` — Asset baseline allocation targets for crisis overrides.
+  * `StressTraceStep` — Record capturing applied freezes, dampening, and fallbacks.
+  * `StressPortfolioState` — Composite metric profiles driving stress level escalations.
+
+#### 7. Layer 14 — Deterministic Meta-Governance Lock
+* **Core Function:** `apply_meta_governance_lock(...)` — Sealing guard verifying absolute consistency and readiness.
+* **64-byte Structs:**
+  * `MetaGovernanceState` — Snapshot of risk, residual sum, and execution readiness.
+  * `MetaGovernanceTraceStep` — Detailed failure modes (e.g., governor conflict, temporal inconsistency, constraint violation, or missing overrides).
+
 ---
 
 ## ⚙️ Technical Specifications
