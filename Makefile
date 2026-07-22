@@ -81,15 +81,15 @@ check_deps:
 	@printf "$(COLOR_GREEN)✓ Dependencies verified.$(COLOR_RESET)\n"
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
-	@$(MAKE) --no-print-directory check_deps
-	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
-	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo; then \
-		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
-	else \
-		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
-		exit 1; \
-	fi
+    @printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+    @$(MAKE) --no-print-directory check_deps
+    @printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+    @if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo; then \
+        printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+    else \
+        printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+        exit 1; \
+    fi
 
 debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	$(CXX) $(CXXFLAGS) -g $(COMMON_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo_debug
