@@ -39,6 +39,7 @@
 #include "../extensions/aille_arbitration.hpp"
 #include "../extensions/aille_routing.hpp"
 #include "../extensions/aille_governor_reconciliation.hpp"
+#include "../extensions/aille_portfolio_constraints.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -994,6 +995,77 @@ TEST(TestLayer10ComplianceHardBlock) {
     ASSERT_TRUE(res.decision.flags_applied & static_cast<uint8_t>(AILLE::ReconciliationFlags::HARD_BLOCK));
 }
 
+TEST(TestLayer11PortfolioConstraintsSizing) {
+    ASSERT_EQ(sizeof(AILLE::ConstraintRule), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::SectorDefinition), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::CorrelationProfile), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::RiskBudget), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ConstraintTraceStep), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::AssetAllocation), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ConstraintResultSummary), 64ULL);
+}
+
+TEST(TestLayer11PortfolioConstraintsDeterministicWalk) {
+    AILLE::AssetAllocations proposed;
+    proposed.count = 3;
+
+    proposed.allocations[0].asset_id = AILLE::AssetId::BTC;
+    proposed.allocations[0].allocation = 0.35;
+    proposed.allocations[0].risk_score = 60.0;
+
+    proposed.allocations[1].asset_id = AILLE::AssetId::ETH;
+    proposed.allocations[1].allocation = 0.25;
+    proposed.allocations[1].risk_score = 80.0;
+
+    proposed.allocations[2].asset_id = AILLE::AssetId::CASH;
+    proposed.allocations[2].allocation = 0.40;
+    proposed.allocations[2].risk_score = 0.0;
+
+    AILLE::ConstraintRules rules;
+    rules.count = 2;
+
+    rules.rules[0].asset_id = AILLE::AssetId::BTC;
+    rules.rules[0].is_active = 1;
+    rules.rules[0].max_long_exposure = 0.40;
+    rules.rules[0].max_short_exposure = 0.0;
+
+    rules.rules[1].asset_id = AILLE::AssetId::ETH;
+    rules.rules[1].is_active = 1;
+    rules.rules[1].max_long_exposure = 0.30;
+    rules.rules[1].max_short_exposure = 0.0;
+
+    AILLE::SectorDefinitions sectors;
+    sectors.count = 1;
+    sectors.sectors[0].sector_id = static_cast<uint8_t>(AILLE::SectorId::CRYPTO);
+    sectors.sectors[0].is_active = 1;
+    sectors.sectors[0].max_sector_exposure = 0.50;
+    std::strcpy(sectors.sectors[0].sector_name, "CRYPTO");
+
+    AILLE::CorrelationProfiles correlations;
+    correlations.count = 1;
+    correlations.profiles[0].asset_a = AILLE::AssetId::BTC;
+    correlations.profiles[0].asset_b = AILLE::AssetId::ETH;
+    correlations.profiles[0].is_active = 1;
+    correlations.profiles[0].correlation_score = 0.85;
+
+    AILLE::RiskBudget budget;
+    budget.max_portfolio_risk = 25.0;
+    budget.is_active = 1;
+
+    AILLE::PortfolioConstraintResult result = AILLE::apply_portfolio_constraints(proposed, rules, sectors, correlations, budget);
+
+    ASSERT_FLOAT_EQ(result.summary.initial_portfolio_risk, 41.0);
+
+    // Initial check on CRYPTO cluster after evaluation
+    double btc_alloc = result.allocations.allocations[0].allocation;
+    double eth_alloc = result.allocations.allocations[1].allocation;
+
+    ASSERT_FLOAT_EQ(btc_alloc, 0.175);
+    ASSERT_FLOAT_EQ(eth_alloc, 0.125);
+    ASSERT_FLOAT_EQ(result.summary.final_portfolio_risk, 20.5);
+    ASSERT_TRUE(result.summary.trace_count > 0);
+}
+
 TEST(TestLayer9RoutingDeterministicWalk) {
     // 1. Setup decisions
     AILLE::CrossAssetDecisions decisions;
@@ -1225,6 +1297,8 @@ int main() {
     RUN_TEST(TestLayer10GovernorReconciliationSizing);
     RUN_TEST(TestLayer10GovernorReconciliationWalkthrough);
     RUN_TEST(TestLayer10ComplianceHardBlock);
+    RUN_TEST(TestLayer11PortfolioConstraintsSizing);
+    RUN_TEST(TestLayer11PortfolioConstraintsDeterministicWalk);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
