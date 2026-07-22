@@ -29,22 +29,22 @@
 
 ## Table of Contents
 
-- [The Problem](#the-problem-algorithmic-fragility)
-- [The Solution](#the-solution-aille-framework)
-- [Proven Performance](#proven-performance)
-- [Architecture](#architecture-five-layers-of-safety)
-- [v9.0.0 — Deterministic Governance Stack (Layers 8–14)](#v900--deterministic-governance-stack-layers-814)
-- [Technical Specifications](#technical-specifications)
-- [Optional Performance Layer](#optional-performance-layer)
-- [Use Cases](#use-cases)
-- [Integration Options](#integration-options)
-- [Integration Example](#integration-example)
-- [Plugin Ecosystem](#plugin-ecosystem)
-- [Why AILLE Works](#why-aille-works-the-science)
-- [Deployment Guide](#deployment-guide)
-- [Configuration Guide](#configuration-guide)
-- [Compliance & Regulatory](#compliance--regulatory)
-- [Support & Contact](#support--contact)
+- **[The Problem](#the-problem-algorithmic-fragility)**  
+- **[The Solution](#the-solution-aille-framework)**  
+- **[Proven Performance](#proven-performance)**  
+- **[Architecture](#architecture-five-layers-of-safety)**  
+- **[v9.0.0 — Deterministic Governance Stack (Layers 8–14)](#v900--deterministic-governance-stack-layers-814)**  
+- **[Technical Specifications](#technical-specifications)**  
+- **[Optional Performance Layer](#optional-performance-layer)**  
+- **[Use Cases](#use-cases)**  
+- **[Integration Options](#integration-options)**  
+- **[Integration Example](#integration-example)**  
+- **[Plugin Ecosystem](#plugin-ecosystem)**  
+- **[Why AILLE Works](#why-aille-works-the-science)**  
+- **[Deployment Guide](#deployment-guide)**  
+- **[Configuration Guide](#configuration-guide)**  
+- **[Compliance & Regulatory](#compliance--regulatory)**  
+- **[Support & Contact](#support--contact)**  
 
 ---
 
