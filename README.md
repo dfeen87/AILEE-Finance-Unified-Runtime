@@ -29,22 +29,43 @@
 
 ## Table of Contents
 
-- [The Problem](#the-problem-algorithmic-fragility)
-- [The Solution](#the-solution-aille-framework) 
-- [Proven Performance](#proven-performance)
-- [Architecture](#architecture-five-layers-of-safety)**  
-- [v9.0.0 — Deterministic Governance Stack (Layers 8–14)](#v900--deterministic-governance-stack-layers-8–14)
-- [Technical Specifications](#technical-specifications)
+- [⚡ The Problem: Algorithmic Fragility](#the-problem-algorithmic-fragility)
+- [✨ The Solution: AILLE Framework](#the-solution-aille-framework)
+- [📊 Proven Performance](#proven-performance)
+- [🏗️ Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
+- [v9.0.0: Deterministic Governance Stack (Layers 8-14)](#v900-deterministic-governance-stack-layers-8-14)
+- [⚙️ Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
-- [Use Cases](#use-cases)
-- [Integration Options](#integration-options)
-- [Integration Example](#integration-example)
-- [Plugin Ecosystem](#plugin-ecosystem)
-- [Why AILLE Works](#why-aille-works-the-science)
-- [Deployment Guide](#deployment-guide)
-- [Configuration Guide](#configuration-guide)
-- [Compliance & Regulatory](#compliance--regulatory)
-- [Support & Contact](#support--contact)
+- [💼 Use Cases](#use-cases)
+- [🔌 Integration Options](#integration-options)
+- [💡 Integration Example](#integration-example)
+- [🔌 Plugin Ecosystem](#plugin-ecosystem)
+- [🔬 Why AILLE Works: The Science](#why-aille-works-the-science)
+- [📈 Implications for Financial Markets](#implications-for-financial-markets)
+- [📚 Academic Foundation](#academic-foundation)
+- [🚀 Deployment Guide](#deployment-guide)
+- [📋 Test Plan and Benchmarking](#test-plan-and-benchmarking)
+- [🔄 Continuous Integration](#continuous-integration)
+- [✅ Compliance and Regulatory](#compliance-and-regulatory)
+- [⚙️ Configuration Guide](#configuration-guide)
+- [⚠️ Limitations and Disclaimers](#limitations-and-disclaimers)
+- [🔧 Deterministic Advisory Layer Overview](#deterministic-advisory-layer-overview)
+- [🧩 Multi-Asset Advisory Architecture Diagram](#multi-asset-advisory-architecture-diagram)
+- [🧠 Deterministic Engineering Principles](#deterministic-engineering-principles)
+- [🧮 Why 64 Bytes?](#why-64-bytes)
+- [🧱 Module Contract Specification](#module-contract-specification)
+- [🌐 MacroSignal Governance](#macrosignal-governance)
+- [🧪 Deterministic Test Suite](#deterministic-test-suite)
+- [📦 Versioning and Release Notes](#versioning-and-release-notes)
+- [🧭 Design Philosophy](#design-philosophy)
+- [🏛️ Enterprise Integration](#enterprise-integration)
+- [🔮 Roadmap](#roadmap)
+- [⭐ Philosophical Note](#philosophical-note)
+- [📖 Citation](#citation)
+- [📞 Support and Contact](#support-and-contact)
+- [🙏 Acknowledgments](#acknowledgments)
+- [Enterprise Consulting and Integration](#enterprise-consulting-and-integration)
+- [🤝 Contributing](#contributing)
 
 ---
 
@@ -242,7 +263,7 @@ Every decision is logged with:
 
 ---
 
-## v9.0.0 — Deterministic Governance Stack (Layers 8–14)
+## v9.0.0: Deterministic Governance Stack (Layers 8-14)
 
 AILLEE Version 9.0.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack**. This stack sits above lower-level pipelines and guarantees that portfolio decisions, constraints, stress overrides, and temporal limits are reconciled and locked with absolute predictability across all platforms and runtimes.
 
@@ -704,7 +725,7 @@ This target performs the following actions:
 
 ---
 
-## 📋 Test Plan & Benchmarking
+## 📋 Test Plan and Benchmarking
 
 - **Test plan:** See `docs/test_plan.md` for build, functional, and cleanup steps.
 - **Benchmark harness:** Build with `make benchmark` and run `./benchmark [iterations]` to measure decision throughput.
@@ -718,7 +739,7 @@ CI runs a lightweight workflow that installs dependencies, checks that the simul
 
 ---
 
-## ✅ Compliance & Regulatory
+## ✅ Compliance and Regulatory
 
 ### Built-In Compliance Features
 
@@ -789,7 +810,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-## ⚠️ Limitations & Disclaimers
+## ⚠️ Limitations and Disclaimers
 
 ### What AILLE Is
 
@@ -815,7 +836,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-# 🔧 **Deterministic Advisory Layer Overview**
+## 🔧 Deterministic Advisory Layer Overview
 
 AILLEE Version 6.0.0 introduces a fully deterministic, allocator‑free advisory ecosystem spanning five independent modules:
 
@@ -876,7 +897,7 @@ Advisory modules never replace models — they **validate and contextualize** th
 
 ---
 
-# 🧩 **Multi‑Asset Advisory Architecture Diagram**
+## 🧩 Multi-Asset Advisory Architecture Diagram
 
 ```
 Crypto Advisory Modules
@@ -908,7 +929,7 @@ This diagram anchors the advisory ecosystem and shows how it flows into the core
 
 ---
 
-# 🧠 **Deterministic Engineering Principles**
+## 🧠 Deterministic Engineering Principles
 
 AILLEE enforces strict deterministic engineering rules across all modules:
 
@@ -933,7 +954,7 @@ AILLEE is engineered to behave identically across compilers, machines, and envir
 
 ---
 
-# 🧮 **Why 64 Bytes?**
+## 🧮 Why 64 Bytes?
 
 Every advisory module uses **exactly 64‑byte** structs for State, Advisory, and ObservabilityMetrics.
 
@@ -972,7 +993,7 @@ This is a foundational design choice.
 
 ---
 
-# 🧱 **Module Contract Specification**
+## 🧱 Module Contract Specification
 
 Every advisory module must follow this exact contract:
 
@@ -1005,7 +1026,7 @@ This contract ensures all modules behave identically and predictably.
 
 ---
 
-# 🌐 **MacroSignal Governance**
+## 🌐 MacroSignal Governance
 
 The MacroSignal Advisory Module (MSM) is the global macro governor of AILLEE.
 
@@ -1048,7 +1069,7 @@ Advisory modules provide context — not votes.
 
 ---
 
-# 🧪 **Deterministic Test Suite**
+## 🧪 Deterministic Test Suite
 
 AILLEE’s test suite validates every deterministic and safety invariant:
 
@@ -1083,7 +1104,7 @@ This suite ensures AILLEE is not just code — it is a verified deterministic sy
 
 ---
 
-# 📦 **Versioning & Release Notes**
+## 📦 Versioning and Release Notes
 
 ```
 ### Version History
@@ -1097,7 +1118,7 @@ This gives newcomers a clear view of AILLEE’s evolution.
 
 ---
 
-# 🧭 **Design Philosophy**
+## 🧭 Design Philosophy
 
 AILLEE is built on six core principles:
 
@@ -1112,7 +1133,7 @@ This philosophy is the foundation of AILLEE’s reliability.
 
 ---
 
-# 🏛️ **Enterprise Integration**
+## 🏛️ Enterprise Integration
 
 AILLEE is designed for institutional deployment:
 
@@ -1128,7 +1149,7 @@ This positions AILLEE as a production‑grade risk mitigation framework.
 
 ---
 
-# 🔮 **Roadmap**
+## 🔮 Roadmap
 
 ```
 6.1 — Advisory normalization layer
@@ -1141,7 +1162,7 @@ AILLEE continues to evolve toward hardware determinism and multi‑asset advisor
 
 ---
 
-# ⭐ **Philosophical Note**
+## ⭐ Philosophical Note
 
 > **“Determinism is not a constraint — it is the foundation of reliability.”**
 
@@ -1169,7 +1190,7 @@ If you use AILLE in academic research:
 
 ---
 
-## 📞 Support & Contact
+## 📞 Support and Contact
 
 - 📧 **Email**: dfeen87@gmail.com
 - 💼 **LinkedIn**: [Don Michael Feeney Jr.](www.linkedin.com/in/don-michael-feeney-jr-908a96351)
@@ -1201,7 +1222,7 @@ I would like to acknowledge **Microsoft Copilot** (sounding boaard for synthesis
 
 ---
 
-## Enterprise Consulting & Integration
+## Enterprise Consulting and Integration
 This architecture is fully open-source under the MIT License. If your organization requires custom scaling, proprietary integration, or dedicated technical consulting to deploy these models at an enterprise level, please reach out at: dfeen87@gmail.com
 
 ---
