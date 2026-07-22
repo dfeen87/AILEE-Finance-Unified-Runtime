@@ -38,6 +38,7 @@
 #include "../extensions/aille_weathering.hpp"
 #include "../extensions/aille_arbitration.hpp"
 #include "../extensions/aille_routing.hpp"
+#include "../extensions/aille_governor_reconciliation.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -892,6 +893,107 @@ TEST(TestLayer9RoutingSizing) {
     ASSERT_EQ(sizeof(AILLE::RoutingResult), 64ULL);
 }
 
+TEST(TestLayer10GovernorReconciliationSizing) {
+    ASSERT_EQ(sizeof(AILLE::GovernorProposal), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::GovernorDecision), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ReconciliationTraceStep), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ReconciliationResidual), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ReconciledResultSummary), 64ULL);
+}
+
+TEST(TestLayer10GovernorReconciliationWalkthrough) {
+    std::vector<AILLE::GovernorProposal> proposals;
+
+    // STRATEGY: Proposed Value = 100.0
+    AILLE::GovernorProposal strat_prop{};
+    strat_prop.asset_id = AILLE::AssetId::BTC;
+    strat_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::STRATEGY);
+    strat_prop.proposed_value = 100.0;
+    proposals.push_back(strat_prop);
+
+    // RETURN: Proposed Value = 120.0
+    AILLE::GovernorProposal ret_prop{};
+    ret_prop.asset_id = AILLE::AssetId::BTC;
+    ret_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::RETURN);
+    ret_prop.proposed_value = 120.0;
+    proposals.push_back(ret_prop);
+
+    // LIQUIDITY: Limit Proposed Value = 80.0
+    AILLE::GovernorProposal liq_prop{};
+    liq_prop.asset_id = AILLE::AssetId::BTC;
+    liq_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::LIQUIDITY);
+    liq_prop.proposed_value = 80.0;
+    proposals.push_back(liq_prop);
+
+    // RISK: Proposed Value = 50.0, risk_score = 80.0
+    AILLE::GovernorProposal risk_prop{};
+    risk_prop.asset_id = AILLE::AssetId::BTC;
+    risk_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::RISK);
+    risk_prop.proposed_value = 50.0;
+    risk_prop.risk_score = 80.0;
+    proposals.push_back(risk_prop);
+
+    // COMPLIANCE: Proposed Value = 0.0, flags = ReconciliationFlags::NONE
+    AILLE::GovernorProposal comp_prop{};
+    comp_prop.asset_id = AILLE::AssetId::BTC;
+    comp_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::COMPLIANCE);
+    comp_prop.proposed_value = 0.0;
+    proposals.push_back(comp_prop);
+
+    AILLE::ReconciledResult res = AILLE::reconcile_governors(proposals, AILLE::AssetId::BTC);
+
+    // Walks standard Ladder + Overrides:
+    // STRATEGY -> 100.0
+    // RETURN -> 120.0
+    // LIQUIDITY -> clamps 120.0 to 80.0 (VOL_CLAMP flags applied)
+    // RISK -> risk_score is 80.0 (> 75.0), clamps 80.0 to 50.0 (RISK_LIMIT flag applied)
+    // COMPLIANCE -> passes (no block)
+    // Result should be 50.0 resolved_type = RISK.
+    ASSERT_FLOAT_EQ(res.decision.final_value, 50.0);
+    ASSERT_EQ(res.decision.resolved_type, static_cast<uint8_t>(AILLE::GovernorType::RISK));
+
+    // Verify correct flags
+    uint8_t expected_flags = static_cast<uint8_t>(AILLE::ReconciliationFlags::VOL_CLAMP) |
+                             static_cast<uint8_t>(AILLE::ReconciliationFlags::RISK_LIMIT);
+    ASSERT_EQ(res.decision.flags_applied, expected_flags);
+
+    // Verify trace steps logged
+    ASSERT_TRUE(res.summary.trace_count > 0);
+
+    // Verify exact calculated residual value:
+    // COMP: 1.0 * |0.0 - 50.0| = 50.0
+    // RISK: 0.8 * |50.0 - 50.0| = 0.0
+    // LIQ: 0.6 * |80.0 - 50.0| = 18.0
+    // RET: 0.5 * |120.0 - 50.0| = 35.0
+    // STRAT: 0.5 * |100.0 - 50.0| = 25.0
+    // Sum = 50 + 0 + 18 + 35 + 25 = 128.0
+    ASSERT_FLOAT_EQ(res.residual.residual_value, 128.0);
+    ASSERT_FLOAT_EQ(res.summary.total_residual, 128.0);
+}
+
+TEST(TestLayer10ComplianceHardBlock) {
+    std::vector<AILLE::GovernorProposal> proposals;
+
+    AILLE::GovernorProposal strat_prop{};
+    strat_prop.asset_id = AILLE::AssetId::BTC;
+    strat_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::STRATEGY);
+    strat_prop.proposed_value = 100.0;
+    proposals.push_back(strat_prop);
+
+    AILLE::GovernorProposal comp_prop{};
+    comp_prop.asset_id = AILLE::AssetId::BTC;
+    comp_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::COMPLIANCE);
+    comp_prop.proposed_value = 0.0;
+    comp_prop.flags = static_cast<uint8_t>(AILLE::ReconciliationFlags::HARD_BLOCK);
+    proposals.push_back(comp_prop);
+
+    AILLE::ReconciledResult res = AILLE::reconcile_governors(proposals, AILLE::AssetId::BTC);
+
+    ASSERT_FLOAT_EQ(res.decision.final_value, 0.0);
+    ASSERT_EQ(res.decision.resolved_type, static_cast<uint8_t>(AILLE::GovernorType::COMPLIANCE));
+    ASSERT_TRUE(res.decision.flags_applied & static_cast<uint8_t>(AILLE::ReconciliationFlags::HARD_BLOCK));
+}
+
 TEST(TestLayer9RoutingDeterministicWalk) {
     // 1. Setup decisions
     AILLE::CrossAssetDecisions decisions;
@@ -1120,6 +1222,9 @@ int main() {
     RUN_TEST(TestLayer8ArbitrationDeterministicWalk);
     RUN_TEST(TestLayer9RoutingSizing);
     RUN_TEST(TestLayer9RoutingDeterministicWalk);
+    RUN_TEST(TestLayer10GovernorReconciliationSizing);
+    RUN_TEST(TestLayer10GovernorReconciliationWalkthrough);
+    RUN_TEST(TestLayer10ComplianceHardBlock);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
