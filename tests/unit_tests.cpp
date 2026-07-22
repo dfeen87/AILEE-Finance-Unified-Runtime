@@ -40,6 +40,7 @@
 #include "../extensions/aille_routing.hpp"
 #include "../extensions/aille_governor_reconciliation.hpp"
 #include "../extensions/aille_portfolio_constraints.hpp"
+#include "../extensions/aille_temporal_consistency.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1236,6 +1237,76 @@ TEST(TestLayer8ArbitrationDeterministicWalk) {
     ASSERT_TRUE(result.trace.step_count > 0ULL);
 }
 
+TEST(TestLayer12TemporalConsistencySizing) {
+    ASSERT_TRUE(sizeof(AILLE::TemporalState) == 64);
+    ASSERT_TRUE(sizeof(AILLE::TemporalResidual) == 64);
+    ASSERT_TRUE(sizeof(AILLE::TemporalTraceStep) == 64);
+    ASSERT_TRUE(sizeof(AILLE::TemporalPortfolioState) == 64);
+}
+
+TEST(TestLayer12TemporalConsistencyWalkthrough) {
+    // 1. Setup previous states S_t (which holds historical w_{t} and w_{t-1})
+    AILLE::TemporalStates prev_states;
+    prev_states.count = 1;
+    prev_states.states[0].asset_id = AILLE::AssetId::BTC;
+    prev_states.states[0].prev_allocation = 0.35;       // w_{BTC, t}
+    prev_states.states[0].prev_risk_score = 60.0;
+    prev_states.states[0].prev_prev_allocation = 0.20;  // w_{BTC, t-1}
+    prev_states.states[0].flags = 0;
+
+    // 2. Setup proposed current states I_{t+1}
+    AILLE::TemporalStates curr_states;
+    curr_states.count = 1;
+    curr_states.states[0].asset_id = AILLE::AssetId::BTC;
+    curr_states.states[0].prev_allocation = 0.15;       // Proposed w_{BTC, t+1}
+    curr_states.states[0].prev_risk_score = 60.0;
+    curr_states.states[0].prev_prev_allocation = 0.0;   // Unset initially
+    curr_states.states[0].flags = 0;
+
+    AILLE::TemporalPortfolioState prev_portfolio{};
+    AILLE::TemporalPortfolioState curr_portfolio{};
+    AILLE::TemporalResiduals residuals{};
+    AILLE::TemporalTraceSteps trace{};
+
+    // Run consistency enforcement with max_drift_threshold = 0.05
+    AILLE::enforce_temporal_consistency(
+        prev_states,
+        curr_states,
+        prev_portfolio,
+        curr_portfolio,
+        residuals,
+        trace,
+        0.05
+    );
+
+    // Initial proposal: 0.15
+    // Delta_t = 0.35 - 0.20 = +0.15
+    // Delta_{t+1} = 0.15 - 0.35 = -0.20
+    // Sign changes -> Oscillation detected!
+    // Dampened val = 0.35 + 0.5 * (-0.20) = 0.25
+    // Drift = |0.25 - 0.35| = 0.10 > 0.05
+    // Clamped val = 0.35 - 0.05 = 0.30
+
+    // Verify resolved allocation
+    ASSERT_FLOAT_EQ(curr_states.states[0].prev_allocation, 0.30);
+    // Verify historical value was correctly propagated
+    ASSERT_FLOAT_EQ(curr_states.states[0].prev_prev_allocation, 0.35);
+    // Verify oscillation flag is set (bit 0)
+    ASSERT_TRUE((curr_states.states[0].flags & 1) != 0);
+
+    // Verify residual sum: |0.30 - 0.35| = 0.05
+    ASSERT_FLOAT_EQ(curr_portfolio.residual_sum, 0.05);
+    ASSERT_FLOAT_EQ(curr_portfolio.portfolio_risk, 0.30 * 60.0);
+
+    // Verify trace steps
+    ASSERT_TRUE(trace.count == 1);
+    ASSERT_TRUE(trace.steps[0].action_taken == static_cast<uint8_t>(AILLE::TemporalAction::OSCILLATED_AND_CLAMPED));
+    ASSERT_FLOAT_EQ(trace.steps[0].before_value, 0.15);
+    ASSERT_FLOAT_EQ(trace.steps[0].after_value, 0.30);
+    ASSERT_FLOAT_EQ(trace.steps[0].residual, 0.05);
+    ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Oscillated & clamped") == 0);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -1299,6 +1370,8 @@ int main() {
     RUN_TEST(TestLayer10ComplianceHardBlock);
     RUN_TEST(TestLayer11PortfolioConstraintsSizing);
     RUN_TEST(TestLayer11PortfolioConstraintsDeterministicWalk);
+    RUN_TEST(TestLayer12TemporalConsistencySizing);
+    RUN_TEST(TestLayer12TemporalConsistencyWalkthrough);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
