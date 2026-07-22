@@ -30,6 +30,7 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_arbitration.cpp \
            extensions/aille_routing.cpp \
            extensions/aille_governor_reconciliation.cpp \
+           extensions/aille_portfolio_constraints.cpp \
            aille_audit.cpp
 
 EXAMPLE_SRC      = examples/example.cpp
