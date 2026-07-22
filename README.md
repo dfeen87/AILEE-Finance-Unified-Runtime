@@ -11,7 +11,7 @@
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-8.5.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-8.7.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
