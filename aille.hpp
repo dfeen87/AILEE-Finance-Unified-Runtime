@@ -70,6 +70,15 @@ struct ForexUSDAdvisory;
 struct MacroSignalState;
 struct MacroSignalAdvisory;
 
+// ============================================================================
+// LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS
+// ============================================================================
+struct StressOverrideRules;
+struct StressPortfolioState;
+struct StressTraceSteps;
+struct SafeBaselineContainer;
+struct AssetAllocations;
+
 struct alignas(64) MarketStabilizerState final {
     float systemic_volatility;
     float bid_ask_spread_deviation;
@@ -647,9 +656,15 @@ private:
     const MarketStabilizerState* stabilizer_state_ = nullptr;
     MarketStabilizerAdvisory* stabilizer_advisory_ = nullptr;
 
+    const StressOverrideRules* stress_rules_ = nullptr;
+    const StressPortfolioState* stress_state_ = nullptr;
+    const SafeBaselineContainer* stress_baselines_ = nullptr;
+    StressTraceSteps* stress_trace_ = nullptr;
+    bool normal_safety_failed_ = false;
+
 public:
-    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr) {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr), stress_rules_(nullptr), stress_state_(nullptr), stress_baselines_(nullptr), stress_trace_(nullptr), normal_safety_failed_(false) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr), stress_rules_(nullptr), stress_state_(nullptr), stress_baselines_(nullptr), stress_trace_(nullptr), normal_safety_failed_(false) {}
     
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
@@ -695,6 +710,12 @@ public:
     void set_stabilizer_state(const MarketStabilizerState* s) noexcept { stabilizer_state_ = s; }
     void set_stabilizer_advisory(MarketStabilizerAdvisory* a) noexcept { stabilizer_advisory_ = a; }
     void evaluate_stabilizer_advisory() noexcept;
+
+    void set_stress_rules(const StressOverrideRules* r) noexcept { stress_rules_ = r; }
+    void set_stress_state(const StressPortfolioState* s) noexcept { stress_state_ = s; }
+    void set_stress_baselines(const SafeBaselineContainer* b) noexcept { stress_baselines_ = b; }
+    void set_stress_trace(StressTraceSteps* t) noexcept { stress_trace_ = t; }
+    void set_normal_safety_failed(bool f) noexcept { normal_safety_failed_ = f; }
 
     [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         evaluate_btc_advisory();
