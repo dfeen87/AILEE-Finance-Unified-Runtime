@@ -34,4 +34,10 @@ crown_walk_demo
 weathering_demo
 pilgrimage_demo
 websocket_server
-websocket_server
+dashboard_server
+release/demo
+release/rest_api_server
+release/websocket_server
+release/dashboard_server
+release/benchmark
+release/test_suite

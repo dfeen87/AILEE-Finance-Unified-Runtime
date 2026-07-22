@@ -611,6 +611,34 @@ Don Michael Feeney Jr., November 2025
 
 ## 🚀 Deployment Guide
 
+### Dependency Preparation (Required)
+
+Before compiling the runtime servers, you must retrieve the external header dependencies. The build system will fail loudly if these are missing:
+
+```bash
+# 1. Fetch REST API dependencies (httplib.h)
+./setup_rest_api.sh
+
+# 2. Fetch WebSocket and ASIO dependencies (websocketpp, asio)
+./setup_websocket.sh
+```
+
+### Production Release (Recommended)
+
+To compile all runtime components, run the unified test suite, and generate a stamped, production-ready release package:
+
+```bash
+# Compile and package everything
+make release
+```
+
+This target performs the following actions:
+1. Validates that all external dependencies are correctly configured in the `external/` directory.
+2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
+3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
+4. Populates a fresh `release/` directory containing all compiled binaries.
+5. Stamps the deployment version in `release/VERSION` (containing `9.0.0`).
+
 ### For Quantitative Researchers
 
 1. **Clone the repository**
@@ -619,12 +647,19 @@ Don Michael Feeney Jr., November 2025
    cd AILEE-Finance-Unified-Runtime
    ```
 
-2. **Compile the library**
+2. **Retrieve Dependencies and Build Release Package**
    ```bash
+   ./setup_rest_api.sh
+   ./setup_websocket.sh
    make release
    ```
 
-3. **Run the benchmark harness**
+3. **Run the Benchmark Harness**
+   From the release package:
+   ```bash
+   ./release/benchmark
+   ```
+   Or build/run standalone:
    ```bash
    make benchmark
    ./benchmark

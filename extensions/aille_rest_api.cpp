@@ -6,7 +6,7 @@
  * License: MIT (see LICENSE)
  */
 
-#include "../external/httplib.h"
+#include "external/httplib.h"
 #include "aille_rest_api.hpp"
 #include <iostream>
 

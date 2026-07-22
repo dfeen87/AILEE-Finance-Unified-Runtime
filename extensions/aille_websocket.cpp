@@ -6,7 +6,6 @@
  * License: MIT (see LICENSE)
  */
 
-#define ASIO_STANDALONE
 #define WEBSOCKETPP_STRICT_MASKING
 
 #include <websocketpp/config/asio_no_tls.hpp>
