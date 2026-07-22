@@ -36,6 +36,7 @@
 #include "../extensions/aille_stabilizer.hpp"
 #include "../extensions/aille_lantern.hpp"
 #include "../extensions/aille_weathering.hpp"
+#include "../extensions/aille_arbitration.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -872,6 +873,91 @@ TEST(V7_5_LanternRuns) {
     ASSERT_TRUE(lantern.pulse <= 1.0);
 }
 
+TEST(TestLayer8ArbitrationSizing) {
+    ASSERT_EQ(sizeof(AILLE::Advisory), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::AllocationDecision), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ArbitrationTraceStep), 64ULL);
+}
+
+TEST(TestLayer8ArbitrationDeterministicWalk) {
+    AILLE::Ladder ladder;
+    AILLE::ScalingRules rules;
+
+    std::vector<AILLE::Advisory> advisories;
+
+    // 1. BTC (BRGAM)
+    AILLE::Advisory btc{};
+    btc.asset_id = AILLE::AssetId::BTC;
+    btc.risk_score = 45.0;
+    btc.safety_level = 0.85;
+    btc.liquidity_level = 0.90;
+    btc.regulatory_level = 0.50;
+    btc.return_score = 0.70;
+    btc.confidence = 0.80;
+    btc.raw_flags = static_cast<uint32_t>(AILLE::AdvisoryFlags::NONE);
+    advisories.push_back(btc);
+
+    // 2. ETH (ERGAM)
+    AILLE::Advisory eth{};
+    eth.asset_id = AILLE::AssetId::ETH;
+    eth.risk_score = 55.0;
+    eth.safety_level = 0.50;
+    eth.liquidity_level = 0.80;
+    eth.regulatory_level = 0.25;
+    eth.return_score = 0.60;
+    eth.confidence = 0.75;
+    eth.raw_flags = static_cast<uint32_t>(AILLE::AdvisoryFlags::NONE);
+    advisories.push_back(eth);
+
+    // 3. Gold (CRGAM-X)
+    AILLE::Advisory gold{};
+    gold.asset_id = AILLE::AssetId::GOLD;
+    gold.risk_score = 15.0;
+    gold.safety_level = 0.95;
+    gold.liquidity_level = 0.60;
+    gold.regulatory_level = 0.90;
+    gold.return_score = 0.30;
+    gold.confidence = 0.85;
+    gold.raw_flags = static_cast<uint32_t>(AILLE::AdvisoryFlags::PREFERRED);
+    advisories.push_back(gold);
+
+    // 4. Equity High-Risk
+    AILLE::Advisory equity{};
+    equity.asset_id = AILLE::AssetId::EQUITY_HIGH_RISK;
+    equity.risk_score = 90.0;
+    equity.safety_level = 0.30;
+    equity.liquidity_level = 0.10;
+    equity.regulatory_level = 0.40;
+    equity.return_score = 0.95;
+    equity.confidence = 0.90;
+    equity.raw_flags = static_cast<uint32_t>(AILLE::AdvisoryFlags::HARD_BLOCK);
+    advisories.push_back(equity);
+
+    AILLE::ArbitrationResult result = AILLE::arbitrate(advisories, ladder, rules);
+
+    ASSERT_EQ(result.decision_count, 4ULL);
+
+    // Verify Equity is 0.0 allocation (Hard Block / Safety Failure)
+    ASSERT_FLOAT_EQ(result.decisions[3].recommended_allocation, 0.0f);
+
+    // Verify BTC and Gold have high allocations
+    ASSERT_TRUE(result.decisions[0].recommended_allocation > 0.40);
+    ASSERT_TRUE(result.decisions[2].recommended_allocation > 0.40);
+
+    // Verify ETH is soft-capped
+    ASSERT_TRUE(result.decisions[1].recommended_allocation < 0.05);
+
+    // Verify sum of allocations is 1.0
+    double total = 0.0;
+    for (size_t i = 0; i < result.decision_count; ++i) {
+        total += result.decisions[i].recommended_allocation;
+    }
+    ASSERT_TRUE(std::abs(total - 1.0) < 1e-6);
+
+    // Verify trace step count is positive
+    ASSERT_TRUE(result.trace.step_count > 0ULL);
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -926,6 +1012,8 @@ int main() {
     RUN_TEST(TestObservabilityFailClosedHardwareFault);
     RUN_TEST(V7_2_PipelineRunsWithoutCrash);
     RUN_TEST(V7_5_LanternRuns);
+    RUN_TEST(TestLayer8ArbitrationSizing);
+    RUN_TEST(TestLayer8ArbitrationDeterministicWalk);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

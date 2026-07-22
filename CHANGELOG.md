@@ -5,6 +5,15 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.7.0] - 2026-04-15
+
+### Added
+- Created Layer 8 Cross-Asset Deterministic Arbitration to reconcile and arbitrate heterogeneous asset advisories.
+- Implemented `Advisory`, `AllocationDecision`, and `ArbitrationTraceStep` structs (strictly 64 bytes each, aligned, allocator-free) inside `extensions/aille_arbitration.hpp/.cpp`.
+- Implemented Python equivalents and full arbitration functionality in `core/finance_kernel/arbitration_layer.py`.
+- Formally integrated `LADDER_V1` and `SCALING_RULESET_V1` as release-wide official identifiers.
+- Added extensive testing validating deterministic tie-breaking, exact struct sizing, non-allocating execution paths, and cross-language output matching.
+
 ## [8.5.0] - 2026-03-31
 
 ### Added

@@ -40,10 +40,10 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "3.3.1";
-constexpr int AILLE_VERSION_MAJOR = 3;
-constexpr int AILLE_VERSION_MINOR = 3;
-constexpr int AILLE_VERSION_PATCH = 1;
+constexpr const char* AILLE_VERSION = "8.7.0";
+constexpr int AILLE_VERSION_MAJOR = 8;
+constexpr int AILLE_VERSION_MINOR = 7;
+constexpr int AILLE_VERSION_PATCH = 0;
 
 // ============================================================================
 // ADVISORY FORWARD STRUCTS

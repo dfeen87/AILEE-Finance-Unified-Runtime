@@ -27,6 +27,7 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_weathering.cpp \
            extensions/aille_crown_walk.cpp \
            extensions/aille_pilgrimage.cpp \
+           extensions/aille_arbitration.cpp \
            aille_audit.cpp
 
 EXAMPLE_SRC      = examples/example.cpp
@@ -161,10 +162,10 @@ clean:
 	@echo "✓ Cleaned build artifacts"
 
 install: aille.hpp
-	@echo "Installing AILLE v8.5.0 Framework..."
+	@echo "Installing AILLE v8.7.0 Framework..."
 	@echo "Copying headers to system path..."
 	sudo cp aille.hpp /usr/local/include/
-	@echo "✓ Header installed (Version 8.5.0)"
+	@echo "✓ Header installed (Version 8.7.0)"
 
 uninstall:
 	sudo rm -f /usr/local/include/aille.hpp
