@@ -295,17 +295,17 @@ void AuditLogger::logDecision(const Decision& decision,
     record.models_agreed = decision.models_agreed;
     record.fallback_used = decision.fallback_used;
     
-    std::strncpy(record.reasoning, decision.reasoning, sizeof(record.reasoning) - 1);
-    record.reasoning[sizeof(record.reasoning) - 1] = '\0';
-    
-    std::strncpy(record.symbol, symbol.c_str(), sizeof(record.symbol) - 1);
-    record.symbol[sizeof(record.symbol) - 1] = '\0';
+    std::memset(record.reasoning, 0, sizeof(record.reasoning));
+    std::memcpy(record.reasoning, decision.reasoning, std::min(std::strlen(decision.reasoning), sizeof(record.reasoning) - 1));
 
-    std::strncpy(record.strategy_id, strategy_id.c_str(), sizeof(record.strategy_id) - 1);
-    record.strategy_id[sizeof(record.strategy_id) - 1] = '\0';
+    std::memset(record.symbol, 0, sizeof(record.symbol));
+    std::memcpy(record.symbol, symbol.c_str(), std::min(symbol.size(), sizeof(record.symbol) - 1));
 
-    std::strncpy(record.user_id, user_id.c_str(), sizeof(record.user_id) - 1);
-    record.user_id[sizeof(record.user_id) - 1] = '\0';
+    std::memset(record.strategy_id, 0, sizeof(record.strategy_id));
+    std::memcpy(record.strategy_id, strategy_id.c_str(), std::min(strategy_id.size(), sizeof(record.strategy_id) - 1));
+
+    std::memset(record.user_id, 0, sizeof(record.user_id));
+    std::memcpy(record.user_id, user_id.c_str(), std::min(user_id.size(), sizeof(record.user_id) - 1));
 
     std::memcpy(record.contributing_models, decision.contributing_models, sizeof(record.contributing_models));
     

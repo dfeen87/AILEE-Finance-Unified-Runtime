@@ -121,6 +121,7 @@ ReconciledResult reconcile_governors(
     if (risk_prop) {
         double proposed_risk_val = risk_prop->proposed_value;
         bool risk_increase = (std::abs(proposed_risk_val) < std::abs(current_val)); // e.g. RISK wants lower exposure
+        (void)risk_increase;
 
         if (risk_prop->risk_score > 75.0f) {
             // Severe Risk threshold: Override lower governors by clamping or enforcing risk proposal
