@@ -67,6 +67,9 @@ public:
         AlertSide side,
         uint64_t as_of_timestamp_ns) override
     {
+        (void)symbol;
+        (void)side;
+        (void)as_of_timestamp_ns;
         telemetry_on_breaking_news();
 
         // Return an empty vector (passive provider)

@@ -76,7 +76,7 @@ public:
         // We simulate the output using the fallback engine for now.
         fallback_engine_.setConfig(config);
         Decision d = fallback_engine_.makeDecision(signals.data(), signals.size());
-        char buf[128]; snprintf(buf, sizeof(buf), "%s [FPGA Accelerated]", d.getReasoningString()); d.setReasoning(buf);
+        char buf[256]; snprintf(buf, sizeof(buf), "%s [FPGA Accelerated]", d.getReasoningString()); d.setReasoning(buf);
         return d;
     }
 
@@ -94,7 +94,7 @@ public:
     Decision evaluate(const std::vector<ModelSignal>& signals, const AILLEConfig& config) override {
         engine_.setConfig(config);
         Decision d = engine_.makeDecision(signals.data(), signals.size());
-        char buf[128]; snprintf(buf, sizeof(buf), "%s [Simulated]", d.getReasoningString()); d.setReasoning(buf);
+        char buf[256]; snprintf(buf, sizeof(buf), "%s [Simulated]", d.getReasoningString()); d.setReasoning(buf);
         return d;
     }
 

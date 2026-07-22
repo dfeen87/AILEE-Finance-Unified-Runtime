@@ -46,8 +46,7 @@ PortfolioConstraintResult apply_portfolio_constraints(
             step.action_taken = static_cast<uint8_t>(action);
             step.before_value = before;
             step.after_value = after;
-            std::strncpy(step.log, msg, sizeof(step.log) - 1);
-            step.log[sizeof(step.log) - 1] = '\0';
+            std::snprintf(step.log, sizeof(step.log), "%s", msg);
         }
     };
 

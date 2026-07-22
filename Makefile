@@ -5,11 +5,17 @@
 CXX = g++
 CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -O3
 
-HTTPLIB_INCLUDES = -I./external
+HTTPLIB_INCLUDES = -isystem ./external
 THREAD_FLAGS = -pthread
-WEBSOCKET_FLAGS = -std=c++17 -I./external/websocketpp -I./external/asio/asio/include -DASIO_STANDALONE -pthread
+WEBSOCKET_FLAGS = -std=c++17 -isystem ./external/websocketpp -isystem ./external/asio/asio/include -DASIO_STANDALONE -pthread
 
 COMMON_INCLUDES = -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src
+
+# ANSI Colors
+COLOR_GREEN  = \033[32m
+COLOR_RED    = \033[31m
+COLOR_YELLOW = \033[33m
+COLOR_RESET  = \033[0m
 
 EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_eth.cpp \
@@ -48,34 +54,40 @@ SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
 
 .PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \
         spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo install uninstall help \
-        check_httplib check_websocket_deps release
+        check_deps release
 
 all: demo
 
-check_httplib:
+check_deps:
+	@printf "$(COLOR_YELLOW)Checking dependencies...$(COLOR_RESET)\n"
 	@if [ ! -f external/httplib.h ]; then \
-		echo "========================================================================="; \
-		echo "ERROR: Missing external/httplib.h"; \
-		echo "Please run './setup_rest_api.sh' to download required REST API dependencies."; \
-		echo "========================================================================="; \
+		printf "$(COLOR_RED)=========================================================================$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)ERROR: Missing external/httplib.h$(COLOR_RESET)\n"; \
+		printf "$(COLOR_YELLOW)Run ./setup_rest_api.sh to install cpp-httplib.$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)=========================================================================$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 		exit 1; \
 	fi
-
-check_websocket_deps:
 	@if [ ! -d external/websocketpp ] || [ ! -d external/asio ]; then \
-		echo "========================================================================="; \
-		echo "ERROR: Missing external/websocketpp/ or external/asio/ dependencies."; \
-		echo "Please run './setup_websocket.sh' to clone required WebSocket/Asio dependencies."; \
-		echo "========================================================================="; \
+		printf "$(COLOR_RED)=========================================================================$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)ERROR: Missing external/websocketpp/ or external/asio/ dependencies.$(COLOR_RESET)\n"; \
+		printf "$(COLOR_YELLOW)Run ./setup_websocket.sh to install WebSocketPP + ASIO.$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)=========================================================================$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 		exit 1; \
 	fi
+	@printf "$(COLOR_GREEN)✓ Dependencies verified.$(COLOR_RESET)\n"
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) \
-		$(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo
-	@echo ""
-	@echo "✓ Demo compiled successfully!"
-	@echo ""
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo; then \
+		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
 
 debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	$(CXX) $(CXXFLAGS) -g $(COMMON_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo_debug
@@ -83,14 +95,16 @@ debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@echo "✓ Debug build ready"
 	@echo ""
 
-rest_api_server: check_httplib $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp aille.hpp $(EXT_SRCS)
-	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) \
-		$(HTTPLIB_INCLUDES) $(THREAD_FLAGS) \
-		$(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp $(EXT_SRCS) \
-		-o rest_api_server
-	@echo ""
-	@echo "✓ REST API Server compiled successfully!"
-	@echo ""
+rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp aille.hpp $(EXT_SRCS)
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp $(EXT_SRCS) -o rest_api_server; then \
+		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
 
 spire_demo: $(SPIRE_DEMO_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SPIRE_DEMO_SRC) $(EXT_SRCS_WITH_AUDIT) -o spire_demo
@@ -156,45 +170,84 @@ pilgrimage_demo: examples/v7_8_pilgrimage_demo.cpp \
 	@echo ""
 
 test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(UNIT_TESTS_SRC) $(EXT_SRCS_WITH_AUDIT) -o test_suite
-	@echo ""
-	@echo "✓ Test Suite compiled successfully!"
-	@echo ""
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(UNIT_TESTS_SRC) $(EXT_SRCS_WITH_AUDIT) -o test_suite; then \
+		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
 
 benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(BENCHMARK_SRC) $(EXT_SRCS_WITH_AUDIT) -o benchmark
-	@echo ""
-	@echo "✓ Benchmark compiled successfully!"
-	@echo ""
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(BENCHMARK_SRC) $(EXT_SRCS_WITH_AUDIT) -o benchmark; then \
+		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
 
-dashboard_server: check_websocket_deps examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/dashboard_server.cpp \
-		ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp \
-		$(EXT_SRCS_WITH_AUDIT) -o dashboard_server
-	@echo ""
-	@echo "✓ Dashboard Server compiled successfully!"
-	@echo ""
+dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp $(EXT_SRCS_WITH_AUDIT) -o dashboard_server; then \
+		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
 
-websocket_server: check_websocket_deps examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/websocket_server.cpp \
-		extensions/aille_websocket.cpp $(EXT_SRCS_WITH_AUDIT) -o websocket_server
-	@echo ""
-	@echo "✓ WebSocket Server compiled successfully!"
-	@echo ""
+websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/websocket_server.cpp extensions/aille_websocket.cpp $(EXT_SRCS_WITH_AUDIT) -o websocket_server; then \
+		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
 
-release: check_httplib check_websocket_deps demo rest_api_server websocket_server dashboard_server benchmark test_suite
-	@echo "Running test suite..."
-	./test_suite
-	@echo "✓ Test suite passed!"
-	@echo "Creating release directory..."
-	mkdir -p release
-	cp demo rest_api_server websocket_server dashboard_server benchmark test_suite release/
-	echo "9.0.0" > release/VERSION
-	@echo "============================================================="
-	@echo "✓ AILEE CORE v9.0.0 Release built successfully!"
-	@echo "Release package created in 'release/' directory."
-	@echo "Stamped Version: 9.0.0"
-	@echo "============================================================="
+release:
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory demo
+	@$(MAKE) --no-print-directory rest_api_server
+	@$(MAKE) --no-print-directory websocket_server
+	@$(MAKE) --no-print-directory dashboard_server
+	@$(MAKE) --no-print-directory benchmark
+	@$(MAKE) --no-print-directory test_suite
+	@printf "$(COLOR_YELLOW)Running test suite...$(COLOR_RESET)\n"
+	@if ./test_suite; then \
+		printf "$(COLOR_GREEN)✓ Test suite passed!$(COLOR_RESET)\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Test suite failed!$(COLOR_RESET)\n"; \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
+	@printf "$(COLOR_YELLOW)Creating release package...$(COLOR_RESET)\n"
+	@mkdir -p release
+	@for binary in demo rest_api_server websocket_server dashboard_server benchmark test_suite; do \
+		if cp $$binary release/ 2>/dev/null; then \
+			printf "$(COLOR_GREEN)✓ Copying $$binary → release/$$binary$(COLOR_RESET)\n"; \
+		else \
+			printf "$(COLOR_RED)✗ Copying $$binary → release/$$binary$(COLOR_RESET)\n"; \
+			printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "9.0.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 9.0.0$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"
+	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v9.0.0 Release Package Ready.$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:
 	rm -rf websocket_server demo demo_debug demo_hotpath demo_audit.csv benchmark \

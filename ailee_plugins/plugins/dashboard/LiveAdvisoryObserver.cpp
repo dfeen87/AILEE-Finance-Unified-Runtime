@@ -110,6 +110,7 @@ void LiveAdvisoryObserver::broadcast(const std::string& message) {
 }
 
 void LiveAdvisoryObserver::onSignalEvaluated(const std::vector<ModelSignal>& signals) {
+    (void)signals;
     // Passive observer, do nothing before safety layer
 }
 

@@ -256,7 +256,7 @@ public:
             AILLE::Decision veto_decision = input_decision;
             veto_decision.final_value = 0.0f;
             veto_decision.fallback_used = true;
-            char buf[128];
+            char buf[256];
             snprintf(buf, sizeof(buf), "Safety layer veto: %s", input_decision.getReasoningString());
             veto_decision.setReasoning(buf);
             return veto_decision;
