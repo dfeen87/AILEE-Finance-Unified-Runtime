@@ -11,7 +11,7 @@
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-8.7.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-9.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -33,6 +33,7 @@
 - [The Solution](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture](#architecture-five-layers-of-safety)
+- [v9.0.0 — Deterministic Governance Stack (Layers 8–14)](#v900--deterministic-governance-stack-layers-814)
 - [Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
@@ -238,6 +239,33 @@ Every decision is logged with:
 - Cryptographic hash (blockchain-style integrity)
 
 **Full regulatory compliance and accountability.**
+
+---
+
+## v9.0.0 — Deterministic Governance Stack (Layers 8–14)
+
+AILLEE Version 9.0.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack**. This stack sits above lower-level pipelines and guarantees that portfolio decisions, constraints, stress overrides, and temporal limits are reconciled and locked with absolute predictability across all platforms and runtimes.
+
+- **Layer 8 — Deterministic Cross‑Asset Arbitration**
+  Fixed-size, allocator-free arbitration engine that reconciles heterogeneous asset advisories down a versioned priority ladder (`LADDER_V1`) and canonical scaling rules (`SCALING_RULESET_V1`) without generating new market beliefs.
+
+- **Layer 9 — Deterministic Liquidity Routing**
+  A deterministic 4-stage pipeline (movable liquidity calculation, routing table evaluation, target blockage/fallback resolution, and asset/portfolio-level shock bounds clamping) designed to route asset liquidity under varying stress conditions.
+
+- **Layer 10 — Multi‑Governor Reconciliation Engine**
+  A deterministic, allocator-free multi-governor proposal reconciliation engine that resolves conflicting recommendations across a static, versioned priority hierarchy (`GOVERNOR_LADDER_V1`) using override rule matrices.
+
+- **Layer 11 — Deterministic Portfolio‑Wide Constraint Engine**
+  The final deterministic, allocator-free guardrail post-governor reconciliation enforcing max-exposure clamping, sector caps, pairwise correlation dampening, and risk-budget limits in a deterministic 4-stage pipeline.
+
+- **Layer 12 — Deterministic Temporal Consistency Guard**
+  A time-domain guardrail enforcing portfolio stability across timesteps using a zero-drift expectation baseline, drift clamping, and step-halving oscillation dampening to prevent silent drift and feedback loops.
+
+- **Layer 13 — Deterministic Stress‑Regime Override**
+  AILEE's crash-mode governor sitting above Layers 8-12 that applies hard overrides (deterministic exposure freezes, crash dampening scaling, and fallback baseline compression) when entering defined stress regimes (`STRESS` or `CRISIS`).
+
+- **Layer 14 — Deterministic Meta‑Governance Lock**
+  The final deterministic meta-guard sealing the entire AILEE Finance Runtime with an allocator-free machine that reconciles and locks all prior normal, constraint, stress, temporal, and routing states, validating consistency to set `EXECUTION_READY`.
 
 ---
 
