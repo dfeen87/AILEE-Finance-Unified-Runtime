@@ -615,8 +615,8 @@ Don Michael Feeney Jr., November 2025
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software
-   cd AILEE-Mitigating-Risk-and-Sustaining-Growth-Software
+   git clone https://github.com/dfeen87/AILEE-Finance-Unified-Runtime
+   cd AILEE-Finance-Unified-Runtime
    ```
 
 2. **Compile the library**
