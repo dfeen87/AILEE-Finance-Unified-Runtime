@@ -5,6 +5,8 @@
 CXX = g++
 CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -O3
 
+SYSTEM_INCLUDES = -isystem ./external
+
 HTTPLIB_INCLUDES = -isystem ./external
 THREAD_FLAGS = -pthread
 WEBSOCKET_FLAGS = -std=c++17 -isystem ./external/websocketpp -isystem ./external/asio/asio/include -DASIO_STANDALONE -pthread
