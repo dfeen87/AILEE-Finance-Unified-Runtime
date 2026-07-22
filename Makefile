@@ -28,6 +28,7 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_crown_walk.cpp \
            extensions/aille_pilgrimage.cpp \
            extensions/aille_arbitration.cpp \
+           extensions/aille_routing.cpp \
            aille_audit.cpp
 
 EXAMPLE_SRC      = examples/example.cpp

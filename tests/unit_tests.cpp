@@ -37,6 +37,7 @@
 #include "../extensions/aille_lantern.hpp"
 #include "../extensions/aille_weathering.hpp"
 #include "../extensions/aille_arbitration.hpp"
+#include "../extensions/aille_routing.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -879,6 +880,109 @@ TEST(TestLayer8ArbitrationSizing) {
     ASSERT_EQ(sizeof(AILLE::ArbitrationTraceStep), 64ULL);
 }
 
+TEST(TestLayer9RoutingSizing) {
+    ASSERT_EQ(sizeof(AILLE::LiquidityCap), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::RoutingRule), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ShockBounds), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::CrossAssetDecision), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::StressProfile), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::LiquidityState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::LiquidityFlow), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::RoutingTraceStep), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::RoutingResult), 64ULL);
+}
+
+TEST(TestLayer9RoutingDeterministicWalk) {
+    // 1. Setup decisions
+    AILLE::CrossAssetDecisions decisions;
+    decisions.count = 2;
+    // BTC: surplus
+    decisions.decisions[0].asset_id = AILLE::AssetId::BTC;
+    decisions.decisions[0].target_allocation_ratio = 0.30;
+    // GOLD: deficit / target
+    decisions.decisions[1].asset_id = AILLE::AssetId::GOLD;
+    decisions.decisions[1].target_allocation_ratio = 0.50;
+
+    // 2. Setup stress profile
+    AILLE::StressProfile stress{};
+    stress.stress_level = static_cast<uint8_t>(AILLE::StressLevel::NORMAL);
+
+    // 3. Setup liquidity states (Portfolio value = 1,000,000)
+    AILLE::LiquidityStateSet states;
+    states.count = 2;
+    // BTC current: 50% allocation (value = 500,000)
+    states.states[0].asset_id = AILLE::AssetId::BTC;
+    states.states[0].current_liquidity_value = 500000.0;
+    states.states[0].current_allocation_ratio = 0.50;
+    states.states[0].flags = 0;
+    // GOLD current: 10% allocation (value = 100,000)
+    states.states[1].asset_id = AILLE::AssetId::GOLD;
+    states.states[1].current_liquidity_value = 100000.0;
+    states.states[1].current_allocation_ratio = 0.10;
+    states.states[1].flags = 0;
+
+    // 4. Setup liquidity caps
+    AILLE::LiquidityCaps caps;
+    caps.count = 2;
+    // BTC max outflow = 15% (i.e. 75,000)
+    caps.caps[0].asset_id = AILLE::AssetId::BTC;
+    caps.caps[0].stress_level = static_cast<uint8_t>(AILLE::StressLevel::NORMAL);
+    caps.caps[0].max_outflow_ratio = 0.15;
+    // GOLD max inflow = 50% (i.e. 50,000)
+    caps.caps[1].asset_id = AILLE::AssetId::GOLD;
+    caps.caps[1].stress_level = static_cast<uint8_t>(AILLE::StressLevel::NORMAL);
+    caps.caps[1].max_inflow_ratio = 0.50;
+
+    // 5. Setup routing table
+    AILLE::RoutingTable table;
+    table.count = 1;
+    table.rules[0].source = AILLE::AssetId::BTC;
+    table.rules[0].primary_target = AILLE::AssetId::GOLD;
+    table.rules[0].fallback_target = AILLE::AssetId::CASH;
+    table.rules[0].stress_level = static_cast<uint8_t>(AILLE::StressLevel::NORMAL);
+    table.rules[0].preferred_flow_ratio = 1.0; // Move all movable
+
+    // 6. Setup shock bounds
+    AILLE::ShockBounds bounds{};
+    bounds.max_portfolio_liquidity_shift_per_step = 0.10; // 10% of 600k = 60k
+    bounds.max_asset_liquidity_shift_per_step = 0.20;     // 20% of 500k = 100k, 20% of 100k = 20k
+
+    // Surplus value of BTC: (0.50 - 0.30) * 600,000 = 120,000.
+    // Cap outflow of BTC: 500,000 * 0.15 = 75,000.
+    // Movable: std::min(120k, 75k) = 75,000.
+    // Preferred flow: 75,000 * 1.0 = 75,000.
+    // GOLD inflow cap: 100,000 * 0.50 = 50,000.
+    // Since proposed flow of 75,000 > GOLD inflow cap of 50,000, primary target (GOLD) is blocked!
+    // Since we didn't specify CASH in states, CASH doesn't exist so fallback is also blocked.
+    // Therefore flow remains at source (0.0 actual flow).
+    // Let's verify this!
+    AILLE::DetailedRoutingResult res = AILLE::route_liquidity(decisions, stress, states, caps, table, bounds);
+    ASSERT_EQ(res.flow_count, 0ULL);
+
+    // Let's modify GOLD max inflow cap to be 0.80 (i.e. 80,000 limit) so primary target is NOT blocked.
+    caps.caps[1].max_inflow_ratio = 0.80;
+    res = AILLE::route_liquidity(decisions, stress, states, caps, table, bounds);
+
+    // Now, movable is 75,000. Primary target is not blocked.
+    // Shock bounds clamping:
+    // Net flows proposed: BTC = -75k, GOLD = +75k.
+    // Asset Shock bounds:
+    // BTC: max_asset_liquidity_shift_per_step (0.20) * 500k = 100k limit. (75k is within limit, scale = 1.0)
+    // GOLD: max_asset_liquidity_shift_per_step (0.20) * 100k = 20k limit. (75k exceeds 20k, scale = 20k/75k = 0.266667)
+    // So proposed flow gets scaled down by min scale (0.266667) -> 75k * 0.266667 = 20,000.
+    // Let's check portfolio-level clamp:
+    // Total portfolio value = 600,000.
+    // max_portfolio_liquidity_shift_per_step (0.10) * 600k = 60,000 limit.
+    // Sum of proposed flows (scaled to asset limit) = 20,000, which is < 60,000.
+    // So final flow should be exactly 20,000 from BTC to GOLD!
+    ASSERT_EQ(res.flow_count, 1ULL);
+    ASSERT_EQ(static_cast<uint16_t>(res.flows[0].source), static_cast<uint16_t>(AILLE::AssetId::BTC));
+    ASSERT_EQ(static_cast<uint16_t>(res.flows[0].target), static_cast<uint16_t>(AILLE::AssetId::GOLD));
+    ASSERT_FLOAT_EQ(res.flows[0].amount, 20000.0);
+    ASSERT_FLOAT_EQ(res.summary.total_shift_value, 20000.0);
+    ASSERT_EQ(res.summary.flow_count, 1ULL);
+}
+
 TEST(TestLayer8ArbitrationDeterministicWalk) {
     AILLE::Ladder ladder;
     AILLE::ScalingRules rules;
@@ -1014,6 +1118,8 @@ int main() {
     RUN_TEST(V7_5_LanternRuns);
     RUN_TEST(TestLayer8ArbitrationSizing);
     RUN_TEST(TestLayer8ArbitrationDeterministicWalk);
+    RUN_TEST(TestLayer9RoutingSizing);
+    RUN_TEST(TestLayer9RoutingDeterministicWalk);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
