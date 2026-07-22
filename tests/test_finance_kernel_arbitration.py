@@ -114,3 +114,35 @@ def test_layer8_safety_failures_exclude_completely():
     ]
     result = arbitrate(advisories, ladder, rules)
     assert math.isclose(result.decisions[0].recommended_allocation, 0.0, abs_tol=1e-6)
+
+
+def test_layer8_arbitration_hardening():
+    # 1. Determinism
+    ladder = Ladder()
+    rules = ScalingRules()
+    advisories = [
+        Advisory(AssetId.BTC, 45.0, 0.85, 0.90, 0.50, 0.70, 0.80)
+    ]
+
+    result1 = arbitrate(advisories, ladder, rules)
+    result2 = arbitrate(advisories, ladder, rules)
+
+    assert result1.decision_count == result2.decision_count
+    assert math.isclose(result1.decisions[0].recommended_allocation, result2.decisions[0].recommended_allocation, abs_tol=1e-9)
+    assert len(result1.trace.steps) == len(result2.trace.steps)
+
+    # 2. Boundary Condition & Failure Mode (All below safety hurdle)
+    low_safety_advisories = [
+        Advisory(AssetId.BTC, 45.0, 0.34, 0.90, 0.50, 0.70, 0.80) # 0.34 < 0.35 safety hurdle
+    ]
+    result_fail = arbitrate(low_safety_advisories, ladder, rules)
+    assert math.isclose(result_fail.decisions[0].recommended_allocation, 0.0, abs_tol=1e-9)
+    assert len(result_fail.trace.steps) > 0
+    assert "Safety failure" in result_fail.trace.steps[0].log
+
+    # Exactly 0.35 boundary (marginal cap)
+    marginal_advisories = [
+        Advisory(AssetId.BTC, 45.0, 0.35, 0.90, 0.50, 0.70, 0.80) # 0.35 boundary
+    ]
+    result_marginal = arbitrate(marginal_advisories, ladder, rules)
+    assert any("Marginal safety cap" in step.log for step in result_marginal.trace.steps)

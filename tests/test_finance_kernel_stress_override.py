@@ -249,3 +249,68 @@ def test_stress_override_crisis_fallback():
     # BTC has dampened and fallback
     assert (trace.steps[1].flags & (1 << 0)) != 0
     assert (trace.steps[1].flags & (1 << 2)) != 0
+
+
+def test_layer13_stress_regime_override_hardening():
+    # 1. Determinism
+    baselines = SafeBaselineContainer([
+        SafeBaseline(AssetId.BTC, 0.20, flags=1)
+    ])
+    prev_allocs = [
+        AssetAllocation(AssetId.BTC, 0.30, risk_score=60.0)
+    ]
+    rules = StressOverrideRules(
+        volatility_threshold=0.50,
+        drawdown_threshold=0.10,
+        correlation_threshold=0.80,
+        residual_threshold=0.20,
+        crash_dampening_factor=0.50,
+        fallback_lambda=0.70,
+        mode=StressMode.NORMAL
+    )
+    curr_allocs1 = [
+        AssetAllocation(AssetId.BTC, 0.40, risk_score=60.0)
+    ]
+    curr_allocs2 = [
+        AssetAllocation(AssetId.BTC, 0.40, risk_score=60.0)
+    ]
+    state = StressPortfolioState(
+        portfolio_risk=0.0,
+        stress_index=0.0,
+        volatility_index=0.10,
+        drawdown_index=0.02,
+        correlation_index=0.30,
+        temporal_residual_sum=0.05,
+        stress_level=StressMode.STRESS
+    )
+    trace1 = StressTraceSteps()
+    trace2 = StressTraceSteps()
+
+    apply_stress_regime_override(rules, state, prev_allocs, curr_allocs1, baselines, trace1, False)
+    apply_stress_regime_override(rules, state, prev_allocs, curr_allocs2, baselines, trace2, False)
+
+    assert curr_allocs1[0].allocation == curr_allocs2[0].allocation
+    assert trace1.count == trace2.count
+    assert trace1.steps[0].flags == trace2.steps[0].flags
+
+    # 2. Failure Mode (normal_safety_failed forcing CRISIS mode)
+    curr_allocs_normal_fail = [
+        AssetAllocation(AssetId.BTC, 0.40, risk_score=60.0)
+    ]
+    state_normal = StressPortfolioState(
+        portfolio_risk=0.0,
+        stress_index=0.0,
+        volatility_index=0.10,
+        drawdown_index=0.02,
+        correlation_index=0.30,
+        temporal_residual_sum=0.05,
+        stress_level=StressMode.NORMAL
+    )
+    trace_normal_fail = StressTraceSteps()
+
+    apply_stress_regime_override(rules, state_normal, prev_allocs, curr_allocs_normal_fail, baselines, trace_normal_fail, True)
+
+    # Not dampened since mode is NORMAL.
+    # Compressed target: (1 - 0.70)*0.40 + 0.70*0.20 = 0.26
+    assert curr_allocs_normal_fail[0].allocation == pytest.approx(0.26)
+    assert (trace_normal_fail.steps[0].flags & (1 << 2)) != 0 # fallback_applied bit set

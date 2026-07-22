@@ -1679,6 +1679,310 @@ TEST(TestLayer14MetaGovernanceLockWalkthrough) {
     }
 }
 
+TEST(TestLayer8ArbitrationHardening) {
+    // 1. Determinism
+    AILLE::Ladder ladder;
+    AILLE::ScalingRules rules;
+    std::vector<AILLE::Advisory> advisories;
+
+    AILLE::Advisory btc{};
+    btc.asset_id = AILLE::AssetId::BTC;
+    btc.risk_score = 45.0;
+    btc.safety_level = 0.85;
+    btc.liquidity_level = 0.90;
+    btc.regulatory_level = 0.50;
+    btc.return_score = 0.70;
+    btc.confidence = 0.80;
+    btc.raw_flags = 0;
+    advisories.push_back(btc);
+
+    AILLE::ArbitrationResult result1 = AILLE::arbitrate(advisories, ladder, rules);
+    AILLE::ArbitrationResult result2 = AILLE::arbitrate(advisories, ladder, rules);
+
+    ASSERT_EQ(result1.decision_count, result2.decision_count);
+    ASSERT_FLOAT_EQ(result1.decisions[0].recommended_allocation, result2.decisions[0].recommended_allocation);
+    ASSERT_EQ(result1.trace.step_count, result2.trace.step_count);
+
+    // 2. Boundary Condition & Failure Mode (All below safety hurdle)
+    std::vector<AILLE::Advisory> low_safety_advisories;
+    AILLE::Advisory failed_btc = btc;
+    failed_btc.safety_level = 0.34; // fails < 0.35 safety hurdle
+    low_safety_advisories.push_back(failed_btc);
+
+    AILLE::ArbitrationResult result_fail = AILLE::arbitrate(low_safety_advisories, ladder, rules);
+    ASSERT_FLOAT_EQ(result_fail.decisions[0].recommended_allocation, 0.0);
+    ASSERT_TRUE(result_fail.trace.step_count > 0);
+    ASSERT_TRUE(std::string(result_fail.trace.steps[0].log).find("Safety failure") != std::string::npos);
+
+    // Exact boundary 0.35 (marginal cap)
+    std::vector<AILLE::Advisory> boundary_advisories;
+    AILLE::Advisory marginal_btc = btc;
+    marginal_btc.safety_level = 0.35;
+    boundary_advisories.push_back(marginal_btc);
+    AILLE::ArbitrationResult result_marginal = AILLE::arbitrate(boundary_advisories, ladder, rules);
+    // Should get marginal safety cap (half capacity)
+    ASSERT_TRUE(result_marginal.trace.step_count > 0);
+    bool found_marginal = false;
+    for (size_t i = 0; i < result_marginal.trace.step_count; ++i) {
+        if (std::string(result_marginal.trace.steps[i].log).find("Marginal safety cap") != std::string::npos) {
+            found_marginal = true;
+        }
+    }
+    ASSERT_TRUE(found_marginal);
+}
+
+TEST(TestLayer10GovernorReconciliationHardening) {
+    // 1. Determinism
+    std::vector<AILLE::GovernorProposal> proposals;
+    AILLE::GovernorProposal strat_prop{};
+    strat_prop.asset_id = AILLE::AssetId::BTC;
+    strat_prop.governor_type = static_cast<uint8_t>(AILLE::GovernorType::STRATEGY);
+    strat_prop.proposed_value = 100.0;
+    proposals.push_back(strat_prop);
+
+    AILLE::ReconciledResult res1 = AILLE::reconcile_governors(proposals, AILLE::AssetId::BTC);
+    AILLE::ReconciledResult res2 = AILLE::reconcile_governors(proposals, AILLE::AssetId::BTC);
+
+    ASSERT_FLOAT_EQ(res1.decision.final_value, res2.decision.final_value);
+    ASSERT_FLOAT_EQ(res1.residual.residual_value, res2.residual.residual_value);
+    ASSERT_EQ(res1.summary.trace_count, res2.summary.trace_count);
+
+    // 2. Failure Mode (Empty proposal input list)
+    std::vector<AILLE::GovernorProposal> empty_proposals;
+    AILLE::ReconciledResult res_empty = AILLE::reconcile_governors(empty_proposals, AILLE::AssetId::BTC);
+    ASSERT_FLOAT_EQ(res_empty.decision.final_value, 0.0);
+    ASSERT_EQ(res_empty.decision.resolved_type, static_cast<uint8_t>(AILLE::GovernorType::STRATEGY));
+
+    // 3. Risk Boundary Condition (Exactly 75.0 vs 75.1)
+    std::vector<AILLE::GovernorProposal> boundary_proposals1;
+    boundary_proposals1.push_back(strat_prop);
+    AILLE::GovernorProposal risk_boundary1{};
+    risk_boundary1.asset_id = AILLE::AssetId::BTC;
+    risk_boundary1.governor_type = static_cast<uint8_t>(AILLE::GovernorType::RISK);
+    risk_boundary1.proposed_value = 50.0;
+    risk_boundary1.risk_score = 75.0; // not severe (>75.0 is severe)
+    boundary_proposals1.push_back(risk_boundary1);
+
+    AILLE::ReconciledResult res_boundary1 = AILLE::reconcile_governors(boundary_proposals1, AILLE::AssetId::BTC);
+    ASSERT_FLOAT_EQ(res_boundary1.decision.final_value, 100.0); // No severe clamp
+
+    std::vector<AILLE::GovernorProposal> boundary_proposals2;
+    boundary_proposals2.push_back(strat_prop);
+    AILLE::GovernorProposal risk_boundary2 = risk_boundary1;
+    risk_boundary2.risk_score = 75.1; // severe
+    boundary_proposals2.push_back(risk_boundary2);
+
+    AILLE::ReconciledResult res_boundary2 = AILLE::reconcile_governors(boundary_proposals2, AILLE::AssetId::BTC);
+    ASSERT_FLOAT_EQ(res_boundary2.decision.final_value, 50.0); // Severe clamp applied!
+}
+
+TEST(TestLayer11PortfolioConstraintsHardening) {
+    // 1. Determinism
+    AILLE::AssetAllocations proposed;
+    proposed.count = 2;
+    proposed.allocations[0].asset_id = AILLE::AssetId::BTC;
+    proposed.allocations[0].allocation = 0.35;
+    proposed.allocations[0].risk_score = 60.0;
+    proposed.allocations[1].asset_id = AILLE::AssetId::CASH;
+    proposed.allocations[1].allocation = 0.65;
+    proposed.allocations[1].risk_score = 0.0;
+
+    AILLE::ConstraintRules rules;
+    AILLE::SectorDefinitions sectors;
+    AILLE::CorrelationProfiles correlations;
+    AILLE::RiskBudget budget;
+    budget.is_active = 0;
+
+    AILLE::PortfolioConstraintResult result1 = AILLE::apply_portfolio_constraints(proposed, rules, sectors, correlations, budget);
+    AILLE::PortfolioConstraintResult result2 = AILLE::apply_portfolio_constraints(proposed, rules, sectors, correlations, budget);
+
+    ASSERT_FLOAT_EQ(result1.summary.final_portfolio_risk, result2.summary.final_portfolio_risk);
+    ASSERT_FLOAT_EQ(result1.allocations.allocations[0].allocation, result2.allocations.allocations[0].allocation);
+    ASSERT_EQ(result1.summary.trace_count, result2.summary.trace_count);
+
+    // 2. Boundary Condition (Risk budget exactly met vs breached)
+    budget.is_active = 1;
+    budget.max_portfolio_risk = 21.0; // BTC risk is 0.35 * 60 = 21.0. Met exactly!
+    AILLE::PortfolioConstraintResult result_met = AILLE::apply_portfolio_constraints(proposed, rules, sectors, correlations, budget);
+    ASSERT_FLOAT_EQ(result_met.allocations.allocations[0].allocation, 0.35); // No scaling down
+
+    budget.max_portfolio_risk = 20.99; // Breached!
+    AILLE::PortfolioConstraintResult result_breached = AILLE::apply_portfolio_constraints(proposed, rules, sectors, correlations, budget);
+    ASSERT_TRUE(result_breached.allocations.allocations[0].allocation < 0.35); // Scaled down!
+}
+
+TEST(TestLayer12TemporalConsistencyHardening) {
+    // 1. Determinism
+    AILLE::TemporalStates prev_states;
+    prev_states.count = 1;
+    prev_states.states[0].asset_id = AILLE::AssetId::BTC;
+    prev_states.states[0].prev_allocation = 0.10;
+    prev_states.states[0].prev_risk_score = 60.0;
+    prev_states.states[0].prev_prev_allocation = 0.08;
+
+    AILLE::TemporalStates curr_states1;
+    curr_states1.count = 1;
+    curr_states1.states[0].asset_id = AILLE::AssetId::BTC;
+    curr_states1.states[0].prev_allocation = 0.12;
+    curr_states1.states[0].prev_risk_score = 60.0;
+
+    AILLE::TemporalStates curr_states2 = curr_states1;
+
+    AILLE::TemporalPortfolioState prev_portfolio{};
+    AILLE::TemporalPortfolioState curr_portfolio1{};
+    AILLE::TemporalPortfolioState curr_portfolio2{};
+    AILLE::TemporalResiduals residuals1{};
+    AILLE::TemporalResiduals residuals2{};
+    AILLE::TemporalTraceSteps trace1{};
+    AILLE::TemporalTraceSteps trace2{};
+
+    AILLE::enforce_temporal_consistency(prev_states, curr_states1, prev_portfolio, curr_portfolio1, residuals1, trace1, 0.05);
+    AILLE::enforce_temporal_consistency(prev_states, curr_states2, prev_portfolio, curr_portfolio2, residuals2, trace2, 0.05);
+
+    ASSERT_FLOAT_EQ(curr_states1.states[0].prev_allocation, curr_states2.states[0].prev_allocation);
+    ASSERT_FLOAT_EQ(curr_portfolio1.residual_sum, curr_portfolio2.residual_sum);
+    ASSERT_EQ(trace1.count, trace2.count);
+
+    // 2. Boundary Condition (Drift exactly at max_drift_threshold)
+    // prev_allocation is 0.10. max_drift is 0.05. Target is 0.15. Drift is 0.05. Exactly meets threshold!
+    AILLE::TemporalStates curr_states_met;
+    curr_states_met.count = 1;
+    curr_states_met.states[0].asset_id = AILLE::AssetId::BTC;
+    curr_states_met.states[0].prev_allocation = 0.15;
+    curr_states_met.states[0].prev_risk_score = 60.0;
+
+    AILLE::TemporalPortfolioState curr_portfolio_met{};
+    AILLE::TemporalResiduals residuals_met{};
+    AILLE::TemporalTraceSteps trace_met{};
+
+    AILLE::enforce_temporal_consistency(prev_states, curr_states_met, prev_portfolio, curr_portfolio_met, residuals_met, trace_met, 0.05);
+    ASSERT_FLOAT_EQ(curr_states_met.states[0].prev_allocation, 0.15); // NOT clamped because it's exactly equal
+    ASSERT_EQ(trace_met.steps[0].action_taken, static_cast<uint8_t>(AILLE::TemporalAction::NO_CHANGE));
+
+    // Proposed target is 0.1501 -> Drift is 0.0501 > 0.05. Clamped!
+    AILLE::TemporalStates curr_states_clamped;
+    curr_states_clamped.count = 1;
+    curr_states_clamped.states[0].asset_id = AILLE::AssetId::BTC;
+    curr_states_clamped.states[0].prev_allocation = 0.1501;
+    curr_states_clamped.states[0].prev_risk_score = 60.0;
+
+    AILLE::TemporalPortfolioState curr_portfolio_clamped{};
+    AILLE::TemporalResiduals residuals_clamped{};
+    AILLE::TemporalTraceSteps trace_clamped{};
+
+    AILLE::enforce_temporal_consistency(prev_states, curr_states_clamped, prev_portfolio, curr_portfolio_clamped, residuals_clamped, trace_clamped, 0.05);
+    ASSERT_FLOAT_EQ(curr_states_clamped.states[0].prev_allocation, 0.15); // Clamped back to 0.10 + 0.05
+    ASSERT_EQ(trace_clamped.steps[0].action_taken, static_cast<uint8_t>(AILLE::TemporalAction::CLAMPED));
+}
+
+TEST(TestLayer13StressRegimeOverrideHardening) {
+    // 1. Determinism
+    AILLE::SafeBaselineContainer baselines;
+    baselines.count = 1;
+    baselines.baselines[0].asset_id = AILLE::AssetId::BTC;
+    baselines.baselines[0].baseline_allocation = 0.20;
+    baselines.baselines[0].flags = 1;
+
+    AILLE::AssetAllocations prev_allocs;
+    prev_allocs.count = 1;
+    prev_allocs.allocations[0].asset_id = AILLE::AssetId::BTC;
+    prev_allocs.allocations[0].allocation = 0.30;
+    prev_allocs.allocations[0].risk_score = 60.0;
+
+    AILLE::StressOverrideRules rules{};
+    rules.volatility_threshold = 0.50;
+    rules.drawdown_threshold = 0.10;
+    rules.correlation_threshold = 0.80;
+    rules.residual_threshold = 0.20;
+    rules.crash_dampening_factor = 0.50;
+    rules.fallback_lambda = 0.70;
+    rules.mode = static_cast<uint8_t>(AILLE::StressMode::NORMAL);
+
+    AILLE::AssetAllocations curr_allocs1;
+    curr_allocs1.count = 1;
+    curr_allocs1.allocations[0].asset_id = AILLE::AssetId::BTC;
+    curr_allocs1.allocations[0].allocation = 0.40;
+    curr_allocs1.allocations[0].risk_score = 60.0;
+
+    AILLE::AssetAllocations curr_allocs2 = curr_allocs1;
+
+    AILLE::StressPortfolioState state{};
+    state.stress_level = static_cast<uint8_t>(AILLE::StressMode::STRESS);
+
+    AILLE::StressTraceSteps trace1{};
+    AILLE::StressTraceSteps trace2{};
+
+    AILLE::apply_stress_regime_override(rules, state, prev_allocs, curr_allocs1, baselines, trace1, false);
+    AILLE::apply_stress_regime_override(rules, state, prev_allocs, curr_allocs2, baselines, trace2, false);
+
+    ASSERT_FLOAT_EQ(curr_allocs1.allocations[0].allocation, curr_allocs2.allocations[0].allocation);
+    ASSERT_EQ(trace1.count, trace2.count);
+    ASSERT_EQ(trace1.steps[0].flags, trace2.steps[0].flags);
+
+    // 2. Failure Mode (normal_safety_failed forcing CRISIS mode)
+    AILLE::AssetAllocations curr_allocs_normal_fail;
+    curr_allocs_normal_fail.count = 1;
+    curr_allocs_normal_fail.allocations[0].asset_id = AILLE::AssetId::BTC;
+    curr_allocs_normal_fail.allocations[0].allocation = 0.40;
+    curr_allocs_normal_fail.allocations[0].risk_score = 60.0;
+
+    AILLE::StressPortfolioState state_normal{};
+    state_normal.stress_level = static_cast<uint8_t>(AILLE::StressMode::NORMAL);
+
+    AILLE::StressTraceSteps trace_normal_fail{};
+    // When normal_safety_failed is true, it forces CRISIS fallback compression even if mode is NORMAL
+    AILLE::apply_stress_regime_override(rules, state_normal, prev_allocs, curr_allocs_normal_fail, baselines, trace_normal_fail, true);
+
+    // Not dampened since mode is NORMAL.
+    // Compressed target: (1 - 0.70)*0.40 + 0.70*0.20 = 0.30 * 0.40 + 0.14 = 0.12 + 0.14 = 0.26
+    ASSERT_FLOAT_EQ(curr_allocs_normal_fail.allocations[0].allocation, 0.26);
+    ASSERT_TRUE((trace_normal_fail.steps[0].flags & (1 << 2)) != 0); // fallback_applied bit set
+}
+
+TEST(TestLayer14MetaGovernanceLockHardening) {
+    // 1. Determinism
+    AILLE::ReconciledResult decision{};
+    decision.summary.total_residual = 0.02;
+
+    AILLE::PortfolioConstraintResult constraints{};
+    constraints.summary.remaining_violations = 0;
+    constraints.summary.final_portfolio_risk = 20.0;
+    constraints.summary.max_risk_budget = 25.0;
+
+    AILLE::StressPortfolioState stress_state{};
+    stress_state.stress_level = 0;
+    AILLE::StressTraceSteps stress_trace{};
+
+    AILLE::TemporalPortfolioState temporal_state{};
+    temporal_state.residual_sum = 0.04;
+
+    AILLE::MetaGovernanceTraceSteps trace1{};
+    AILLE::MetaGovernanceTraceSteps trace2{};
+
+    AILLE::MetaGovernanceState res1 = AILLE::apply_meta_governance_lock(decision, constraints, stress_state, stress_trace, temporal_state, trace1);
+    AILLE::MetaGovernanceState res2 = AILLE::apply_meta_governance_lock(decision, constraints, stress_state, stress_trace, temporal_state, trace2);
+
+    ASSERT_EQ(res1.execution_ready, res2.execution_ready);
+    ASSERT_FLOAT_EQ(res1.final_portfolio_risk, res2.final_portfolio_risk);
+    ASSERT_FLOAT_EQ(res1.final_residual_sum, res2.final_residual_sum);
+    ASSERT_EQ(trace1.count, trace2.count);
+
+    // 2. Failure Mode (Multiple issues simultaneously)
+    decision.summary.total_residual = 0.06; // Conflict! (>0.05)
+    constraints.summary.final_portfolio_risk = 26.0; // Violation! (>25.0)
+    temporal_state.residual_sum = 0.12; // Inconsistent! (>0.10)
+
+    AILLE::MetaGovernanceTraceSteps trace_multi{};
+    AILLE::MetaGovernanceState res_multi = AILLE::apply_meta_governance_lock(decision, constraints, stress_state, stress_trace, temporal_state, trace_multi);
+
+    ASSERT_EQ(res_multi.execution_ready, 0);
+    // Should log GOVERNOR_CONFLICT, CONSTRAINT_VIOLATION, and TEMPORAL_INCONSISTENT
+    ASSERT_EQ(trace_multi.count, 3ULL);
+    ASSERT_EQ(trace_multi.steps[0].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::GOVERNOR_CONFLICT));
+    ASSERT_EQ(trace_multi.steps[1].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::CONSTRAINT_VIOLATION));
+    ASSERT_EQ(trace_multi.steps[2].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::TEMPORAL_INCONSISTENT));
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -1748,6 +2052,12 @@ int main() {
     RUN_TEST(TestLayer13StressRegimeOverrideWalkthrough);
     RUN_TEST(TestLayer14MetaGovernanceLockSizing);
     RUN_TEST(TestLayer14MetaGovernanceLockWalkthrough);
+    RUN_TEST(TestLayer8ArbitrationHardening);
+    RUN_TEST(TestLayer10GovernorReconciliationHardening);
+    RUN_TEST(TestLayer11PortfolioConstraintsHardening);
+    RUN_TEST(TestLayer12TemporalConsistencyHardening);
+    RUN_TEST(TestLayer13StressRegimeOverrideHardening);
+    RUN_TEST(TestLayer14MetaGovernanceLockHardening);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
