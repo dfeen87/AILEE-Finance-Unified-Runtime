@@ -11,7 +11,7 @@ HTTPLIB_INCLUDES = -isystem ./external
 THREAD_FLAGS = -pthread
 WEBSOCKET_FLAGS = -std=c++17 -isystem ./external/websocketpp -isystem ./external/asio/asio/include -DASIO_STANDALONE -pthread
 
-COMMON_INCLUDES = -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src
+COMMON_INCLUDES = -I./external -I. -I./extensions ...
 
 # ANSI Colors
 COLOR_GREEN  = \033[32m
