@@ -42,6 +42,7 @@
 #include "../extensions/aille_portfolio_constraints.hpp"
 #include "../extensions/aille_temporal_consistency.hpp"
 #include "../extensions/aille_stress_regime_override.hpp"
+#include "../extensions/aille_meta_governance.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1520,6 +1521,164 @@ TEST(TestLayer13StressRegimeOverrideWalkthrough) {
     }
 }
 
+TEST(TestLayer14MetaGovernanceLockSizing) {
+    ASSERT_TRUE(sizeof(AILLE::MetaGovernanceState) == 64);
+    ASSERT_TRUE(sizeof(AILLE::MetaGovernanceTraceStep) == 64);
+}
+
+TEST(TestLayer14MetaGovernanceLockWalkthrough) {
+    // 1. Clean Scenario (All layers verified successfully)
+    {
+        AILLE::ReconciledResult decision{};
+        decision.summary.total_residual = 0.02; // < 0.05
+
+        AILLE::PortfolioConstraintResult constraints{};
+        constraints.summary.remaining_violations = 0;
+        constraints.summary.final_portfolio_risk = 20.0;
+        constraints.summary.max_risk_budget = 25.0; // risk under budget
+
+        AILLE::StressPortfolioState stress_state{};
+        stress_state.stress_level = 0; // NORMAL
+        AILLE::StressTraceSteps stress_trace{};
+        stress_trace.count = 0;
+
+        AILLE::TemporalPortfolioState temporal_state{};
+        temporal_state.residual_sum = 0.04; // < 0.10
+
+        AILLE::MetaGovernanceTraceSteps trace{};
+
+        AILLE::MetaGovernanceState result = AILLE::apply_meta_governance_lock(
+            decision, constraints, stress_state, stress_trace, temporal_state, trace
+        );
+
+        ASSERT_TRUE(result.execution_ready == 1);
+        ASSERT_FLOAT_EQ(result.final_portfolio_risk, 20.0);
+        ASSERT_FLOAT_EQ(result.final_residual_sum, 0.06); // 0.02 + 0.04
+        ASSERT_EQ(result.final_stress_level, 0);
+
+        ASSERT_EQ(trace.count, 1ULL);
+        ASSERT_EQ(trace.steps[0].reason_code, 0ULL);
+        ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Meta-governance lock verified & ready") == 0);
+    }
+
+    // 2. Governor Conflict Scenario
+    {
+        AILLE::ReconciledResult decision{};
+        decision.summary.total_residual = 0.08; // > 0.05 (Conflict!)
+
+        AILLE::PortfolioConstraintResult constraints{};
+        constraints.summary.remaining_violations = 0;
+        constraints.summary.final_portfolio_risk = 20.0;
+        constraints.summary.max_risk_budget = 25.0;
+
+        AILLE::StressPortfolioState stress_state{};
+        stress_state.stress_level = 0;
+        AILLE::StressTraceSteps stress_trace{};
+
+        AILLE::TemporalPortfolioState temporal_state{};
+        temporal_state.residual_sum = 0.04;
+
+        AILLE::MetaGovernanceTraceSteps trace{};
+
+        AILLE::MetaGovernanceState result = AILLE::apply_meta_governance_lock(
+            decision, constraints, stress_state, stress_trace, temporal_state, trace
+        );
+
+        ASSERT_TRUE(result.execution_ready == 0);
+        ASSERT_EQ(trace.count, 1ULL);
+        ASSERT_EQ(trace.steps[0].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::GOVERNOR_CONFLICT));
+        ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Governor conflict detected") == 0);
+    }
+
+    // 3. Constraint Violation Scenario
+    {
+        AILLE::ReconciledResult decision{};
+        decision.summary.total_residual = 0.02;
+
+        AILLE::PortfolioConstraintResult constraints{};
+        constraints.summary.remaining_violations = 0;
+        constraints.summary.final_portfolio_risk = 28.0; // > max risk budget of 25.0!
+        constraints.summary.max_risk_budget = 25.0;
+
+        AILLE::StressPortfolioState stress_state{};
+        stress_state.stress_level = 0;
+        AILLE::StressTraceSteps stress_trace{};
+
+        AILLE::TemporalPortfolioState temporal_state{};
+        temporal_state.residual_sum = 0.04;
+
+        AILLE::MetaGovernanceTraceSteps trace{};
+
+        AILLE::MetaGovernanceState result = AILLE::apply_meta_governance_lock(
+            decision, constraints, stress_state, stress_trace, temporal_state, trace
+        );
+
+        ASSERT_TRUE(result.execution_ready == 0);
+        ASSERT_EQ(trace.count, 1ULL);
+        ASSERT_EQ(trace.steps[0].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::CONSTRAINT_VIOLATION));
+        ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Constraint violation detected") == 0);
+    }
+
+    // 4. Missing Stress Override Scenario
+    {
+        AILLE::ReconciledResult decision{};
+        decision.summary.total_residual = 0.02;
+
+        AILLE::PortfolioConstraintResult constraints{};
+        constraints.summary.remaining_violations = 0;
+        constraints.summary.final_portfolio_risk = 20.0;
+        constraints.summary.max_risk_budget = 25.0;
+
+        AILLE::StressPortfolioState stress_state{};
+        stress_state.stress_level = 1; // STRESS -> Requires stress override
+        AILLE::StressTraceSteps stress_trace{};
+        stress_trace.count = 0; // Missing override!
+
+        AILLE::TemporalPortfolioState temporal_state{};
+        temporal_state.residual_sum = 0.04;
+
+        AILLE::MetaGovernanceTraceSteps trace{};
+
+        AILLE::MetaGovernanceState result = AILLE::apply_meta_governance_lock(
+            decision, constraints, stress_state, stress_trace, temporal_state, trace
+        );
+
+        ASSERT_TRUE(result.execution_ready == 0);
+        ASSERT_EQ(trace.count, 1ULL);
+        ASSERT_EQ(trace.steps[0].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::STRESS_OVERRIDE_MISSING));
+        ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Stress override missing") == 0);
+    }
+
+    // 5. Temporal Inconsistency Scenario
+    {
+        AILLE::ReconciledResult decision{};
+        decision.summary.total_residual = 0.02;
+
+        AILLE::PortfolioConstraintResult constraints{};
+        constraints.summary.remaining_violations = 0;
+        constraints.summary.final_portfolio_risk = 20.0;
+        constraints.summary.max_risk_budget = 25.0;
+
+        AILLE::StressPortfolioState stress_state{};
+        stress_state.stress_level = 0;
+        AILLE::StressTraceSteps stress_trace{};
+
+        AILLE::TemporalPortfolioState temporal_state{};
+        temporal_state.residual_sum = 0.15; // > 0.10!
+
+        AILLE::MetaGovernanceTraceSteps trace{};
+
+        AILLE::MetaGovernanceState result = AILLE::apply_meta_governance_lock(
+            decision, constraints, stress_state, stress_trace, temporal_state, trace
+        );
+
+        ASSERT_TRUE(result.execution_ready == 0);
+        ASSERT_EQ(trace.count, 1ULL);
+        ASSERT_EQ(trace.steps[0].reason_code, static_cast<uint32_t>(AILLE::MetaGovernanceReason::TEMPORAL_INCONSISTENT));
+        ASSERT_TRUE(std::strcmp(trace.steps[0].log, "Temporal residual too high") == 0);
+    }
+}
+
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
@@ -1587,6 +1746,8 @@ int main() {
     RUN_TEST(TestLayer12TemporalConsistencyWalkthrough);
     RUN_TEST(TestLayer13StressRegimeOverrideSizing);
     RUN_TEST(TestLayer13StressRegimeOverrideWalkthrough);
+    RUN_TEST(TestLayer14MetaGovernanceLockSizing);
+    RUN_TEST(TestLayer14MetaGovernanceLockWalkthrough);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
