@@ -33,7 +33,7 @@
 - [✨ The Solution: AILLE Framework](#the-solution-aille-framework)
 - [📊 Proven Performance](#proven-performance)
 - [🏗️ Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
-- [v9.0.0: Deterministic Governance Stack (Layers 8-14)](#v900-deterministic-governance-stack-layers-8-14)
+- [v9.0.0: Deterministic Governance Stack (Layers 8–14)](#v900--deterministic-governance-stack-layers-814)
 - [⚙️ Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
 - [💼 Use Cases](#use-cases)
