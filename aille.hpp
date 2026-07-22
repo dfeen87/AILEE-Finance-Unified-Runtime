@@ -79,6 +79,13 @@ struct StressTraceSteps;
 struct SafeBaselineContainer;
 struct AssetAllocations;
 
+// ============================================================================
+// LAYER 14 — DETERMINISTIC META-GOVERNANCE LOCK FORWARD DECLARATIONS
+// ============================================================================
+struct MetaGovernanceState;
+struct MetaGovernanceTraceStep;
+struct MetaGovernanceTraceSteps;
+
 struct alignas(64) MarketStabilizerState final {
     float systemic_volatility;
     float bid_ask_spread_deviation;

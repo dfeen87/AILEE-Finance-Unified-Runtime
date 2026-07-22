@@ -34,6 +34,8 @@ PortfolioConstraintResult apply_portfolio_constraints(
     result.summary.initial_portfolio_risk = 0.0;
     result.summary.final_portfolio_risk = 0.0;
     result.summary.trace_count = 0;
+    result.summary.remaining_violations = 0;
+    result.summary.max_risk_budget = 0.0;
     result.trace.step_count = 0;
 
     auto add_trace_step = [&](AssetId asset_id, ConstraintStage stage, ConstraintAction action, double before, double after, const char* msg) {
@@ -235,6 +237,8 @@ PortfolioConstraintResult apply_portfolio_constraints(
     }
     result.summary.final_portfolio_risk = final_risk;
     result.summary.trace_count = static_cast<uint32_t>(result.trace.step_count);
+    result.summary.max_risk_budget = budget.is_active ? budget.max_portfolio_risk : 999999.0;
+    result.summary.remaining_violations = (budget.is_active && final_risk > budget.max_portfolio_risk) ? 1 : 0;
 
     return result;
 }

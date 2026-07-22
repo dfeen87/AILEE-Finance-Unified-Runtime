@@ -109,7 +109,9 @@ struct alignas(64) ConstraintResultSummary {
     double initial_portfolio_risk;    // 8 bytes
     double final_portfolio_risk;      // 8 bytes
     uint32_t trace_count;             // 4 bytes
-    uint8_t reserved[44];             // 44 bytes padding -> 64 bytes total
+    uint32_t remaining_violations;    // 4 bytes
+    double max_risk_budget;           // 8 bytes
+    uint8_t reserved[32];             // 32 bytes padding -> 64 bytes total
 };
 static_assert(sizeof(ConstraintResultSummary) == 64, "ConstraintResultSummary must be exactly 64 bytes");
 

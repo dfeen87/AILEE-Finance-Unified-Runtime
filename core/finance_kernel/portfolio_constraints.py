@@ -82,10 +82,12 @@ class ConstraintTraceStep:
         self.log = str(log)
 
 class ConstraintResultSummary:
-    def __init__(self, initial_portfolio_risk: float = 0.0, final_portfolio_risk: float = 0.0, trace_count: int = 0):
+    def __init__(self, initial_portfolio_risk: float = 0.0, final_portfolio_risk: float = 0.0, trace_count: int = 0, remaining_violations: int = 0, max_risk_budget: float = 0.0):
         self.initial_portfolio_risk = float(initial_portfolio_risk)
         self.final_portfolio_risk = float(final_portfolio_risk)
         self.trace_count = int(trace_count)
+        self.remaining_violations = int(remaining_violations)
+        self.max_risk_budget = float(max_risk_budget)
 
 class PortfolioConstraintResult:
     def __init__(self):
@@ -246,5 +248,7 @@ def apply_portfolio_constraints(
     final_risk = sum(abs(a.allocation) * a.risk_score for a in result.allocations)
     result.summary.final_portfolio_risk = final_risk
     result.summary.trace_count = len(result.trace_steps)
+    result.summary.max_risk_budget = float(budget.max_portfolio_risk) if budget.is_active else 999999.0
+    result.summary.remaining_violations = 1 if (budget.is_active and final_risk > budget.max_portfolio_risk) else 0
 
     return result
