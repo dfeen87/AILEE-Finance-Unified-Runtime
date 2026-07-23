@@ -4,8 +4,6 @@
 
 **The Algorithmic Safety System That Transforms Risk into Reliability**
 
-<div align="center">
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
@@ -16,13 +14,7 @@
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
 
-
-
-</div>
-
-<p align="center">
-  <img src="bull/america.jpeg" width="420">
-</p>
+<img src="bull/america.jpeg" width="420">
 
 
 ---
