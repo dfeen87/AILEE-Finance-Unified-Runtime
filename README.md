@@ -57,7 +57,7 @@
 - [Support and Contact](#support-and-contact)
 - [Acknowledgments](#acknowledgments)
 - [Enterprise Consulting and Integration](#enterprise-consulting-and-integration)
-- [Contributing](#contributing)
+[Contributing](#contributing)
 
 ---
 
