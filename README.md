@@ -57,11 +57,11 @@
 - [Support and Contact](#support-and-contact)
 - [Acknowledgments](#acknowledgments)
 - [Enterprise Consulting and Integration](#enterprise-consulting-and-integration)
-[Contributing](#contributing)
+- [Contributing](#contributing)
 
 ---
 
-## ⚡ The Problem: Algorithmic Fragility
+## The Problem: Algorithmic Fragility
 
 Traditional AI and machine learning systems fail catastrophically under stress:
 
