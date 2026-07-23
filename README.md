@@ -74,7 +74,7 @@ Traditional AI and machine learning systems fail catastrophically under stress:
 
 ---
 
-## ✨ The Solution: AILLE Framework
+## The Solution: AILLE Framework
 
 AILLE introduces a **five-stage decision architecture** that transforms algorithmic risk from an unpredictable liability into a managed, measurable advantage.
 
@@ -98,7 +98,7 @@ Model → Output                1. Model Layer (Multiple Sources)
 
 ---
 
-## 📊 Proven Performance
+## Proven Performance
 
 ### Simulation Results (2000 Timesteps, Market-Like Volatility)
 
@@ -196,7 +196,7 @@ Cross‑runtime consistency achieved
 
 ---
 
-## 🏗️ Architecture: Five Layers of Safety
+## Architecture: Five Layers of Safety
 
 ### 1. Model Layer - Multi-Source Prediction
 Generate initial signals from multiple independent models:
@@ -348,7 +348,7 @@ To guarantee absolute binary stability, predictable cache locality, and zero hea
 
 ---
 
-## ⚙️ Technical Specifications
+## Technical Specifications
 
 ### Performance Characteristics
 
@@ -385,7 +385,7 @@ AILLE now includes an optional next-generation performance layer for deployments
 
 See [docs/performance_layer.md](docs/performance_layer.md) for integration guidance and hardware deployment constraints.
 
-## 💼 Use Cases
+## Use Cases
 
 ### Quantitative Trading
 - High-frequency trading (HFT)
@@ -413,7 +413,7 @@ See [docs/performance_layer.md](docs/performance_layer.md) for integration guida
 
 ---
 
-## 🔌 Integration Options
+## Integration Options
 
 ### Option 1: Direct C++ Integration
 
@@ -452,7 +452,7 @@ decision = response.json()
 
 ---
 
-## 💡 Integration Example
+## Integration Example
 
 ### Step 1: Initialize AILLE Engine
 
@@ -523,7 +523,7 @@ switch (decision.status) {
 
 ---
 
-## 🔌 Plugin Ecosystem
+## Plugin Ecosystem
 
 AILLE is designed to be extended without modifying its core. Three categories of plugin integrate cleanly with the framework:
 
@@ -539,7 +539,7 @@ The built-in `extensions/aille_metrics.hpp` (`MetricsCollector`) is the referenc
 
 ---
 
-## 🔬 Why AILLE Works: The Science
+## Why AILLE Works: The Science
 
 ### Elimination of Brittle Failure
 
@@ -577,7 +577,7 @@ This satisfies regulatory requirements for:
 
 ---
 
-## 📈 Implications for Financial Markets
+## Implications for Financial Markets
 
 ### Reduced Systemic Volatility
 
@@ -604,7 +604,7 @@ The Consensus Layer ensures winning strategies are robustly validated:
 
 ---
 
-## 📚 Academic Foundation
+## Academic Foundation
 
 AILLE is grounded in:
 
@@ -622,7 +622,7 @@ Don Michael Feeney Jr., November 2025
 
 ---
 
-## 🚀 Deployment Guide
+## Deployment Guide
 
 ### Dependency Preparation (Required)
 
@@ -717,7 +717,7 @@ This target performs the following actions:
 
 ---
 
-## 📋 Test Plan and Benchmarking
+## Test Plan and Benchmarking
 
 - **Test plan:** See `docs/test_plan.md` for build, functional, and cleanup steps.
 - **Benchmark harness:** Build with `make benchmark` and run `./benchmark [iterations]` to measure decision throughput.
@@ -725,13 +725,13 @@ This target performs the following actions:
 
 ---
 
-## 🔄 Continuous Integration
+## Continuous Integration
 
 CI runs a lightweight workflow that installs dependencies, checks that the simulation module imports, and executes the deterministic simulation harness in a clean environment. It validates buildability and repeatable execution, but **does not** assert economic correctness or forecasting accuracy. The goal is a stable, deterministic safety net that confirms the code runs without runtime errors. 
 
 ---
 
-## ✅ Compliance and Regulatory
+## Compliance and Regulatory
 
 ### Built-In Compliance Features
 
@@ -765,7 +765,7 @@ if (!logger.verifyIntegrity()) {
 
 ---
 
-## ⚙️ Configuration Guide
+## Configuration Guide
 
 ### Conservative Profile (Risk-Averse)
 
@@ -802,7 +802,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-## ⚠️ Limitations and Disclaimers
+## Limitations and Disclaimers
 
 ### What AILLE Is
 
@@ -828,7 +828,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ---
 
-## 🔧 Deterministic Advisory Layer Overview
+## Deterministic Advisory Layer Overview
 
 AILLEE Version 6.0.0 introduces a fully deterministic, allocator‑free advisory ecosystem spanning five independent modules:
 
@@ -921,7 +921,7 @@ This diagram anchors the advisory ecosystem and shows how it flows into the core
 
 ---
 
-## 🧠 Deterministic Engineering Principles
+## Deterministic Engineering Principles
 
 AILLEE enforces strict deterministic engineering rules across all modules:
 
@@ -946,7 +946,7 @@ AILLEE is engineered to behave identically across compilers, machines, and envir
 
 ---
 
-## 🧮 Why 64 Bytes?
+## Why 64 Bytes?
 
 Every advisory module uses **exactly 64‑byte** structs for State, Advisory, and ObservabilityMetrics.
 
@@ -985,7 +985,7 @@ This is a foundational design choice.
 
 ---
 
-## 🧱 Module Contract Specification
+## Module Contract Specification
 
 Every advisory module must follow this exact contract:
 
@@ -1018,7 +1018,7 @@ This contract ensures all modules behave identically and predictably.
 
 ---
 
-## 🌐 MacroSignal Governance
+## MacroSignal Governance
 
 The MacroSignal Advisory Module (MSM) is the global macro governor of AILLEE.
 
@@ -1061,7 +1061,7 @@ Advisory modules provide context — not votes.
 
 ---
 
-## 🧪 Deterministic Test Suite
+## Deterministic Test Suite
 
 AILLEE’s test suite validates every deterministic and safety invariant:
 
@@ -1096,7 +1096,7 @@ This suite ensures AILLEE is not just code — it is a verified deterministic sy
 
 ---
 
-## 📦 Versioning and Release Notes
+## Versioning and Release Notes
 
 ```
 ### Version History
@@ -1110,7 +1110,7 @@ This gives newcomers a clear view of AILLEE’s evolution.
 
 ---
 
-## 🧭 Design Philosophy
+## Design Philosophy
 
 AILLEE is built on six core principles:
 
@@ -1125,7 +1125,7 @@ This philosophy is the foundation of AILLEE’s reliability.
 
 ---
 
-## 🏛️ Enterprise Integration
+## Enterprise Integration
 
 AILLEE is designed for institutional deployment:
 
@@ -1141,7 +1141,7 @@ This positions AILLEE as a production‑grade risk mitigation framework.
 
 ---
 
-## 🔮 Roadmap
+## Roadmap
 
 ```
 6.1 — Advisory normalization layer
@@ -1154,7 +1154,7 @@ AILLEE continues to evolve toward hardware determinism and multi‑asset advisor
 
 ---
 
-## ⭐ Philosophical Note
+## Philosophical Note
 
 > **“Determinism is not a constraint — it is the foundation of reliability.”**
 
@@ -1182,14 +1182,14 @@ If you use AILLE in academic research:
 
 ---
 
-## 📞 Support and Contact
+## Support and Contact
 
 - 📧 **Email**: dfeen87@gmail.com
 - 💼 **LinkedIn**: [Don Michael Feeney Jr.](www.linkedin.com/in/don-michael-feeney-jr-908a96351)
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 This framework builds upon decades of research in:
 - Algorithmic trading (Renaissance Technologies, DE Shaw, Citadel)
@@ -1219,7 +1219,7 @@ This architecture is fully open-source under the MIT License. If your organizati
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions from:
 - Quantitative researchers
@@ -1237,13 +1237,6 @@ See `CONTRIBUTING.md` for guidelines (coming soon).
 
 ---
 
-<div align="center">
-
 License
 
 This project is 100% open-source under the **MIT License**. See [`LICENSE`](LICENSE) for full terms.
-
-
-**[⬆ Back to Top](#ailee-mitigating-risk-and-sustaining-growth-software)**
-
-</div>
