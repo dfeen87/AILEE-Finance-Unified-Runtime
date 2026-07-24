@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-9.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-10.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -26,7 +26,7 @@
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
-- [v9.0.0: Deterministic Governance Stack (Layers 8–14)](#v900--deterministic-governance-stack-layers-814)
+- [v10.0.0: Deterministic Governance Stack (Layers 8–15)](#v1000--deterministic-governance-stack-layers-815)
 - [Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
@@ -262,9 +262,9 @@ Every decision is logged with:
 
 ---
 
-## v9.0.0: Deterministic Governance Stack (Layers 8-14)
+## v10.0.0: Deterministic Governance Stack (Layers 8–15)
 
-AILLEE Version 9.0.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack**. This stack sits above lower-level pipelines and guarantees that portfolio decisions, constraints, stress overrides, and temporal limits are reconciled and locked with absolute predictability across all platforms and runtimes.
+AILLEE Version 10.0.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack** with Layer 15 UFO Deformable Membrane Governance and Lyapunov reconciliation. This stack sits above lower-level pipelines and guarantees that portfolio decisions, constraints, stress overrides, and temporal limits are reconciled and locked with absolute predictability across all platforms and runtimes.
 
 - **Layer 8 — Deterministic Cross‑Asset Arbitration**
   Fixed-size, allocator-free arbitration engine that reconciles heterogeneous asset advisories down a versioned priority ladder (`LADDER_V1`) and canonical scaling rules (`SCALING_RULESET_V1`) without generating new market beliefs.
@@ -273,7 +273,7 @@ AILLEE Version 9.0.0 formally introduces the fully deterministic, allocator-free
   A deterministic 4-stage pipeline (movable liquidity calculation, routing table evaluation, target blockage/fallback resolution, and asset/portfolio-level shock bounds clamping) designed to route asset liquidity under varying stress conditions.
 
 - **Layer 10 — Multi‑Governor Reconciliation Engine**
-  A deterministic, allocator-free multi-governor proposal reconciliation engine that resolves conflicting recommendations across a static, versioned priority hierarchy (`GOVERNOR_LADDER_V1`) using override rule matrices.
+  A deterministic, allocator-free multi-governor proposal reconciliation engine enhanced with UFO's Lyapunov-style tension/stability principles that resolves conflicting recommendations across a static, versioned priority hierarchy (`GOVERNOR_LADDER_V1`) using override rule matrices.
 
 - **Layer 11 — Deterministic Portfolio‑Wide Constraint Engine**
   The final deterministic, allocator-free guardrail post-governor reconciliation enforcing max-exposure clamping, sector caps, pairwise correlation dampening, and risk-budget limits in a deterministic 4-stage pipeline.
@@ -287,7 +287,10 @@ AILLEE Version 9.0.0 formally introduces the fully deterministic, allocator-free
 - **Layer 14 — Deterministic Meta‑Governance Lock**
   The final deterministic meta-guard sealing the entire AILEE Finance Runtime with an allocator-free machine that reconciles and locks all prior normal, constraint, stress, temporal, and routing states, validating consistency to set `EXECUTION_READY`.
 
-### Deterministic Governance Stack Specifications (Layers 8–14)
+- **Layer 15 — Deterministic Deformable Membrane & Compute-Aware Governor**
+  UFO-inspired deformable radial membrane modeling allocation as a live polar geometry surface with 12 facet strings. Monitors operational costs (latency, REST/WebSocket load, model cost) and enforces a Bounded Compute Envelope clamp under system stress.
+
+### Deterministic Governance Stack Specifications (Layers 8–15)
 
 To guarantee absolute binary stability, predictable cache locality, and zero heap fragmentation across all platforms, every core algorithm in Layers 8–14 is designed as a pure functional pipeline operating over strictly aligned, fixed-size **64-byte structs** (`alignas(64)` and `static_assert(sizeof(...) == 64)`).
 
@@ -352,6 +355,14 @@ To guarantee absolute binary stability, predictable cache locality, and zero hea
 * **64-byte Structs:**
   * `MetaGovernanceState` — Snapshot of risk, residual sum, and execution readiness.
   * `MetaGovernanceTraceStep` — Detailed failure modes (e.g., governor conflict, temporal inconsistency, constraint violation, or missing overrides).
+
+#### 8. Layer 15 — Deterministic Deformable Membrane & Compute-Aware Governor
+* **Core Function:** `evaluate_membrane_governance(...)` — Evaluates polar membrane geometry, V-channel routing, Letter-Depth state transition, and compute stress limits.
+* **64-byte Structs:**
+  * `MembraneState` — 12-facet activation state, base radius, and tension.
+  * `MembraneMetrics` — Computed asymmetry, curvature, tension, and Lyapunov energy metrics.
+  * `ComputeEnvelopeState` — Input latency, load, model cost, and dynamic exposure clamp.
+  * `MembraneTraceStep` — Trace step logging transition symbol (L.D.E.) and details.
 
 ---
 
@@ -657,7 +668,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-5. Stamps the deployment version in `release/VERSION` (containing `9.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `10.0.0`).
 
 ### For Quantitative Researchers
 

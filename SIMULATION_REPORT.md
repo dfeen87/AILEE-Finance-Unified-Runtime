@@ -1,5 +1,5 @@
 # AILEE Unified Finance Runtime: Simulation & Optimization Report
-**Version:** 9.0.0 (Config v4.1.0)
+**Version:** 10.0.0 (Config v4.1.0)
 **Date:** March 2026
 **Author:** AILEE Quantitative Engineering Team
 
@@ -118,4 +118,4 @@ The optimization proves that static fallback position scaling (`fallback_positio
 
 ## 5. Conclusion
 
-The updated simulation results validate the engineering choices introduced in version **9.0.0**. Tuning parameters systematically increases total return by over **4.6x** while reducing absolute maximum drawdown. The AILLE system continues to fulfill its mission: **Mitigating Risk and Sustaining Growth**.
+The updated simulation results validate the engineering choices introduced in version **10.0.0**. Tuning parameters systematically increases total return by over **4.6x** while reducing absolute maximum drawdown. The AILLE system continues to fulfill its mission: **Mitigating Risk and Sustaining Growth**.

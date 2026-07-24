@@ -43,6 +43,7 @@
 #include "../extensions/aille_temporal_consistency.hpp"
 #include "../extensions/aille_stress_regime_override.hpp"
 #include "../extensions/aille_meta_governance.hpp"
+#include "../extensions/aille_membrane.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1939,6 +1940,45 @@ TEST(TestLayer13StressRegimeOverrideHardening) {
     ASSERT_TRUE((trace_normal_fail.steps[0].flags & (1 << 2)) != 0); // fallback_applied bit set
 }
 
+TEST(TestLayer15MembraneSizing) {
+    ASSERT_EQ(sizeof(AILLE::MembraneState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::MembraneMetrics), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ComputeEnvelopeState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::MembraneTraceStep), 64ULL);
+}
+
+TEST(TestLayer15MembraneWalkthrough) {
+    AILLE::MembraneState state{};
+    state.base_radius = 1.0f;
+
+    // Activate some facets
+    state.activations[0] = 0.5f; // DEPTH (Analytical)
+    state.activations[1] = 0.5f; // PRECISION (Analytical)
+
+    AILLE::ComputeEnvelopeState env{};
+    env.api_latency = 0.1;
+    env.rest_ws_load = 0.2;
+    env.model_eval_cost = 0.1;
+    env.runtime_stress = 0.0;
+
+    AILLE::MembraneResult res = AILLE::evaluate_membrane_governance(state, env, 42);
+
+    // Tension should be non-zero
+    ASSERT_TRUE(res.metrics.tension > 0.0);
+    // Asymmetry should be non-zero
+    ASSERT_TRUE(res.metrics.asymmetry_index > 0.0);
+
+    // Compute stress = 0.3 * 0.1 + 0.3 * 0.2 + 0.2 * 0.1 + 0.2 * 0.0 = 0.11
+    // Clamp factor = 1.0 - 0.11 = 0.89
+    ASSERT_FLOAT_EQ(res.metrics.compute_envelope_state, 0.89);
+    ASSERT_FLOAT_EQ(res.envelope.clamp_exposure, 0.89);
+
+    // Trace step should contain transition symbol and timestep
+    ASSERT_EQ(res.trace.step_count, 1ULL);
+    ASSERT_EQ(res.trace.steps[0].timestep, 42ULL);
+    ASSERT_TRUE(std::strcmp(res.trace.steps[0].transition_symbol, "LDE:ANALYTICAL") == 0);
+}
+
 TEST(TestLayer14MetaGovernanceLockHardening) {
     // 1. Determinism
     AILLE::ReconciledResult decision{};
@@ -2058,6 +2098,8 @@ int main() {
     RUN_TEST(TestLayer12TemporalConsistencyHardening);
     RUN_TEST(TestLayer13StressRegimeOverrideHardening);
     RUN_TEST(TestLayer14MetaGovernanceLockHardening);
+    RUN_TEST(TestLayer15MembraneSizing);
+    RUN_TEST(TestLayer15MembraneWalkthrough);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

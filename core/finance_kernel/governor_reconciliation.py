@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Don Michael Feeney Jr
 # License: MIT (see LICENSE)
-"""Layer 10 — Multi‑Governor Reconciliation Engine (Finance Runtime Kernel)."""
+"""Layer 10 — Multi‑Governor Reconciliation Engine (Finance Runtime Kernel) with Lyapunov Stability."""
+
+import math
 
 # ============================================================================
 # VERSIONING & CONSTANTS
@@ -61,9 +63,11 @@ class ReconciliationResidual:
         self.residual_value = float(residual_value)
 
 class ReconciledResultSummary:
-    def __init__(self, total_residual: float = 0.0, trace_count: int = 0):
+    def __init__(self, total_residual: float = 0.0, trace_count: int = 0, lyapunov_energy: float = 0.0, tension: float = 0.0):
         self.total_residual = float(total_residual)
         self.trace_count = int(trace_count)
+        self.lyapunov_energy = float(lyapunov_energy)
+        self.tension = float(tension)
 
 class ReconciledResult:
     def __init__(self):
@@ -86,8 +90,19 @@ def get_governor_weight(gov_type: int) -> float:
     }
     return weights.get(gov_type, 0.0)
 
+def get_governor_phase_angle(gov_type: int) -> float:
+    TWO_PI_5 = 1.2566370614359172
+    phase_indices = {
+        GovernorType.COMPLIANCE: 0.0,
+        GovernorType.RISK:       1.0,
+        GovernorType.LIQUIDITY:  2.0,
+        GovernorType.RETURN:     3.0,
+        GovernorType.STRATEGY:   4.0
+    }
+    return phase_indices.get(gov_type, 0.0) * TWO_PI_5
+
 def reconcile_governors(proposals: list, asset_id: int) -> ReconciledResult:
-    """Pure functional Multi-Governor Reconciliation matching C++ exactly."""
+    """Pure functional Multi-Governor Reconciliation matching C++ exactly, with Lyapunov-style stability."""
     result = ReconciledResult()
     result.decision.asset_id = asset_id
     result.residual.asset_id = asset_id
@@ -95,6 +110,8 @@ def reconcile_governors(proposals: list, asset_id: int) -> ReconciledResult:
     if not proposals:
         result.decision.resolved_type = GovernorType.STRATEGY
         result.decision.final_value = 0.0
+        result.summary.lyapunov_energy = 0.0
+        result.summary.tension = 0.0
         return result
 
     # Find relevant proposals for this asset
@@ -104,9 +121,14 @@ def reconcile_governors(proposals: list, asset_id: int) -> ReconciledResult:
     ret_prop = None
     strat_prop = None
 
+    max_abs_val = 0.0
+
     for prop in proposals:
         if prop.asset_id != asset_id:
             continue
+        abs_val = abs(prop.proposed_value)
+        if abs_val > max_abs_val:
+            max_abs_val = abs_val
         g_type = prop.governor_type
         if g_type == GovernorType.COMPLIANCE:
             comp_prop = prop
@@ -205,6 +227,51 @@ def reconcile_governors(proposals: list, asset_id: int) -> ReconciledResult:
         else:
             add_trace_step(GovernorType.COMPLIANCE, 0, comp_prop.proposed_value, current_val, "Compliance pass")
 
+    # ============================================================================
+    # LYAPUNOV STABILIZATION & TENSION MAPPING
+    # ============================================================================
+    Tx = 0.0
+    Ty = 0.0
+
+    if comp_prop:
+        theta = get_governor_phase_angle(GovernorType.COMPLIANCE)
+        Tx += comp_prop.proposed_value * math.cos(theta)
+        Ty += comp_prop.proposed_value * math.sin(theta)
+    if risk_prop:
+        theta = get_governor_phase_angle(GovernorType.RISK)
+        Tx += risk_prop.proposed_value * math.cos(theta)
+        Ty += risk_prop.proposed_value * math.sin(theta)
+    if liq_prop:
+        theta = get_governor_phase_angle(GovernorType.LIQUIDITY)
+        Tx += liq_prop.proposed_value * math.cos(theta)
+        Ty += liq_prop.proposed_value * math.sin(theta)
+    if ret_prop:
+        theta = get_governor_phase_angle(GovernorType.RETURN)
+        Tx += ret_prop.proposed_value * math.cos(theta)
+        Ty += ret_prop.proposed_value * math.sin(theta)
+    if strat_prop:
+        theta = get_governor_phase_angle(GovernorType.STRATEGY)
+        Tx += strat_prop.proposed_value * math.cos(theta)
+        Ty += strat_prop.proposed_value * math.sin(theta)
+
+    tension = math.sqrt(Tx * Tx + Ty * Ty)
+
+    sum_weighted_sq_diff = 0.0
+    for prop in proposals:
+        if prop.asset_id != asset_id:
+            continue
+        w = get_governor_weight(prop.governor_type)
+        diff = prop.proposed_value - current_val
+        sum_weighted_sq_diff += w * (diff * diff)
+
+    lyapunov_energy = (tension * tension) + (0.5 * sum_weighted_sq_diff)
+
+    lyapunov_threshold = max(100.0, 10.0 * max_abs_val * max_abs_val)
+    if lyapunov_energy > lyapunov_threshold:
+        multiplier = lyapunov_threshold / lyapunov_energy
+        current_val = current_val * multiplier
+        add_trace_step(GovernorType.COMPLIANCE, 4, current_val / multiplier, current_val, "Lyapunov energy damping applied")
+
     result.decision.final_value = current_val
     result.decision.resolved_type = resolved_type
     result.decision.flags_applied = flags_applied
@@ -221,5 +288,7 @@ def reconcile_governors(proposals: list, asset_id: int) -> ReconciledResult:
     result.residual.residual_value = total_residual
     result.summary.total_residual = total_residual
     result.summary.trace_count = len(result.trace_steps)
+    result.summary.lyapunov_energy = lyapunov_energy
+    result.summary.tension = tension
 
     return result

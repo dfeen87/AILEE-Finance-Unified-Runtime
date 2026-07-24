@@ -8,7 +8,10 @@
 
 #include "external/httplib.h"
 #include "aille_rest_api.hpp"
+#include "aille_membrane.hpp"
 #include <iostream>
+#include <ctime>
+#include <cmath>
 
 namespace AILLE {
 
@@ -18,6 +21,52 @@ RestAPIServer::~RestAPIServer() {
         delete server_;
         server_ = nullptr;
     }
+}
+
+static void update_membrane_from_signals(const std::vector<ModelSignal>& signals) {
+    MembraneResult latest = get_latest_membrane_result();
+    MembraneState state = latest.state;
+    // If state is uninitialized (base_radius is 0), set some base defaults
+    if (state.base_radius == 0.0f) {
+        state.base_radius = 1.0f;
+    }
+
+    // Dynamically excite some facets based on signal patterns
+    float avg_confidence = 0.0f;
+    float avg_value = 0.0f;
+    if (!signals.empty()) {
+        float sum_conf = 0.0f;
+        float sum_val = 0.0f;
+        for (const auto& sig : signals) {
+            sum_conf += sig.confidence;
+            sum_val += std::abs(sig.value);
+        }
+        avg_confidence = sum_conf / signals.size();
+        avg_value = sum_val / signals.size();
+    }
+
+    // Decay previous activations to show dynamic behavior
+    for (int i = 0; i < 12; ++i) {
+        state.activations[i] *= 0.85f; // decay factor
+    }
+
+    // Map signal properties to facets
+    state.activations[0] += avg_confidence * 0.5f; // DEPTH gets excited by confidence
+    state.activations[1] += avg_value * 0.5f;      // PRECISION gets excited by signal magnitudes
+    state.activations[3] += 0.1f;                 // INITIATIVE constant excitation
+    state.activations[8] += 0.15f;                // TECHNICAL_DETAIL
+
+    // Simulate compute envelope inputs
+    ComputeEnvelopeState env{};
+    env.api_latency = 0.05 + 0.02 * std::sin(std::time(nullptr) * 0.1);
+    env.rest_ws_load = 0.1 + 0.05 * std::cos(std::time(nullptr) * 0.05);
+    env.model_eval_cost = 0.08;
+    env.runtime_stress = (avg_value > 0.5) ? 0.3 : 0.05;
+
+    // Timestep based on time
+    uint32_t ts = static_cast<uint32_t>(std::time(nullptr));
+
+    evaluate_membrane_governance(state, env, ts);
 }
 
 void RestAPIServer::setupRoutes(httplib::Server& svr) {
@@ -37,9 +86,55 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
         json << "  \"endpoints\": {\n";
         json << "    \"GET /health\": \"Health check\",\n";
         json << "    \"GET /api/info\": \"API information\",\n";
+        json << "    \"GET /api/membrane\": \"Get Layer 15 membrane state and compute envelope\",\n";
         json << "    \"POST /api/decision\": \"Make a decision based on model signals\"\n";
         json << "  }\n";
         json << "}";
+        res.set_content(json.str(), "application/json");
+        res.status = 200;
+    });
+
+    // Layer 15 Membrane state and metrics endpoint
+    svr.Get("/api/membrane", [](const httplib::Request&, httplib::Response& res) {
+        MembraneResult result = get_latest_membrane_result();
+        // Fallback initialization if uninitialized
+        if (result.state.base_radius == 0.0f) {
+            result.state.base_radius = 1.0f;
+            result.state.activations[0] = 0.2f;
+            result.state.activations[1] = 0.3f;
+            result.state.activations[8] = 0.1f;
+            ComputeEnvelopeState env{};
+            env.api_latency = 0.05;
+            env.rest_ws_load = 0.1;
+            env.model_eval_cost = 0.08;
+            result = evaluate_membrane_governance(result.state, env, 1);
+        }
+
+        std::ostringstream json;
+        json << "{\n";
+        json << "  \"asymmetry_index\": " << result.metrics.asymmetry_index << ",\n";
+        json << "  \"max_curvature\": " << result.metrics.max_curvature << ",\n";
+        json << "  \"mean_curvature\": " << result.metrics.mean_curvature << ",\n";
+        json << "  \"lyapunov_energy\": " << result.metrics.lyapunov_energy << ",\n";
+        json << "  \"tension\": " << result.metrics.tension << ",\n";
+        json << "  \"compute_envelope_state\": " << result.metrics.compute_envelope_state << ",\n";
+
+        json << "  \"activations\": [\n    ";
+        for (int i = 0; i < 12; ++i) {
+            json << result.state.activations[i];
+            if (i < 11) json << ", ";
+        }
+        json << "\n  ],\n";
+
+        json << "  \"envelope\": {\n";
+        json << "    \"api_latency\": " << result.envelope.api_latency << ",\n";
+        json << "    \"rest_ws_load\": " << result.envelope.rest_ws_load << ",\n";
+        json << "    \"model_eval_cost\": " << result.envelope.model_eval_cost << ",\n";
+        json << "    \"runtime_stress\": " << result.envelope.runtime_stress << ",\n";
+        json << "    \"clamp_exposure\": " << result.envelope.clamp_exposure << "\n";
+        json << "  }\n";
+        json << "}";
+
         res.set_content(json.str(), "application/json");
         res.status = 200;
     });
@@ -72,6 +167,9 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
             // The engine expects: makeDecision(const ModelSignal* model_signals, size_t count)
             Decision decision = engine_.makeDecision(signals.data(), signals.size());
             
+            // Update the live membrane state based on incoming signals and load
+            update_membrane_from_signals(signals);
+
             // Build and send response
             res.set_content(SimpleJSON::buildDecisionResponse(decision), "application/json");
             res.status = 200;
@@ -117,6 +215,12 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
         <p>Get API information and available endpoints</p>
         <pre>curl http://localhost:8080/api/info</pre>
     </div>
+
+    <div class="endpoint">
+        <h3>GET /api/membrane</h3>
+        <p>Get Layer 15 deformable membrane state and compute envelope metrics</p>
+        <pre>curl http://localhost:8080/api/membrane</pre>
+    </div>
     
     <div class="endpoint">
         <h3>POST /api/decision</h3>
@@ -143,6 +247,7 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
         <li>✅ Automatic fallback mechanisms</li>
         <li>✅ Full audit trail</li>
         <li>✅ Real-time decision-making</li>
+        <li>✅ Layer 15 Deformable Membrane Governance</li>
     </ul>
 </body>
 </html>
@@ -174,6 +279,7 @@ bool RestAPIServer::start() {
         std::cout << "  GET  http://" << host_ << ":" << port_ << "/\n";
         std::cout << "  GET  http://" << host_ << ":" << port_ << "/health\n";
         std::cout << "  GET  http://" << host_ << ":" << port_ << "/api/info\n";
+        std::cout << "  GET  http://" << host_ << ":" << port_ << "/api/membrane\n";
         std::cout << "  POST http://" << host_ << ":" << port_ << "/api/decision\n";
         std::cout << "\n";
         

@@ -3,20 +3,20 @@
 # License: MIT (see LICENSE)
 """AILLE framework update coordinator.
 
-Fetches configuration payload and executes local updates to version 9.0.0.
+Fetches configuration payload and executes local updates to version 10.0.0.
 """
 
 import sys
 import json
 import urllib.request
 
-VERSION = "9.0.0"
-FALLBACK_URL = "https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/releases/download/v9.0.0/aille_runtime_v9.0.0.tar.gz"
+VERSION = "10.0.0"
+FALLBACK_URL = "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v10.0.0/aille_runtime_v10.0.0.tar.gz"
 
 def main():
     print(f"--- AILLE Framework Update Service v{VERSION} ---")
     print(f"Fallback Payload URL: {FALLBACK_URL}")
-    print("Checking update registry... Registry matches target version 9.0.0.")
+    print("Checking update registry... Registry matches target version 10.0.0.")
     print("No further updates required.")
 
 if __name__ == "__main__":

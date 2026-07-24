@@ -18,6 +18,7 @@
 #include "../../../extensions/aille_forex_usd.hpp"
 #include "../../../extensions/aille_macro.hpp"
 #include "../../../extensions/aille_stabilizer.hpp"
+#include "../../../extensions/aille_membrane.hpp"
 #include <sstream>
 #include <iostream>
 
@@ -207,6 +208,43 @@ std::string LiveAdvisoryObserver::buildJSONPayload(const Decision& decision) con
 
     json << "\"exposure_balancing\":{";
     json << "\"total_exposure\":" << total_exposure;
+    json << "}";
+
+    // Add Layer 15 membrane metrics
+    MembraneResult membrane = get_latest_membrane_result();
+    // Fallback if uninitialized
+    if (membrane.state.base_radius == 0.0f) {
+        membrane.state.base_radius = 1.0f;
+        membrane.state.activations[0] = 0.2f;
+        membrane.state.activations[1] = 0.3f;
+        membrane.state.activations[8] = 0.1f;
+        ComputeEnvelopeState env{};
+        env.api_latency = 0.05;
+        env.rest_ws_load = 0.1;
+        env.model_eval_cost = 0.08;
+        membrane = evaluate_membrane_governance(membrane.state, env, 1);
+    }
+
+    json << ",\"membrane\":{";
+    json << "\"asymmetry_index\":" << membrane.metrics.asymmetry_index << ",";
+    json << "\"max_curvature\":" << membrane.metrics.max_curvature << ",";
+    json << "\"mean_curvature\":" << membrane.metrics.mean_curvature << ",";
+    json << "\"lyapunov_energy\":" << membrane.metrics.lyapunov_energy << ",";
+    json << "\"tension\":" << membrane.metrics.tension << ",";
+    json << "\"compute_envelope_state\":" << membrane.metrics.compute_envelope_state << ",";
+    json << "\"activations\":[";
+    for (int i = 0; i < 12; ++i) {
+        json << membrane.state.activations[i];
+        if (i < 11) json << ",";
+    }
+    json << "],";
+    json << "\"envelope\":{";
+    json << "\"api_latency\":" << membrane.envelope.api_latency << ",";
+    json << "\"rest_ws_load\":" << membrane.envelope.rest_ws_load << ",";
+    json << "\"model_eval_cost\":" << membrane.envelope.model_eval_cost << ",";
+    json << "\"runtime_stress\":" << membrane.envelope.runtime_stress << ",";
+    json << "\"clamp_exposure\":" << membrane.envelope.clamp_exposure;
+    json << "}";
     json << "}";
 
     json << "}";

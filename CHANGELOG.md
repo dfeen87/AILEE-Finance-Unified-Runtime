@@ -5,6 +5,15 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.0] - 2026-06-12
+
+### Added
+- Formally introduced Layer 15 — Deterministic Deformable Membrane & Compute-Aware Governor (UFO Integration).
+- Integrated UFO-style Lyapunov reconciliation principles to Layer 10 (Multi-Governor Reconciliation Engine).
+- Implemented C++ 64-byte aligned, allocator-free structures for Layer 15 (`MembraneState`, `MembraneMetrics`, `ComputeEnvelopeState`, `MembraneTraceStep`).
+- Implemented Python equivalent modules and tests under `core/finance_kernel/membrane.py` and `tests/test_finance_kernel_membrane.py`.
+- Exposed Layer 15 metrics (asymmetry, curvature, Lyapunov energy, membrane tension, compute envelope) via new REST API endpoint `/api/membrane` and expanded WebSocket telemetry broadcasts.
+
 ## [9.0.0] - 2026-05-20
 
 ### Added
