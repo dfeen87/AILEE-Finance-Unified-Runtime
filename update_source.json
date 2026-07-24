@@ -1,6 +1,6 @@
 {
-  "version": "9.0.0",
+  "version": "10.0.0",
   "name": "aille",
   "update_channel": "production",
-  "fallback_payload_url": "https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/releases/download/v9.0.0/aille_runtime_v9.0.0.tar.gz"
+  "fallback_payload_url": "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v10.0.0/aille_runtime_v10.0.0.tar.gz"
 }

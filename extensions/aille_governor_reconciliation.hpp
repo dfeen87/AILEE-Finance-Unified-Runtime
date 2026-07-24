@@ -64,7 +64,7 @@ static_assert(sizeof(GovernorDecision) == 64, "GovernorDecision must be exactly 
 struct alignas(64) ReconciliationTraceStep {
     AssetId asset_id;        // 2 bytes
     uint8_t governor_type;   // 1 byte
-    uint8_t action_taken;    // 1 byte (0 = Accepted, 1 = Overridden, 2 = Clamped, 3 = Blocked)
+    uint8_t action_taken;    // 1 byte (0 = Accepted, 1 = Overridden, 2 = Clamped, 3 = Blocked, 4 = Damped)
     uint8_t _padding1[4];    // 4 bytes alignment
     double proposed_value;   // 8 bytes
     double interim_value;    // 8 bytes
@@ -93,7 +93,10 @@ struct ReconciliationTrace {
 struct alignas(64) ReconciledResultSummary {
     double total_residual;   // 8 bytes
     uint32_t trace_count;    // 4 bytes
-    uint8_t reserved[52];    // 52 bytes padding -> 64 bytes total
+    uint8_t _pad1[4];        // 4 bytes alignment
+    double lyapunov_energy;  // 8 bytes
+    double tension;          // 8 bytes
+    uint8_t reserved[32];    // 32 bytes padding -> 64 bytes total
 };
 static_assert(sizeof(ReconciledResultSummary) == 64, "ReconciledResultSummary must be exactly 64 bytes");
 

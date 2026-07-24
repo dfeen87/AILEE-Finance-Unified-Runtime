@@ -43,7 +43,8 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_portfolio_constraints.cpp \
            extensions/aille_temporal_consistency.cpp \
            extensions/aille_stress_regime_override.cpp \
-           extensions/aille_meta_governance.cpp
+           extensions/aille_meta_governance.cpp \
+           extensions/aille_membrane.cpp
 
 EXT_SRCS_WITH_AUDIT = $(EXT_SRCS) aille_audit.cpp
 
@@ -81,7 +82,7 @@ check_deps:
 	@printf "$(COLOR_GREEN)✓ Dependencies verified.$(COLOR_RESET)\n"
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo; then \
@@ -98,7 +99,7 @@ debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@echo ""
 
 rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp aille.hpp $(EXT_SRCS)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp $(EXT_SRCS) -o rest_api_server; then \
@@ -172,7 +173,7 @@ pilgrimage_demo: examples/v7_8_pilgrimage_demo.cpp \
 	@echo ""
 
 test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(UNIT_TESTS_SRC) $(EXT_SRCS_WITH_AUDIT) -o test_suite; then \
@@ -183,7 +184,7 @@ test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	fi
 
 benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(BENCHMARK_SRC) $(EXT_SRCS_WITH_AUDIT) -o benchmark; then \
@@ -194,7 +195,7 @@ benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	fi
 
 dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp $(EXT_SRCS_WITH_AUDIT) -o dashboard_server; then \
@@ -205,7 +206,7 @@ dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/
 	fi
 
 websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/websocket_server.cpp extensions/aille_websocket.cpp $(EXT_SRCS_WITH_AUDIT) -o websocket_server; then \
@@ -216,7 +217,7 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 	fi
 
 release:
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v9.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v10.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory demo
@@ -244,11 +245,11 @@ release:
 			exit 1; \
 		fi; \
 	done
-	@echo "9.0.0" > release/VERSION
-	@printf "$(COLOR_GREEN)✓ Stamped Version: 9.0.0$(COLOR_RESET)\n"
+	@echo "10.0.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 10.0.0$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
-	@printf "$(COLOR_GREEN)AILEE CORE v9.0.0 Release Package Ready.$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v10.0.0 Release Package Ready.$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:
@@ -259,10 +260,10 @@ clean:
 	@echo "✓ Cleaned build artifacts"
 
 install: aille.hpp
-	@echo "Installing AILLE v9.0.0 Framework..."
+	@echo "Installing AILLE v10.0.0 Framework..."
 	@echo "Copying headers to system path..."
 	sudo cp aille.hpp /usr/local/include/
-	@echo "✓ Header installed (Version 9.0.0)"
+	@echo "✓ Header installed (Version 10.0.0)"
 
 uninstall:
 	sudo rm -f /usr/local/include/aille.hpp

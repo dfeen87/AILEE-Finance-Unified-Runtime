@@ -17,6 +17,20 @@ static double get_governor_weight(GovernorType type) {
     return 0.0;
 }
 
+// Phase angles for the 5 governors on a 5-star circle (in radians)
+static double get_governor_phase_angle(GovernorType type) {
+    // 2 * M_PI / 5 is approx 1.2566370614
+    static constexpr double TWO_PI_5 = 1.2566370614359172;
+    switch (type) {
+        case GovernorType::COMPLIANCE: return 0.0 * TWO_PI_5;
+        case GovernorType::RISK:       return 1.0 * TWO_PI_5;
+        case GovernorType::LIQUIDITY:  return 2.0 * TWO_PI_5;
+        case GovernorType::RETURN:     return 3.0 * TWO_PI_5;
+        case GovernorType::STRATEGY:   return 4.0 * TWO_PI_5;
+    }
+    return 0.0;
+}
+
 ReconciledResult reconcile_governors(
     const std::vector<GovernorProposal>& proposals,
     AssetId asset_id
@@ -28,6 +42,8 @@ ReconciledResult reconcile_governors(
     if (proposals.empty()) {
         result.decision.resolved_type = static_cast<uint8_t>(GovernorType::STRATEGY);
         result.decision.final_value = 0.0;
+        result.summary.lyapunov_energy = 0.0;
+        result.summary.tension = 0.0;
         return result;
     }
 
@@ -38,9 +54,15 @@ ReconciledResult reconcile_governors(
     const GovernorProposal* ret_prop = nullptr;
     const GovernorProposal* strat_prop = nullptr;
 
+    double max_abs_val = 0.0;
+
     for (const auto& prop : proposals) {
         if (prop.asset_id != asset_id) {
             continue;
+        }
+        double abs_val = std::abs(prop.proposed_value);
+        if (abs_val > max_abs_val) {
+            max_abs_val = abs_val;
         }
         switch (static_cast<GovernorType>(prop.governor_type)) {
             case GovernorType::COMPLIANCE: comp_prop = &prop; break;
@@ -169,6 +191,63 @@ ReconciledResult reconcile_governors(
         }
     }
 
+    // ============================================================================
+    // LYAPUNOV STABILIZATION & TENSION MAPPING
+    // ============================================================================
+    double Tx = 0.0;
+    double Ty = 0.0;
+
+    // Add phase components for active proposals
+    if (comp_prop) {
+        double theta = get_governor_phase_angle(GovernorType::COMPLIANCE);
+        Tx += comp_prop->proposed_value * std::cos(theta);
+        Ty += comp_prop->proposed_value * std::sin(theta);
+    }
+    if (risk_prop) {
+        double theta = get_governor_phase_angle(GovernorType::RISK);
+        Tx += risk_prop->proposed_value * std::cos(theta);
+        Ty += risk_prop->proposed_value * std::sin(theta);
+    }
+    if (liq_prop) {
+        double theta = get_governor_phase_angle(GovernorType::LIQUIDITY);
+        Tx += liq_prop->proposed_value * std::cos(theta);
+        Ty += liq_prop->proposed_value * std::sin(theta);
+    }
+    if (ret_prop) {
+        double theta = get_governor_phase_angle(GovernorType::RETURN);
+        Tx += ret_prop->proposed_value * std::cos(theta);
+        Ty += ret_prop->proposed_value * std::sin(theta);
+    }
+    if (strat_prop) {
+        double theta = get_governor_phase_angle(GovernorType::STRATEGY);
+        Tx += strat_prop->proposed_value * std::cos(theta);
+        Ty += strat_prop->proposed_value * std::sin(theta);
+    }
+
+    double tension = std::sqrt(Tx * Tx + Ty * Ty);
+
+    // Compute Lyapunov energy V
+    double sum_weighted_sq_diff = 0.0;
+    for (const auto& prop : proposals) {
+        if (prop.asset_id != asset_id) {
+            continue;
+        }
+        double w = get_governor_weight(static_cast<GovernorType>(prop.governor_type));
+        double diff = prop.proposed_value - current_val;
+        sum_weighted_sq_diff += w * (diff * diff);
+    }
+
+    double lyapunov_energy = (tension * tension) + (0.5 * sum_weighted_sq_diff);
+
+    // Scale-invariant Lyapunov Damping threshold
+    double lyapunov_threshold = std::max(100.0, 10.0 * max_abs_val * max_abs_val);
+    if (lyapunov_energy > lyapunov_threshold) {
+        double multiplier = lyapunov_threshold / lyapunov_energy;
+        double damped_val = current_val * multiplier;
+        current_val = damped_val;
+        log_step(GovernorType::COMPLIANCE, 4, current_val / multiplier, current_val, "Lyapunov energy damping applied");
+    }
+
     // Assign final decision values
     result.decision.final_value = current_val;
     result.decision.resolved_type = resolved_type;
@@ -188,6 +267,8 @@ ReconciledResult reconcile_governors(
     result.residual.residual_value = total_residual;
     result.summary.total_residual = total_residual;
     result.summary.trace_count = static_cast<uint32_t>(result.trace.step_count);
+    result.summary.lyapunov_energy = lyapunov_energy;
+    result.summary.tension = tension;
 
     return result;
 }
