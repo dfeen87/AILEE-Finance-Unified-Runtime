@@ -3,7 +3,7 @@
  * AI-Load Integrity and Layered Evaluation
  *
  * Copyright (c) 2026 DonMichael Feeney Jr
- * License: MIT (see LICENSE)
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  */
 
 #include "../aille.hpp"

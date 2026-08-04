@@ -5,7 +5,7 @@
  * REST API for decision evaluation + telemetry heartbeat
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: MIT
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  */
 
 #include "aille.hpp"

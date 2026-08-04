@@ -3,7 +3,7 @@
  * Cryptographic logging and regulatory reporting
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: MIT (see LICENSE)
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  *
  * Provides immutable audit trail for all AILLE decisions
  * Compatible with SEC, EU AI Act, and MiFID II requirements

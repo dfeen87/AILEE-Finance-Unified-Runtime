@@ -3,7 +3,7 @@
  * Lock-free atomic counters (per-core sharded), OTel + Prometheus export plane,
  * and real-time health stream (ring-buffer snapshot channel).
  *
- * License: MIT (see LICENSE)
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  * Copyright (c) 2026 Don Michael Feeney Jr
  */
 

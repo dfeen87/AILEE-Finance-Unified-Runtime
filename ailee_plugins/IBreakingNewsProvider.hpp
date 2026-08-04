@@ -2,7 +2,7 @@
  * AILLE Plugin Interface — IBreakingNewsProvider
  * AI-Load Integrity and Layered Evaluation
  *
- * MIT License
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  *
  * Optional passive news-enrichment interface for trading alerts. Providers may
  * integrate licensed feeds, RSS bridges, or webhook-fed caches from major news
