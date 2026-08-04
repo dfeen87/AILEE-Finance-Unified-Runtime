@@ -5,7 +5,7 @@
  * Advisory-only deterministic risk evaluation for USD FX behavior.
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: MIT (see LICENSE)
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  */
 
 #include "../aille.hpp"

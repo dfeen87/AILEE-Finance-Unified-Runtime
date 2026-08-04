@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Don Michael Feeney Jr
-# License: MIT (see LICENSE)
+# Licensed under the PolyForm Noncommercial License 1.0.0
 """Unit tests for Layer 14 — Deterministic Meta‑Governance Lock."""
 
 import pytest

@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Don Michael Feeney Jr
-# License: MIT (see LICENSE)
+# Licensed under the PolyForm Noncommercial License 1.0.0
 """Layer 8 — Cross-Asset Deterministic Arbitration Layer."""
 
 import math

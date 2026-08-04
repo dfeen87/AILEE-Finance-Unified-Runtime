@@ -2,7 +2,7 @@
  * AILLE Metrics Extension – Minimal Integration Example
  *
  * Copyright (c) 2026 Don Michael Feeney Jr
- * License: MIT (see LICENSE)
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  *
  * Demonstrates how to observe AILLE decisions in real time
  * without modifying core decision logic.

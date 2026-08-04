@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Don Michael Feeney Jr
-# License: MIT (see LICENSE)
+# Licensed under the PolyForm Noncommercial License 1.0.0
 """AILLE framework update coordinator.
 
 Fetches configuration payload and executes local updates to version 10.0.0.

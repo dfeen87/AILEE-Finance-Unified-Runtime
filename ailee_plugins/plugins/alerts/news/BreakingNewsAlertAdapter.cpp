@@ -2,7 +2,7 @@
  * AILLE Plugin — BreakingNewsAlertAdapter (passive alerts only)
  * AI-Load Integrity and Layered Evaluation
  *
- * MIT License
+ * Licensed under the PolyForm Noncommercial License 1.0.0
  *
  * Optional alert adapter/decorator that enriches BUY/SELL/HOLD alerts with
  * cached breaking-news context from licensed or caller-provided news feeds.
