@@ -4,8 +4,8 @@
  *
  * Standalone advisory-only module for market stabilization and volatility governing.
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #ifndef AILLE_STABILIZER_HPP

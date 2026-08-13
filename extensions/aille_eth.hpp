@@ -5,8 +5,8 @@
  * Standalone advisory-only module for ETH volatility exposure reduction,
  * fast drawdown mitigation, and controlled growth.
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #ifndef AILLE_ETH_HPP

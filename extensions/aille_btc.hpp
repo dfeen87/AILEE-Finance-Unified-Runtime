@@ -5,8 +5,8 @@
  * Standalone advisory-only module for BTC volatility exposure reduction,
  * fast drop mitigation, and controlled growth.
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #ifndef AILLE_BTC_HPP

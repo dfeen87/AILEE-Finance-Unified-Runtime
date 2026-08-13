@@ -1,8 +1,8 @@
 /*
  * AILLE Framework - Spire WebSocket Server Example
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  *
  * This example demonstrates how to run AILLE as a WebSocket API service
  * accessible over the network for continuous Spire state broadcasting.

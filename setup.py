@@ -10,7 +10,7 @@ setup(
     url="https://github.com/dfeen87/AILEE-Finance-Unified-Runtime",
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: Other/Proprietary License",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.8",

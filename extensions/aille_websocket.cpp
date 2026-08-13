@@ -2,8 +2,8 @@
  * AILLE Framework - WebSocket API Implementation
  * WebSocket server implementation for AILLE Spire interface
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #define WEBSOCKETPP_STRICT_MASKING

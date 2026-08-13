@@ -2,7 +2,7 @@
  * AILLE Plugin Interface — ITradingAlertAdapter
  * AI-Load Integrity and Layered Evaluation
  *
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Licensed under the MIT License.
  *
  * Passive adapter interface for trading-agent alerts. Implementors transform
  * validated AILLE Decision objects into broker- or agent-specific alert

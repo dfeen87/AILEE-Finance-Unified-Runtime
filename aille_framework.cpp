@@ -2,8 +2,8 @@
  * AILLE Framework - AI-Load Integrity and Layered Evaluation
  * Production-Grade Algorithmic Trading Safety System
  *
- * Licensed under the PolyForm Noncommercial License 1.0.0
- * Copyright (c) 2026 Don Michael Feeney Jr
+ * Licensed under the MIT License.
+ * Copyright (c) Don Michael Feeney Jr.
  *
  * This file has been replaced to solely include "aille.hpp" as per rules to
  * avoid duplicate struct definitions.

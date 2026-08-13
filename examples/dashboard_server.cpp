@@ -2,8 +2,8 @@
  * AILLE Framework — Live Dashboard Server Example
  * AI-Load Integrity and Layered Evaluation
  *
- * Copyright (c) 2026 DonMichael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #include "../aille.hpp"

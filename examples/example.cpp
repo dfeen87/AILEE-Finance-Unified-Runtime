@@ -1,8 +1,8 @@
 /*
  * AILLE Framework - Complete Working Example
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  * 
  * This demonstrates plug-and-play integration in under 50 lines.
  * Just compile and run - no configuration needed.

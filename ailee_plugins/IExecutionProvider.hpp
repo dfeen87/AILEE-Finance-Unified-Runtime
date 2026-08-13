@@ -2,8 +2,8 @@
  * AILLE Plugin Interface — IExecutionProvider
  * AI-Load Integrity and Layered Evaluation
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  *
  * Stable interface for execution plugins. Implementors consume validated
  * AILLE Decision objects and route them to an order management system,

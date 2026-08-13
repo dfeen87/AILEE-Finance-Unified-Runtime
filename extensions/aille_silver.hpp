@@ -2,8 +2,8 @@
  * AILLE Framework - Commodity Risk & Growth Advisory Module (Indexed)
  * SILVER Module
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #ifndef AILLE_SILVER_HPP
