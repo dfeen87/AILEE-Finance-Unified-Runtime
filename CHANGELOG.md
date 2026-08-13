@@ -5,6 +5,14 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.1.0] - 2026-06-18
+
+### Added
+- Formally introduced Intraday Volume Advisory Module (VAM) optimized for high-volume stock index trackers (SPY and QQQ).
+- Implemented C++ 64-byte aligned, allocator-free structures for VAM (`VolumeState`, `VolumeAdvisory`, `VolumeObservabilityMetrics`).
+- Implemented Python equivalent operator module under `core/finance_kernel/volume_advisory.py` and sequential pipeline integration.
+- Added comprehensive unit test suites in C++ and Python verifying safety properties, volume anomalies, and deterministic bounds.
+
 ## [10.0.0] - 2026-06-12
 
 ### Added

@@ -32,6 +32,7 @@
 #include "../extensions/aille_natgas.hpp"
 #include "../extensions/aille_platinum.hpp"
 #include "../extensions/aille_forex_usd.hpp"
+#include "../extensions/aille_volume_advisory.hpp"
 #include "../extensions/aille_macro.hpp"
 #include "../extensions/aille_stabilizer.hpp"
 #include "../extensions/aille_lantern.hpp"
@@ -2764,6 +2765,81 @@ int main() {
 
     if (engine_forex_usd_adv.recommended_weight != 0.0f) {
         std::cerr << "FAIL: Engine integration did not correctly update ForexUSDAdvisory under kill switch.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    std::cout << "\nRunning INTRADAY VOLUME ADVISORY MODULE Tests...\n";
+
+    if (sizeof(AILLE::VolumeState) != 64) {
+        std::cerr << "FAIL: VolumeState is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::VolumeAdvisory) != 64) {
+        std::cerr << "FAIL: VolumeAdvisory is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (sizeof(AILLE::VolumeObservabilityMetrics) != 64) {
+        std::cerr << "FAIL: VolumeObservabilityMetrics is not 64 bytes.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    AILLE::VolumeState vol_state;
+    vol_state.current_volume = 1500000.0f;
+    vol_state.avg_volume = 1000000.0f;
+    vol_state.volume_anomaly_ratio = 1.5f;
+    vol_state.price_change = 0.005f;
+    vol_state.vwap_deviation = 0.002f;
+
+    safety.hardware_fault = false;
+    safety.kill_switch = false;
+
+    AILLE::VolumeAdvisory vol_adv = AILLE::evaluate_volume_state(vol_state, &safety);
+
+    if (vol_adv.risk_score < 0.0f || vol_adv.risk_score > 100.0f) {
+        std::cerr << "FAIL: Volume risk score out of bounds.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    if (!vol_adv.growth_favorable || vol_adv.risk_elevated) {
+        std::cerr << "FAIL: Volume advisory did not identify favorable growth trend.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    safety.kill_switch = true;
+    AILLE::VolumeAdvisory vol_adv_ks = AILLE::evaluate_volume_state(vol_state, &safety);
+    if (!vol_adv_ks.risk_elevated || vol_adv_ks.recommended_weight > 0.0f || vol_adv_ks.growth_favorable) {
+        std::cerr << "FAIL: Volume Advisory Module did not respect safety invariants.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    // Reset safety
+    safety.kill_switch = false;
+
+    AILLE::VolumeAdvisory engine_vol_adv;
+    engine.set_volume_state(&vol_state);
+    engine.set_volume_advisory(&engine_vol_adv);
+
+    AILLE::Decision vol_decision = engine.makeDecision(signals.data(), signals.size());
+    (void)vol_decision;
+
+    if (engine_vol_adv.recommended_weight != vol_adv.recommended_weight) {
+        std::cerr << "FAIL: Engine integration did not correctly evaluate and update VolumeAdvisory.\n";
         tests_failed++;
     } else {
         tests_run++;
