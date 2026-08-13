@@ -40,9 +40,9 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "10.0.0";
+constexpr const char* AILLE_VERSION = "10.1.0";
 constexpr int AILLE_VERSION_MAJOR = 10;
-constexpr int AILLE_VERSION_MINOR = 0;
+constexpr int AILLE_VERSION_MINOR = 1;
 constexpr int AILLE_VERSION_PATCH = 0;
 
 // ============================================================================
@@ -69,6 +69,8 @@ struct ForexUSDState;
 struct ForexUSDAdvisory;
 struct MacroSignalState;
 struct MacroSignalAdvisory;
+struct VolumeState;
+struct VolumeAdvisory;
 
 // ============================================================================
 // LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS
@@ -662,6 +664,8 @@ private:
     MacroSignalAdvisory* macro_advisory_ = nullptr;
     const MarketStabilizerState* stabilizer_state_ = nullptr;
     MarketStabilizerAdvisory* stabilizer_advisory_ = nullptr;
+    const VolumeState* volume_state_ = nullptr;
+    VolumeAdvisory* volume_advisory_ = nullptr;
 
     const StressOverrideRules* stress_rules_ = nullptr;
     const StressPortfolioState* stress_state_ = nullptr;
@@ -670,8 +674,8 @@ private:
     bool normal_safety_failed_ = false;
 
 public:
-    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr), stress_rules_(nullptr), stress_state_(nullptr), stress_baselines_(nullptr), stress_trace_(nullptr), normal_safety_failed_(false) {}
-    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr), stress_rules_(nullptr), stress_state_(nullptr), stress_baselines_(nullptr), stress_trace_(nullptr), normal_safety_failed_(false) {}
+    AILLEEngine() : fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr), volume_state_(nullptr), volume_advisory_(nullptr), stress_rules_(nullptr), stress_state_(nullptr), stress_baselines_(nullptr), stress_trace_(nullptr), normal_safety_failed_(false) {}
+    explicit AILLEEngine(const AILLEConfig& cfg) : config(cfg), fallback_head_(0), fallback_count_(0), safety_state_(nullptr), btc_state_(nullptr), btc_advisory_(nullptr), eth_state_(nullptr), eth_advisory_(nullptr), oil_state_(nullptr), oil_advisory_(nullptr), gold_state_(nullptr), gold_advisory_(nullptr), silver_state_(nullptr), silver_advisory_(nullptr), copper_state_(nullptr), copper_advisory_(nullptr), natgas_state_(nullptr), natgas_advisory_(nullptr), platinum_state_(nullptr), platinum_advisory_(nullptr), forex_usd_state_(nullptr), forex_usd_advisory_(nullptr), macro_state_(nullptr), macro_advisory_(nullptr), stabilizer_state_(nullptr), stabilizer_advisory_(nullptr), volume_state_(nullptr), volume_advisory_(nullptr), stress_rules_(nullptr), stress_state_(nullptr), stress_baselines_(nullptr), stress_trace_(nullptr), normal_safety_failed_(false) {}
     
     void setSafetyState(SafetyState* state) { safety_state_ = state; }
     void set_btc_state(BTCState* state) { btc_state_ = state; }
@@ -710,6 +714,10 @@ public:
     void set_forex_usd_advisory(ForexUSDAdvisory* advisory) { forex_usd_advisory_ = advisory; }
     void evaluate_forex_usd_advisory();
 
+    void set_volume_state(const VolumeState* state) { volume_state_ = state; }
+    void set_volume_advisory(VolumeAdvisory* advisory) { volume_advisory_ = advisory; }
+    void evaluate_volume_advisory();
+
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
     void evaluate_macro_advisory() noexcept;
@@ -734,6 +742,7 @@ public:
         evaluate_natgas_advisory();
         evaluate_platinum_advisory();
         evaluate_forex_usd_advisory();
+        evaluate_volume_advisory();
         evaluate_macro_advisory();
         evaluate_stabilizer_advisory();
 
