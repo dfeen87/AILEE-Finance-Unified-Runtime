@@ -4,7 +4,7 @@
 
 **The Algorithmic Safety System That Transforms Risk into Reliability**
 
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm_Noncommercial_1.0.0-blue.svg)](https://polyformproject.org/licenses/noncommercial/1.0.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
@@ -1233,7 +1233,7 @@ I would like to acknowledge **Microsoft Copilot** (sounding boaard for synthesis
 ---
 
 ## Enterprise Consulting and Integration
-This architecture is licensed under the PolyForm Noncommercial License 1.0.0. If your organization requires commercial usage, custom scaling, proprietary integration, or dedicated technical consulting to deploy these models at an enterprise level, please reach out at: dfeen87@gmail.com
+This architecture is licensed under the MIT License. If your organization requires custom scaling, proprietary integration, or dedicated technical consulting to deploy these models at an enterprise level, please reach out at: dfeen87@gmail.com
 
 ---
 
@@ -1257,15 +1257,4 @@ See `CONTRIBUTING.md` for guidelines (coming soon).
 
 ## ⚖️ License
 
-This project is licensed under the **PolyForm Noncommercial License 1.0.0**. See [`LICENSE`](LICENSE) for full terms.
-
-### Non-Commercial Terms Explanation
-The PolyForm Noncommercial License 1.0.0 is a source-available license that allows free usage, modification, and distribution of the software for any **non-commercial** purposes.
-
-* **Permitted Uses:**
-  - **Personal Use:** Free for research, study, experimentation, testing, hobby projects, and private entertainment, as long as there is no anticipated commercial application.
-  - **Noncommercial Organizations:** Free for use by charitable organizations, educational institutions, public research organizations, public safety/health organizations, and government institutions.
-  - **Fair Use:** Standard fair use rights under the law are fully preserved and unaffected.
-
-* **Restricted Uses:**
-  - Any **commercial use**, commercial application, resale, or distribution of this software for commercial benefit is strictly prohibited without a separate commercial license. If you require a commercial license or custom integration, please contact the licensor.
+This project is licensed under the **MIT License**. See the [`LICENSE`](LICENSE) file for full terms.

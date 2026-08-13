@@ -2,8 +2,8 @@
  * AILLE Plugin — BasicMetricsObserver (example implementation)
  * AI-Load Integrity and Layered Evaluation
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  *
  * Minimal, dependency-free example showing how an analytics plugin
  * implements IAnalyticsObserver to observe AILLE signals and decisions.

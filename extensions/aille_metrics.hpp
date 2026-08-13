@@ -2,8 +2,8 @@
  * AILLE Metrics Extension
  * Read-only observability layer for AILLE decisions
  *
- * Licensed under the PolyForm Noncommercial License 1.0.0
- * Copyright (c) 2026 Don Michael Feeney Jr
+ * Licensed under the MIT License.
+ * Copyright (c) Don Michael Feeney Jr.
  *
  * This extension adds real-time metrics and health insight
  * without modifying AILLE core logic or decision behavior.

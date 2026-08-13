@@ -2,8 +2,8 @@
  * AILLE Plugin — YahooMarketData (example implementation)
  * AI-Load Integrity and Layered Evaluation
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  *
  * Minimal, dependency-free example showing how a market-data plugin
  * implements IMarketDataSource and supplies ModelSignal objects to the

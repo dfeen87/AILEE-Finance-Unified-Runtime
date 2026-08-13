@@ -4,8 +4,8 @@
  * Deterministic, plugin-free, header-only engine
  * REST API for decision evaluation + telemetry heartbeat
  *
- * Copyright (c) 2026 Don Michael Feeney Jr
- * Licensed under the PolyForm Noncommercial License 1.0.0
+ * Copyright (c) Don Michael Feeney Jr.
+ * Licensed under the MIT License.
  */
 
 #include "aille.hpp"
