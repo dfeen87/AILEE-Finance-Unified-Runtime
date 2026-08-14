@@ -2845,6 +2845,54 @@ int main() {
         tests_run++;
     }
 
+    // Volume Advisory Stabilization & Smoothing Tests
+    AILLE::VolumeState vol_smooth_state;
+    vol_smooth_state.current_volume = 1000000.0f;
+    vol_smooth_state.avg_volume = 1000000.0f;
+    vol_smooth_state.volume_anomaly_ratio = 1.0f;
+    vol_smooth_state.prev_volume_anomaly_ratio = 5.0f; // High previous anomaly
+
+    AILLE::VolumeAdvisory vol_smooth_adv = AILLE::evaluate_volume_state(vol_smooth_state, &safety);
+    // Smoothed ratio = 0.2 * 1.0 + 0.8 * 5.0 = 4.2
+    // vol_risk = 4.2 * 15.0 = 63.0
+    if (vol_smooth_adv.risk_score < 60.0f) {
+        std::cerr << "FAIL: Volume Advisory did not apply exponential smoothing correctly.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    // MSGAM / Market Stabilizer Coupling Test
+    AILLE::MarketStabilizerAdvisory stab_coupling;
+    stab_coupling.stabilization_factor = 0.5f;
+    stab_coupling.risk_elevated = 1;
+    stab_coupling.stabilization_risk_score = 80.0f;
+
+    AILLE::VolumeAdvisory vol_stab_adv = AILLE::evaluate_volume_state(vol_state, &safety, &stab_coupling);
+    if (vol_stab_adv.recommended_weight > 0.5f || !vol_stab_adv.risk_elevated) {
+        std::cerr << "FAIL: Volume Advisory did not apply Market Stabilizer coupling correctly.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    // Temporal Step Clamping Test
+    AILLE::VolumeState vol_clamp_state;
+    vol_clamp_state.current_volume = 5000000.0f;
+    vol_clamp_state.avg_volume = 1000000.0f;
+    vol_clamp_state.volume_anomaly_ratio = 5.0f;
+    vol_clamp_state.price_change = -0.02f;
+    vol_clamp_state.prev_recommended_weight = 1.0f; // Start at 1.0, raw risk high (~100 -> weight 0.0)
+
+    AILLE::VolumeAdvisory vol_clamp_adv = AILLE::evaluate_volume_state(vol_clamp_state, &safety);
+    // Should be clamped to 1.0 - 0.15 = 0.85f
+    if (std::abs(vol_clamp_adv.recommended_weight - 0.85f) > 1e-4f) {
+        std::cerr << "FAIL: Volume Advisory did not enforce temporal step clamping correctly.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
     std::cout << "\nRunning MARKET STABILIZER (MSGAM) Tests...\n";
 
     if (sizeof(AILLE::MarketStabilizerState) != 64) {

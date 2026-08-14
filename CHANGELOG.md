@@ -5,6 +5,16 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.2.0] - 2026-06-25
+
+### Added
+- Implemented Intraday Volume Advisory Module (VAM) stabilization to smooth volume anomalies and prevent rapid, jagged adjustments.
+- Added `prev_volume_anomaly_ratio` and `prev_recommended_weight` state elements into `VolumeState` to enable robust, history-aware evaluation.
+- Coupled the Volume Advisory Module with the Market Stabilizer (MSGAM), dynamically scaling recommended weight based on systemic volatility and stress factors.
+- Enforced a strict temporal weight step-clamp (maximum change of 0.15 per update) to ensure slow and stable adjustments.
+- Implemented equivalent Python volume stabilization logic under `core/finance_kernel/volume_advisory.py`.
+- Added extensive unit tests in both C++ and Python to verify the new volume stabilization, smoothing, MSGAM coupling, and temporal step-clamping.
+
 ## [10.1.0] - 2026-06-18
 
 ### Added

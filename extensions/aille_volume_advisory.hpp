@@ -28,11 +28,15 @@ struct alignas(64) VolumeState {
     float volume_anomaly_ratio;    ///< Ratio of current_volume to avg_volume
     float price_change;            ///< (Close - Open) / (Open + epsilon) of the intraday interval
     float vwap_deviation;          ///< Percent deviation from Volume-Weighted Average Price
-    std::uint8_t _reserved_padding[64 - 5 * sizeof(float)];
+    float prev_volume_anomaly_ratio; ///< Previous interval's volume anomaly ratio
+    float prev_recommended_weight;   ///< Previous interval's recommended weight
+    std::uint8_t _reserved_padding[64 - 7 * sizeof(float)];
 
     constexpr VolumeState()
         : current_volume(0.0f), avg_volume(0.0f), volume_anomaly_ratio(0.0f),
-          price_change(0.0f), vwap_deviation(0.0f), _reserved_padding{} {}
+          price_change(0.0f), vwap_deviation(0.0f),
+          prev_volume_anomaly_ratio(0.0f), prev_recommended_weight(-1.0f),
+          _reserved_padding{} {}
 };
 static_assert(sizeof(VolumeState) == 64, "VolumeState must be exactly 64 bytes");
 
@@ -68,7 +72,8 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
 
 [[nodiscard]] constexpr VolumeAdvisory evaluate_volume_state(
     const VolumeState& state,
-    const SafetyState* safety
+    const SafetyState* safety,
+    const MarketStabilizerAdvisory* stabilizer = nullptr
 ) noexcept {
     VolumeAdvisory advisory{};
 
@@ -81,9 +86,15 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
         return advisory;
     }
 
+    // Apply exponential smoothing to volume anomaly ratio
+    float smoothed_ratio = state.volume_anomaly_ratio;
+    if (state.prev_volume_anomaly_ratio > 0.0f) {
+        smoothed_ratio = 0.2f * state.volume_anomaly_ratio + 0.8f * state.prev_volume_anomaly_ratio;
+    }
+
     // Evaluate risk based on volume anomaly ratio and price behavior/VWAP deviation
     // Highly anomalous volume accompanied by negative price drift or high deviation from VWAP increases risk.
-    float vol_risk = state.volume_anomaly_ratio * 15.0f; // e.g. an anomaly ratio of 5.0x yields 75.0% risk before constraints
+    float vol_risk = smoothed_ratio * 15.0f; // e.g. an anomaly ratio of 5.0x yields 75.0% risk before constraints
     float price_risk = (state.price_change < 0.0f) ? std::abs(state.price_change) * 200.0f : 0.0f;
     float vwap_risk = std::abs(state.vwap_deviation) * 150.0f;
 
@@ -92,10 +103,34 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
     if (raw_risk < 0.0f) raw_risk = 0.0f;
 
     advisory.risk_score = raw_risk;
-    advisory.risk_elevated = (advisory.risk_score > 60.0f) || (state.volume_anomaly_ratio > 4.0f && state.price_change < -0.01f);
-    advisory.growth_favorable = (!advisory.risk_elevated) && (state.volume_anomaly_ratio > 1.2f) && (state.price_change > 0.0f);
+    advisory.risk_elevated = (advisory.risk_score > 60.0f) || (smoothed_ratio > 4.0f && state.price_change < -0.01f);
+    advisory.growth_favorable = (!advisory.risk_elevated) && (smoothed_ratio > 1.2f) && (state.price_change > 0.0f);
 
     advisory.recommended_weight = 1.0f - (advisory.risk_score / 100.0f);
+
+    // MSGAM Coupling (Market Stabilizer)
+    if (stabilizer != nullptr) {
+        advisory.recommended_weight *= stabilizer->stabilization_factor;
+        if (stabilizer->risk_elevated) {
+            advisory.risk_elevated = true;
+            advisory.growth_favorable = false;
+            advisory.risk_score = (stabilizer->stabilization_risk_score > advisory.risk_score) ? stabilizer->stabilization_risk_score : advisory.risk_score;
+        }
+    }
+
+    if (advisory.recommended_weight > 1.0f) advisory.recommended_weight = 1.0f;
+    if (advisory.recommended_weight < 0.0f) advisory.recommended_weight = 0.0f;
+
+    // Temporal Step Clamping (Drift Control)
+    if (state.prev_recommended_weight >= 0.0f && state.prev_recommended_weight <= 1.0f) {
+        float diff = advisory.recommended_weight - state.prev_recommended_weight;
+        if (diff > 0.15f) {
+            advisory.recommended_weight = state.prev_recommended_weight + 0.15f;
+        } else if (diff < -0.15f) {
+            advisory.recommended_weight = state.prev_recommended_weight - 0.15f;
+        }
+    }
+
     if (advisory.recommended_weight > 1.0f) advisory.recommended_weight = 1.0f;
     if (advisory.recommended_weight < 0.0f) advisory.recommended_weight = 0.0f;
 
