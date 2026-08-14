@@ -40,9 +40,9 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "10.1.0";
+constexpr const char* AILLE_VERSION = "10.2.0";
 constexpr int AILLE_VERSION_MAJOR = 10;
-constexpr int AILLE_VERSION_MINOR = 1;
+constexpr int AILLE_VERSION_MINOR = 2;
 constexpr int AILLE_VERSION_PATCH = 0;
 
 // ============================================================================

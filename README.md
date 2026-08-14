@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-10.1.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-10.2.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -26,7 +26,7 @@
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
-- [v10.1.0: Deterministic Governance Stack (Layers 8–15)](#v1010--deterministic-governance-stack-layers-815)
+- [v10.2.0: Deterministic Governance Stack (Layers 8–15)](#v1010--deterministic-governance-stack-layers-815)
 - [Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
@@ -262,9 +262,9 @@ Every decision is logged with:
 
 ---
 
-## v10.1.0: Deterministic Governance Stack (Layers 8–15)
+## v10.2.0: Deterministic Governance Stack (Layers 8–15)
 
-AILLEE Version 10.1.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack** with Layer 15 UFO Deformable Membrane Governance and Lyapunov reconciliation. This stack sits above lower-level pipelines and guarantees that portfolio decisions, constraints, stress overrides, and temporal limits are reconciled and locked with absolute predictability across all platforms and runtimes.
+AILLEE Version 10.2.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack** with Layer 15 UFO Deformable Membrane Governance and Lyapunov reconciliation. This stack sits above lower-level pipelines and guarantees that portfolio decisions, constraints, stress overrides, and temporal limits are reconciled and locked with absolute predictability across all platforms and runtimes.
 
 - **Layer 8 — Deterministic Cross‑Asset Arbitration**
   Fixed-size, allocator-free arbitration engine that reconciles heterogeneous asset advisories down a versioned priority ladder (`LADDER_V1`) and canonical scaling rules (`SCALING_RULESET_V1`) without generating new market beliefs.
@@ -668,7 +668,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `10.1.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `10.2.0`).
 
 ### For Quantitative Researchers
 
