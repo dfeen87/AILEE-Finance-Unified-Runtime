@@ -40,9 +40,9 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "10.2.0";
-constexpr int AILLE_VERSION_MAJOR = 10;
-constexpr int AILLE_VERSION_MINOR = 2;
+constexpr const char* AILLE_VERSION = "11.0.0";
+constexpr int AILLE_VERSION_MAJOR = 11;
+constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
 // ============================================================================
@@ -275,6 +275,8 @@ struct AILLEConfig {
     bool enable_dynamic_fallback;
     float fallback_alpha;
     float fallback_beta;
+    bool enable_contrarian_oversold;
+    float contrarian_oversold_aggressiveness;
     const char* config_version;
 
     AILLEConfig() :
@@ -290,6 +292,8 @@ struct AILLEConfig {
         enable_dynamic_fallback(false),
         fallback_alpha(0.05f),
         fallback_beta(0.05f),
+        enable_contrarian_oversold(false),
+        contrarian_oversold_aggressiveness(1.0f),
         config_version("4.1.0") {}
 };
 

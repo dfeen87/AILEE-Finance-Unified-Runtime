@@ -14,12 +14,16 @@ class FinanceKernelConfig:
                  max_concurrent_operators: int = 4,
                  logging_level: str = "INFO",
                  strict_determinism: bool = True,
-                 json_compat_mode: bool = False):
+                 json_compat_mode: bool = False,
+                 enable_contrarian_oversold: bool = False,
+                 contrarian_oversold_aggressiveness: float = 1.0):
         self.operator_timeout = float(operator_timeout)
         self.max_concurrent_operators = int(max_concurrent_operators)
         self.logging_level = str(logging_level)
         self.strict_determinism = bool(strict_determinism)
         self.json_compat_mode = bool(json_compat_mode)
+        self.enable_contrarian_oversold = bool(enable_contrarian_oversold)
+        self.contrarian_oversold_aggressiveness = float(contrarian_oversold_aggressiveness)
 
     def load_from_env(self) -> "FinanceKernelConfig":
         """Overrides configuration values with environment variables if present."""
@@ -45,6 +49,16 @@ class FinanceKernelConfig:
         if "FINANCE_JSON_COMPAT_MODE" in os.environ:
             val = os.environ["FINANCE_JSON_COMPAT_MODE"].lower()
             self.json_compat_mode = val in ("true", "1", "yes", "on")
+
+        if "FINANCE_ENABLE_CONTRARIAN_OVERSOLD" in os.environ:
+            val = os.environ["FINANCE_ENABLE_CONTRARIAN_OVERSOLD"].lower()
+            self.enable_contrarian_oversold = val in ("true", "1", "yes", "on")
+
+        if "FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS" in os.environ:
+            try:
+                self.contrarian_oversold_aggressiveness = float(os.environ["FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS"])
+            except ValueError as e:
+                raise KernelConfigurationError(f"Invalid FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS: {e}")
 
         return self
 
@@ -97,6 +111,15 @@ class FinanceKernelConfig:
         if "json_compat_mode" in data:
             self.json_compat_mode = bool(data["json_compat_mode"])
 
+        if "enable_contrarian_oversold" in data:
+            self.enable_contrarian_oversold = bool(data["enable_contrarian_oversold"])
+
+        if "contrarian_oversold_aggressiveness" in data:
+            try:
+                self.contrarian_oversold_aggressiveness = float(data["contrarian_oversold_aggressiveness"])
+            except ValueError as e:
+                raise KernelConfigurationError(f"Invalid contrarian_oversold_aggressiveness: {e}")
+
     def to_dict(self) -> dict:
         """Serializes current configuration to a dictionary."""
         return {
@@ -104,5 +127,7 @@ class FinanceKernelConfig:
             "max_concurrent_operators": self.max_concurrent_operators,
             "logging_level": self.logging_level,
             "strict_determinism": self.strict_determinism,
-            "json_compat_mode": self.json_compat_mode
+            "json_compat_mode": self.json_compat_mode,
+            "enable_contrarian_oversold": self.enable_contrarian_oversold,
+            "contrarian_oversold_aggressiveness": self.contrarian_oversold_aggressiveness
         }

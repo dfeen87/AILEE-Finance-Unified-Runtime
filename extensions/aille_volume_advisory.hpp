@@ -30,12 +30,15 @@ struct alignas(64) VolumeState {
     float vwap_deviation;          ///< Percent deviation from Volume-Weighted Average Price
     float prev_volume_anomaly_ratio; ///< Previous interval's volume anomaly ratio
     float prev_recommended_weight;   ///< Previous interval's recommended weight
-    std::uint8_t _reserved_padding[64 - 7 * sizeof(float)];
+    bool is_index_etf;             ///< True for SPY/QQQ index ETFs (enables looser oversold thresholding)
+    std::int8_t contrarian_override; ///< 0: follow config, 1: force enable, -1: force disable
+    std::uint8_t _reserved_padding[64 - 7 * sizeof(float) - sizeof(bool) - sizeof(std::int8_t)];
 
     constexpr VolumeState()
         : current_volume(0.0f), avg_volume(0.0f), volume_anomaly_ratio(0.0f),
           price_change(0.0f), vwap_deviation(0.0f),
           prev_volume_anomaly_ratio(0.0f), prev_recommended_weight(-1.0f),
+          is_index_etf(false), contrarian_override(0),
           _reserved_padding{} {}
 };
 static_assert(sizeof(VolumeState) == 64, "VolumeState must be exactly 64 bytes");
@@ -43,13 +46,18 @@ static_assert(sizeof(VolumeState) == 64, "VolumeState must be exactly 64 bytes")
 struct alignas(64) VolumeAdvisory {
     float recommended_weight;      ///< Proportional suggested weight [0.0, 1.0]
     float risk_score;              ///< Risk classification [0.0, 100.0]
+    float oversold_score;          ///< Multi-factor oversold score [0.0, +inf)
     bool risk_elevated;            ///< True if high-risk anomalies are active
     bool growth_favorable;         ///< True if strong volume-price accumulation
-    std::uint8_t _reserved_padding[64 - 2 * sizeof(float) - 2 * sizeof(bool)];
+    bool oversold_state;           ///< True if multi-factor oversold condition triggered
+    bool contrarian_buy_signal;    ///< True if contrarian buy signal is active
+    std::uint8_t _reserved_padding[64 - 3 * sizeof(float) - 4 * sizeof(bool)];
 
     constexpr VolumeAdvisory()
-        : recommended_weight(1.0f), risk_score(0.0f), risk_elevated(false),
-          growth_favorable(true), _reserved_padding{} {}
+        : recommended_weight(1.0f), risk_score(0.0f), oversold_score(0.0f),
+          risk_elevated(false), growth_favorable(true),
+          oversold_state(false), contrarian_buy_signal(false),
+          _reserved_padding{} {}
 };
 static_assert(sizeof(VolumeAdvisory) == 64, "VolumeAdvisory must be exactly 64 bytes");
 
@@ -73,28 +81,64 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
 [[nodiscard]] constexpr VolumeAdvisory evaluate_volume_state(
     const VolumeState& state,
     const SafetyState* safety,
-    const MarketStabilizerAdvisory* stabilizer = nullptr
+    const MarketStabilizerAdvisory* stabilizer = nullptr,
+    bool enable_contrarian = false,
+    float aggressiveness = 1.0f
 ) noexcept {
     VolumeAdvisory advisory{};
 
-    // Handle safety conditions (kill switch or hardware faults)
+    // 1. Safety precedence: Hardware faults or kill switches immediately override and yield zero weight
     if (safety && (safety->hardware_fault || safety->kill_switch)) {
         advisory.recommended_weight = 0.0f;
         advisory.risk_score = 100.0f;
         advisory.risk_elevated = true;
         advisory.growth_favorable = false;
+        advisory.oversold_score = 0.0f;
+        advisory.oversold_state = false;
+        advisory.contrarian_buy_signal = false;
         return advisory;
     }
 
-    // Apply exponential smoothing to volume anomaly ratio
+    // Exponential smoothing on volume anomaly ratio
     float smoothed_ratio = state.volume_anomaly_ratio;
     if (state.prev_volume_anomaly_ratio > 0.0f) {
         smoothed_ratio = 0.2f * state.volume_anomaly_ratio + 0.8f * state.prev_volume_anomaly_ratio;
     }
 
-    // Evaluate risk based on volume anomaly ratio and price behavior/VWAP deviation
-    // Highly anomalous volume accompanied by negative price drift or high deviation from VWAP increases risk.
-    float vol_risk = smoothed_ratio * 15.0f; // e.g. an anomaly ratio of 5.0x yields 75.0% risk before constraints
+    // Compute Multi-Factor Oversold Score
+    float norm_price = (-state.price_change - 0.007f) / 0.015f;
+    if (norm_price < 0.0f) norm_price = 0.0f;
+
+    float norm_vwap = (-state.vwap_deviation - 0.005f) / 0.015f;
+    if (norm_vwap < 0.0f) norm_vwap = 0.0f;
+
+    float norm_vol = (smoothed_ratio - 1.5f) / 2.0f;
+    if (norm_vol < 0.0f) norm_vol = 0.0f;
+
+    advisory.oversold_score = (0.4f * norm_price + 0.3f * norm_vwap + 0.3f * norm_vol) * aggressiveness;
+
+    // Conditions A and B
+    bool cond_a = (state.price_change <= -0.012f) && (state.vwap_deviation <= -0.008f) && (smoothed_ratio >= 2.5f);
+    bool cond_b = (state.price_change <= -0.007f) && (state.vwap_deviation <= -0.005f) && (smoothed_ratio >= 1.8f);
+
+    if (state.is_index_etf) {
+        advisory.oversold_state = (advisory.oversold_score >= 0.6f) || cond_a || cond_b;
+    } else {
+        advisory.oversold_state = (advisory.oversold_score >= 1.0f) || cond_a;
+    }
+
+    // Determine effective contrarian enabling
+    bool contrarian_active = enable_contrarian;
+    if (state.contrarian_override == 1) {
+        contrarian_active = true;
+    } else if (state.contrarian_override == -1) {
+        contrarian_active = false;
+    }
+
+    advisory.contrarian_buy_signal = contrarian_active && advisory.oversold_state;
+
+    // Honest baseline risk score calculation
+    float vol_risk = smoothed_ratio * 15.0f;
     float price_risk = (state.price_change < 0.0f) ? std::abs(state.price_change) * 200.0f : 0.0f;
     float vwap_risk = std::abs(state.vwap_deviation) * 150.0f;
 
@@ -108,7 +152,16 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
 
     advisory.recommended_weight = 1.0f - (advisory.risk_score / 100.0f);
 
-    // MSGAM Coupling (Market Stabilizer)
+    // Apply Contrarian Weight Multiplier if contrarian buy signal active
+    if (advisory.contrarian_buy_signal) {
+        float multiplier = 1.15f;
+        if (advisory.oversold_score >= 0.9f || cond_a) {
+            multiplier = 1.30f;
+        }
+        advisory.recommended_weight *= multiplier;
+    }
+
+    // Market Stabilizer (MSGAM) Coupling & Clamping
     if (stabilizer != nullptr) {
         advisory.recommended_weight *= stabilizer->stabilization_factor;
         if (stabilizer->risk_elevated) {

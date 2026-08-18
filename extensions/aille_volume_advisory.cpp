@@ -17,7 +17,7 @@ namespace AILLE {
 
 void AILLEEngine::evaluate_volume_advisory() {
     if (volume_state_ != nullptr && volume_advisory_ != nullptr) {
-        *volume_advisory_ = evaluate_volume_state(*volume_state_, safety_state_);
+        *volume_advisory_ = evaluate_volume_state(*volume_state_, safety_state_, stabilizer_advisory_, config.enable_contrarian_oversold, config.contrarian_oversold_aggressiveness);
     }
 }
 

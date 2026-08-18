@@ -2893,6 +2893,33 @@ int main() {
         tests_run++;
     }
 
+    // Volume Advisory Contrarian Oversold Tests
+    AILLE::VolumeState vol_oversold_state;
+    vol_oversold_state.current_volume = 3000000.0f;
+    vol_oversold_state.avg_volume = 1000000.0f;
+    vol_oversold_state.volume_anomaly_ratio = 3.0f;
+    vol_oversold_state.price_change = -0.015f;
+    vol_oversold_state.vwap_deviation = -0.010f;
+    vol_oversold_state.is_index_etf = true;
+
+    AILLE::VolumeAdvisory vol_contrarian_adv = AILLE::evaluate_volume_state(vol_oversold_state, &safety, nullptr, true, 1.0f);
+    if (!vol_contrarian_adv.oversold_state || !vol_contrarian_adv.contrarian_buy_signal) {
+        std::cerr << "FAIL: Volume Advisory did not trigger contrarian buy signal for index ETF.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
+    // Contrarian runtime override test
+    vol_oversold_state.contrarian_override = -1; // Force disable
+    AILLE::VolumeAdvisory vol_override_dis_adv = AILLE::evaluate_volume_state(vol_oversold_state, &safety, nullptr, true, 1.0f);
+    if (!vol_override_dis_adv.oversold_state || vol_override_dis_adv.contrarian_buy_signal) {
+        std::cerr << "FAIL: Volume Advisory did not respect contrarian force-disable override.\n";
+        tests_failed++;
+    } else {
+        tests_run++;
+    }
+
     std::cout << "\nRunning MARKET STABILIZER (MSGAM) Tests...\n";
 
     if (sizeof(AILLE::MarketStabilizerState) != 64) {
