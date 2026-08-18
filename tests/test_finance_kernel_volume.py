@@ -146,3 +146,77 @@ def test_volume_operator_temporal_step_clamping():
     data = result.data
     # Should clamp step shift from 1.0 down to 1.0 - 0.15 = 0.85
     assert abs(data["recommended_weight"] - 0.85) < 1e-4
+
+def test_volume_operator_contrarian_oversold_index_etf():
+    context = FinanceKernelContext(ledger_id="test-ledger", session_id="test-session")
+    config = FinanceKernelConfig(enable_contrarian_oversold=True)
+    registry = create_default_registry()
+    kernel = FinanceRuntimeKernel(context, config, registry)
+
+    # Condition A strong oversold for SPY
+    input_data = {
+        "symbol": "SPY",
+        "current_volume": 3000000.0,
+        "avg_volume": 1000000.0,
+        "price_change": -0.015,
+        "vwap_deviation": -0.010
+    }
+
+    result = kernel.execute_operator("volume_operator", input_data)
+    assert result.status == "SUCCESS"
+    data = result.data
+    assert data["oversold_state"] is True
+    assert data["contrarian_buy_signal"] is True
+    assert data["oversold_score"] > 0.5
+
+def test_volume_operator_contrarian_override():
+    context = FinanceKernelContext(ledger_id="test-ledger", session_id="test-session")
+    config = FinanceKernelConfig(enable_contrarian_oversold=False)
+    registry = create_default_registry()
+    kernel = FinanceRuntimeKernel(context, config, registry)
+
+    input_data = {
+        "symbol": "QQQ",
+        "current_volume": 3000000.0,
+        "avg_volume": 1000000.0,
+        "price_change": -0.015,
+        "vwap_deviation": -0.010,
+        "contrarian_override": 1 # Force enable
+    }
+
+    result = kernel.execute_operator("volume_operator", input_data)
+    assert result.status == "SUCCESS"
+    data = result.data
+    assert data["oversold_state"] is True
+    assert data["contrarian_buy_signal"] is True
+
+    # Test force disable
+    input_data["contrarian_override"] = -1
+    result2 = kernel.execute_operator("volume_operator", input_data)
+    assert result2.data["oversold_state"] is True
+    assert result2.data["contrarian_buy_signal"] is False
+
+def test_volume_operator_contrarian_safety_precedence():
+    context = FinanceKernelContext(
+        ledger_id="test-ledger",
+        session_id="test-session",
+        metadata={"kill_switch": True}
+    )
+    config = FinanceKernelConfig(enable_contrarian_oversold=True)
+    registry = create_default_registry()
+    kernel = FinanceRuntimeKernel(context, config, registry)
+
+    input_data = {
+        "symbol": "SPY",
+        "current_volume": 3000000.0,
+        "avg_volume": 1000000.0,
+        "price_change": -0.015,
+        "vwap_deviation": -0.010
+    }
+
+    result = kernel.execute_operator("volume_operator", input_data)
+    assert result.status == "SUCCESS"
+    data = result.data
+    assert data["recommended_weight"] == 0.0
+    assert data["contrarian_buy_signal"] is False
+    assert data["oversold_state"] is False
