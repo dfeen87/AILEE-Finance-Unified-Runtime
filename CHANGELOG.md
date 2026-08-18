@@ -5,6 +5,18 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.0.0] - 2026-07-02
+
+### Added
+- Implemented optional Intraday Volume Advisory Contrarian Oversold Buy Signal Engine for SPY and QQQ.
+- Multi-factor oversold scoring utilizing normalized price change ($\le -1.2\%$), VWAP deviation ($\le -0.8\%$), and volume anomaly ratio ($\ge 2.5x$).
+- Index ETF symbol sensitivity (SPY and QQQ thresholds) vs single-name strict criteria.
+- Contrarian position weight multiplier (1.15x to 1.30x) with honest baseline risk score transparency.
+- Configuration option `enable_contrarian_oversold` and `contrarian_oversold_aggressiveness` across C++ (`AILLEConfig`) and Python (`FinanceKernelConfig`).
+- Per-bar runtime override flag `contrarian_override` on `VolumeState` and input payloads.
+- Strict safety precedence: Kill switches, hardware faults, and Market Stabilizer (MSGAM) caps unconditionally override contrarian weight adjustments.
+- Comprehensive unit tests in C++ (`tests/unit_tests.cpp`) and Python (`tests/test_finance_kernel_volume.py`).
+
 ## [10.2.0] - 2026-06-25
 
 ### Added

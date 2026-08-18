@@ -8,13 +8,13 @@ Reports current version, architecture, and alignment verification.
 
 import sys
 
-VERSION_HEADER = "AILLEE Diagnostics v10.2.0"
+VERSION_HEADER = "AILLEE Diagnostics v11.0.0"
 
 def run_diagnostics():
     print("=" * 80)
     print(VERSION_HEADER)
     print("=" * 80)
-    print("Runtime version identifier: 10.2.0")
+    print("Runtime version identifier: 11.0.0")
     print("Checking core components... OK")
     print("Validating struct exact alignment constraints... OK")
     print("All checks passed successfully.")
