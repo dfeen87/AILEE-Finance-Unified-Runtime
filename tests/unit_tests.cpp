@@ -2004,7 +2004,8 @@ TEST(TestAileeFinanceGovernorEvaluateSellValid) {
 
     ailee::SellGovernanceDecisionCpp decision = governor.evaluateSell(signals);
     ASSERT_EQ(decision.level, 0);
-    ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 1000.0);
+    ASSERT_TRUE(decision.bullish_mode_active);
+    ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 800.0);
     ASSERT_TRUE(decision.trust_score >= 0.85);
     ASSERT_TRUE(decision.manipulation_score <= 0.20);
     ASSERT_TRUE(decision.consensus_score >= 0.80);
@@ -2039,6 +2040,92 @@ TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent) {
     ASSERT_EQ(decision.level, 3);
     ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 10.0);
     ASSERT_TRUE(decision.reason.find("Manual override cancel") != std::string::npos || decision.reason.find("Invalid") != std::string::npos || decision.reason.find("invalid") != std::string::npos);
+}
+
+TEST(TestHFTBiasGatingLogic) {
+    ailee::HFTBiasConfig cfg{};
+    cfg.enabled = true;
+    cfg.trust_threshold_bullish = 0.70f;
+    cfg.manipulation_threshold = 0.30f;
+
+    // Allowed
+    ASSERT_TRUE(ailee::is_bullish_mode_allowed(0.80f, 0.10f, false, cfg));
+
+    // Disabled
+    cfg.enabled = false;
+    ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.80f, 0.10f, false, cfg));
+    cfg.enabled = true;
+
+    // Low trust
+    ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.65f, 0.10f, false, cfg));
+
+    // High manipulation
+    ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.80f, 0.35f, false, cfg));
+
+    // Drawdown near breach
+    ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.80f, 0.10f, true, cfg));
+}
+
+TEST(TestHFTBiasPrePhysicsAndPostDeltaVScaling) {
+    AILLE::VolumeState state{};
+    state.current_volume = 20000.0f;
+    state.avg_volume = 10000.0f;
+    state.volume_anomaly_ratio = 2.0f;
+    state.price_change = 0.008f;
+    state.hft_p_input = 0.08f;
+    state.hft_mass = 1.0f;
+    state.enable_hft_calc = true;
+
+    AILLE::SafetyState safety{};
+    ailee::HFTBiasConfig cfg{};
+    cfg.enabled = true;
+    cfg.bullish_multiplier_price = 1.05f;
+    cfg.bullish_multiplier_volume = 1.05f;
+    cfg.bullish_execution_scale = 1.10f;
+
+    AILLE::VolumeAdvisory res_bullish = AILLE::evaluate_volume_state(
+        state, &safety, nullptr, true, 1.0f, &cfg, 0.85f, 0.0f, false
+    );
+    ASSERT_TRUE(res_bullish.hft_active);
+    ASSERT_TRUE(res_bullish.hft_delta_v > 0.0f);
+
+    // Disabled bias run
+    ailee::HFTBiasConfig disabled_cfg = cfg;
+    disabled_cfg.enabled = false;
+    AILLE::VolumeAdvisory res_neutral = AILLE::evaluate_volume_state(
+        state, &safety, nullptr, true, 1.0f, &disabled_cfg, 0.85f, 0.0f, false
+    );
+
+    ASSERT_TRUE(res_bullish.recommended_weight > res_neutral.recommended_weight);
+}
+
+TEST(TestHFTBiasSellCeilingAndLevel3Override) {
+    ailee::AileeFinanceGovernor governor;
+
+    // Valid Level 0 signal under bullish mode -> 1000.0 * 1.0 * 0.80 = 800.0
+    ailee::RawSellSignals sig_level_0;
+    sig_level_0.position_size = 1000.0;
+    sig_level_0.volatility = 0.10;
+    sig_level_0.trust_score = 0.90;
+    sig_level_0.intent_flag = true;
+    ailee::FeedDataCpp f1{"f1", 100.0, 0.95};
+    ailee::FeedDataCpp f2{"f2", 100.1, 0.95};
+    sig_level_0.feeds.push_back(f1);
+    sig_level_0.feeds.push_back(f2);
+
+    ailee::SellGovernanceDecisionCpp dec_level_0 = governor.evaluateSell(sig_level_0);
+    ASSERT_EQ(dec_level_0.level, 0);
+    ASSERT_TRUE(dec_level_0.bullish_mode_active);
+    ASSERT_FLOAT_EQ(dec_level_0.allowed_sell_amount, 800.0);
+
+    // Level 3 protective mode -> 1000.0 * 0.10 = 100.0 (Protective mode overrides bullish reduction)
+    ailee::RawSellSignals sig_level_3 = sig_level_0;
+    sig_level_3.intent_flag = false;
+    sig_level_3.intent_reason = "Protective override";
+
+    ailee::SellGovernanceDecisionCpp dec_level_3 = governor.evaluateSell(sig_level_3);
+    ASSERT_EQ(dec_level_3.level, 3);
+    ASSERT_FLOAT_EQ(dec_level_3.allowed_sell_amount, 100.0);
 }
 
 TEST(TestLayer15MembraneWalkthrough) {
@@ -2198,6 +2285,9 @@ int main() {
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent);
+    RUN_TEST(TestHFTBiasGatingLogic);
+    RUN_TEST(TestHFTBiasPrePhysicsAndPostDeltaVScaling);
+    RUN_TEST(TestHFTBiasSellCeilingAndLevel3Override);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

@@ -31,6 +31,29 @@ struct RawSellSignals {
     std::string intent_reason;
 };
 
+struct HFTBiasConfig {
+    bool enabled{true};
+    float bullish_multiplier_price{1.05f};
+    float bullish_multiplier_volume{1.05f};
+    float bullish_execution_scale{1.10f};
+    float bullish_sell_ceiling_factor{0.80f};
+    float trust_threshold_bullish{0.70f};
+    float manipulation_threshold{0.30f};
+};
+
+inline bool is_bullish_mode_allowed(
+    float trust_score,
+    float manipulation_score,
+    bool drawdown_near_breach,
+    const HFTBiasConfig& cfg = HFTBiasConfig{}
+) noexcept {
+    if (!cfg.enabled) return false;
+    if (trust_score < cfg.trust_threshold_bullish) return false;
+    if (manipulation_score > cfg.manipulation_threshold) return false;
+    if (drawdown_near_breach) return false;
+    return true;
+}
+
 struct SellGovernanceDecisionCpp {
     int level{3};
     double allowed_sell_amount{0.0};
@@ -38,6 +61,11 @@ struct SellGovernanceDecisionCpp {
     double manipulation_score{1.0};
     double consensus_score{0.0};
     std::string reason;
+    bool bullish_mode_active{false};
+    double bullish_multiplier_price{1.05};
+    double bullish_multiplier_volume{1.05};
+    double bullish_execution_scale{1.10};
+    double bullish_sell_ceiling_factor{0.80};
 };
 
 class AileeFinanceGovernor {

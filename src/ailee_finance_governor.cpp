@@ -97,12 +97,29 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
                             cppDecision.reason = PyUnicode_AsUTF8(pReason);
                         }
 
+                        PyObject* pBull = PyObject_GetAttrString(pDecision, "bullish_mode_active");
+                        PyObject* pPriceM = PyObject_GetAttrString(pDecision, "bullish_multiplier_price");
+                        PyObject* pVolM = PyObject_GetAttrString(pDecision, "bullish_multiplier_volume");
+                        PyObject* pExecS = PyObject_GetAttrString(pDecision, "bullish_execution_scale");
+                        PyObject* pSellF = PyObject_GetAttrString(pDecision, "bullish_sell_ceiling_factor");
+
+                        if (pBull) cppDecision.bullish_mode_active = PyObject_IsTrue(pBull) == 1;
+                        if (pPriceM) cppDecision.bullish_multiplier_price = PyFloat_AsDouble(pPriceM);
+                        if (pVolM) cppDecision.bullish_multiplier_volume = PyFloat_AsDouble(pVolM);
+                        if (pExecS) cppDecision.bullish_execution_scale = PyFloat_AsDouble(pExecS);
+                        if (pSellF) cppDecision.bullish_sell_ceiling_factor = PyFloat_AsDouble(pSellF);
+
                         Py_XDECREF(pLevel);
                         Py_XDECREF(pAllowed);
                         Py_XDECREF(pTrust);
                         Py_XDECREF(pManip);
                         Py_XDECREF(pConsensus);
                         Py_XDECREF(pReason);
+                        Py_XDECREF(pBull);
+                        Py_XDECREF(pPriceM);
+                        Py_XDECREF(pVolM);
+                        Py_XDECREF(pExecS);
+                        Py_XDECREF(pSellF);
                         Py_DECREF(pDecision);
 
                         return cppDecision;
@@ -184,6 +201,18 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
 
     double raw_allowed = signals.position_size * ceiling_ratio;
 
+    HFTBiasConfig cfg{};
+    bool bullish_active = is_bullish_mode_allowed((float)decision.trust_score, (float)decision.manipulation_score, false, cfg);
+    decision.bullish_mode_active = bullish_active;
+    decision.bullish_multiplier_price = cfg.bullish_multiplier_price;
+    decision.bullish_multiplier_volume = cfg.bullish_multiplier_volume;
+    decision.bullish_execution_scale = cfg.bullish_execution_scale;
+    decision.bullish_sell_ceiling_factor = cfg.bullish_sell_ceiling_factor;
+
+    if (bullish_active && decision.level != 3) {
+        raw_allowed *= cfg.bullish_sell_ceiling_factor;
+    }
+
     // Grace Layer Volatility Adjustment
     double vol = std::max(0.0, signals.volatility);
     if (vol <= 0.20) {
@@ -195,6 +224,16 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
         double factor = std::max(0.20, 0.85 - 0.8 * (vol - 0.50));
         decision.allowed_sell_amount = std::max(0.0, raw_allowed * factor);
     }
+
+    // Increased SELL sensitivity to downward manipulation
+    if (decision.manipulation_score > 0.0) {
+        decision.allowed_sell_amount *= std::max(0.0, 1.0 - 0.5 * decision.manipulation_score);
+        if (decision.allowed_sell_amount > (signals.position_size * 0.3) && decision.consensus_score < 0.70) {
+            decision.allowed_sell_amount *= std::max(0.1, decision.consensus_score);
+        }
+    }
+
+    decision.allowed_sell_amount = std::max(0.0, decision.allowed_sell_amount);
 
     decision.reason = "SELL intent evaluated successfully via C++ governor";
     return decision;

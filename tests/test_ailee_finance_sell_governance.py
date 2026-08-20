@@ -144,21 +144,30 @@ def test_ailee_finance_domain_evaluation(tmp_path):
         "intent_flag": True
     }
 
+    # Bullish mode active: allowed sell amount reduced by bullish_sell_ceiling_factor (0.80)
     decision = domain.evaluate_sell(signals)
     assert isinstance(decision, SellGovernanceDecision)
     assert decision.level == 0
-    assert decision.allowed_sell_amount == 1000.0
+    assert decision.bullish_mode_active is True
+    assert decision.allowed_sell_amount == 800.0
     assert decision.trust_score == 0.90
     assert decision.manipulation_score == 0.0
     assert decision.consensus_score > 0.80
 
+    # Disabled bias: restores neutral sell ceiling
+    neutral_signals = dict(signals, hft_bias_config={"enabled": False})
+    neutral_decision = domain.evaluate_sell(neutral_signals)
+    assert neutral_decision.bullish_mode_active is False
+    assert neutral_decision.allowed_sell_amount == 1000.0
+
     # Verify audit log entry
     assert log_file.exists()
     lines = log_file.read_text().strip().split("\n")
-    assert len(lines) == 1
+    assert len(lines) == 2
     log_entry = json.loads(lines[0])
     assert log_entry["level"] == 0
-    assert log_entry["allowed_sell_amount"] == 1000.0
+    assert log_entry["allowed_sell_amount"] == 800.0
+    assert log_entry["bullish_mode_active"] is True
 
 
 def test_ailee_finance_trust_pipeline_fallback(tmp_path):

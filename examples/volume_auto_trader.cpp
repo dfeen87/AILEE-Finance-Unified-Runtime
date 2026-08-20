@@ -41,6 +41,7 @@ struct DaemonConfig {
     int hysteresis_bars{2};
     std::string symbol{"SPY"};
     std::string audit_log_file{"volume_trader_audit.log"};
+    ailee::HFTBiasConfig hft_bias_cfg;
 };
 
 class VolumeTraderDaemon {
@@ -59,7 +60,8 @@ public:
         current_equity_ = peak_equity_;
     }
 
-    void logAudit(const std::string& action, const std::string& details, const VolumeAdvisory& adv, float price) {
+    void logAudit(const std::string& action, const std::string& details, const VolumeAdvisory& adv, float price,
+                  float trust_score = 0.85f, float manipulation_score = 0.0f, bool bullish_mode_active = false) {
         using namespace std::chrono;
         auto now = system_clock::now();
         auto in_time_t = system_clock::to_time_t(now);
@@ -75,13 +77,22 @@ public:
              << "\"action\":\"" << action << "\","
              << "\"price\":" << price << ","
              << "\"rec_weight\":" << adv.recommended_weight << ","
+             << "\"execution_weight\":" << adv.recommended_weight << ","
+             << "\"trust_score\":" << trust_score << ","
+             << "\"manipulation_score\":" << manipulation_score << ","
              << "\"risk_score\":" << adv.risk_score << ","
              << "\"risk_elevated\":" << (adv.risk_elevated ? "true" : "false") << ","
              << "\"contrarian_buy\":" << (adv.contrarian_buy_signal ? "true" : "false") << ","
              << "\"growth_favorable\":" << (adv.growth_favorable ? "true" : "false") << ","
              << "\"hft_active\":" << (adv.hft_active ? "true" : "false") << ","
              << "\"hft_delta_v\":" << adv.hft_delta_v << ","
-             << "\"details\":\"" << details << "\""
+             << "\"bullish_mode_active\":" << (bullish_mode_active ? "true" : "false") << ","
+             << "\"bullish_multiplier_price\":" << config_.hft_bias_cfg.bullish_multiplier_price << ","
+             << "\"bullish_multiplier_volume\":" << config_.hft_bias_cfg.bullish_multiplier_volume << ","
+             << "\"bullish_execution_scale\":" << config_.hft_bias_cfg.bullish_execution_scale << ","
+             << "\"bullish_sell_ceiling_factor\":" << config_.hft_bias_cfg.bullish_sell_ceiling_factor << ","
+             << "\"details\":\"" << details << "\","
+             << "\"reason\":\"" << details << "\""
              << "}";
 
         std::string log_line = json.str();
@@ -117,7 +128,18 @@ public:
         // 2. Evaluate VAM
         VolumeState tick_state = state;
         tick_state.enable_hft_calc = config_.enable_hft;
-        VolumeAdvisory adv = evaluate_volume_state(tick_state, safety, nullptr, true, 1.0f);
+
+        float trust_score = 0.85f;
+        float manipulation_score = 0.0f;
+        float drawdown = (peak_equity_ > 0.0f) ? (peak_equity_ - current_equity_) / peak_equity_ : 0.0f;
+        bool drawdown_near_breach = (drawdown >= config_.max_daily_drawdown_pct * 0.8f) || executor_->isLockedOut();
+
+        bool bullish_active = ailee::is_bullish_mode_allowed(trust_score, manipulation_score, drawdown_near_breach, config_.hft_bias_cfg);
+
+        VolumeAdvisory adv = evaluate_volume_state(
+            tick_state, safety, nullptr, true, 1.0f,
+            &config_.hft_bias_cfg, trust_score, manipulation_score, drawdown_near_breach
+        );
 
         // 3. Translate signal to order intent
         OrderSide desired_side = OrderSide::FLAT;
@@ -146,18 +168,18 @@ public:
         }
 
         if (consecutive_bars_ < config_.hysteresis_bars) {
-            logAudit("DEBOUNCE_WAIT", "Signal pending confirmation: " + signal_type, adv, current_price);
+            logAudit("DEBOUNCE_WAIT", "Signal pending confirmation: " + signal_type, adv, current_price, trust_score, manipulation_score, bullish_active);
             return;
         }
 
         // 5. Execution decision
         if (desired_side == current_position_side_ && desired_side != OrderSide::FLAT) {
-            logAudit("HOLD", "Position already aligned with signal: " + signal_type, adv, current_price);
+            logAudit("HOLD", "Position already aligned with signal: " + signal_type, adv, current_price, trust_score, manipulation_score, bullish_active);
             return;
         }
 
         if (!config_.enable_auto_execute) {
-            logAudit("DRY_RUN_SIGNAL", "Auto-execution disabled (--enable-auto-execute=false). Would execute: " + signal_type, adv, current_price);
+            logAudit("DRY_RUN_SIGNAL", "Auto-execution disabled (--enable-auto-execute=false). Would execute: " + signal_type, adv, current_price, trust_score, manipulation_score, bullish_active);
             return;
         }
 
@@ -166,7 +188,7 @@ public:
             if (current_position_side_ != OrderSide::FLAT) {
                 bool ok = executor_->flattenPosition(config_.symbol);
                 current_position_side_ = OrderSide::FLAT;
-                logAudit("FLAT_POSITION", ok ? "Position flattened successfully" : "Flatten failed", adv, current_price);
+                logAudit("FLAT_POSITION", ok ? "Position flattened successfully" : "Flatten failed", adv, current_price, trust_score, manipulation_score, bullish_active);
             }
         } else if (desired_side == OrderSide::BUY) {
             float alloc_usd = config_.max_position_usd * adv.recommended_weight;
@@ -185,12 +207,12 @@ public:
                 std::string order_id = executor_->submitOrder(req);
                 if (!order_id.empty()) {
                     current_position_side_ = OrderSide::BUY;
-                    logAudit("ORDER_SUBMITTED", "Order ID: " + order_id + " Qty: " + std::to_string(qty), adv, current_price);
+                    logAudit("ORDER_SUBMITTED", "Order ID: " + order_id + " Qty: " + std::to_string(qty), adv, current_price, trust_score, manipulation_score, bullish_active);
                 } else {
-                    logAudit("ORDER_FAILED", "Broker rejected order submission", adv, current_price);
+                    logAudit("ORDER_FAILED", "Broker rejected order submission", adv, current_price, trust_score, manipulation_score, bullish_active);
                 }
             } else {
-                logAudit("SKIPPED_QTY_ZERO", "Calculated order quantity is 0", adv, current_price);
+                logAudit("SKIPPED_QTY_ZERO", "Calculated order quantity is 0", adv, current_price, trust_score, manipulation_score, bullish_active);
             }
         }
     }

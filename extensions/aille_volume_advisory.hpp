@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstddef>
 #include "../aille.hpp"
+#include "../include/ailee_finance_governor.hpp"
 #include "aille_math.hpp"
 
 namespace AILLE {
@@ -91,7 +92,11 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
     const SafetyState* safety,
     const MarketStabilizerAdvisory* stabilizer = nullptr,
     bool enable_contrarian = false,
-    float aggressiveness = 1.0f
+    float aggressiveness = 1.0f,
+    const ailee::HFTBiasConfig* hft_bias_cfg = nullptr,
+    float trust_score = 0.85f,
+    float manipulation_score = 0.0f,
+    bool drawdown_near_breach = false
 ) noexcept {
     VolumeAdvisory advisory{};
 
@@ -186,11 +191,24 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
     if (state.enable_hft_calc) {
         advisory.hft_active = true;
 
+        float p_input = (state.hft_p_input != 0.0f) ? state.hft_p_input : state.price_change * 10.0f;
+        float mass_input = (state.hft_mass > 1e-6f) ? state.hft_mass : 1.0f;
+
+        ailee::HFTBiasConfig default_cfg{};
+        const ailee::HFTBiasConfig& cfg = (hft_bias_cfg != nullptr) ? *hft_bias_cfg : default_cfg;
+
+        bool bullish_active = ailee::is_bullish_mode_allowed(trust_score, manipulation_score, drawdown_near_breach, cfg);
+
+        if (bullish_active) {
+            p_input *= cfg.bullish_multiplier_price;
+            mass_input *= cfg.bullish_multiplier_volume;
+        }
+
         Math::HFTSampleTick tick{};
-        tick.p_input = (state.hft_p_input != 0.0f) ? state.hft_p_input : state.price_change * 10.0f;
+        tick.p_input = p_input;
         tick.w = advisory.risk_score / 100.0f;
         tick.v = (state.avg_volume > 0.0f) ? (state.current_volume / state.avg_volume) : 1.0f;
-        tick.M = (state.hft_mass > 1e-6f) ? state.hft_mass : 1.0f;
+        tick.M = mass_input;
         tick.dt = 0.001f; // 1 ms micro-tick integration interval
 
         advisory.hft_delta_v = Math::calculate_hft_tick_delta_v(
@@ -205,6 +223,16 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
         // Modulate recommended weight based on high-frequency impulse Δv
         float impulse_factor = 1.0f + std::clamp(advisory.hft_delta_v, -0.5f, 0.5f);
         advisory.recommended_weight *= impulse_factor;
+
+        // Post-Δv Bullish Execution Weight Scaling
+        if (bullish_active) {
+            bool upward_trend = (state.price_change > 0.0f || advisory.hft_delta_v > 0.0f);
+            bool volume_supports = (smoothed_ratio >= 1.0f);
+            if (upward_trend && volume_supports) {
+                advisory.recommended_weight *= cfg.bullish_execution_scale;
+            }
+        }
+
         if (advisory.recommended_weight > 1.0f) advisory.recommended_weight = 1.0f;
         if (advisory.recommended_weight < 0.0f) advisory.recommended_weight = 0.0f;
     }

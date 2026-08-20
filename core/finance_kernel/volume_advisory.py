@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import BaseOperator
+from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 
 
 def calculate_hft_delta_v(
@@ -141,6 +142,14 @@ class IntradayVolumeAdvisory(BaseOperator):
             processed["enable_contrarian_oversold"] = bool(input_data["enable_contrarian_oversold"])
         if "contrarian_oversold_aggressiveness" in input_data:
             processed["contrarian_oversold_aggressiveness"] = float(input_data["contrarian_oversold_aggressiveness"])
+        if "trust_score" in input_data:
+            processed["trust_score"] = float(input_data["trust_score"])
+        if "manipulation_score" in input_data:
+            processed["manipulation_score"] = float(input_data["manipulation_score"])
+        if "drawdown_state" in input_data:
+            processed["drawdown_state"] = input_data["drawdown_state"]
+        if "hft_bias_config" in input_data:
+            processed["hft_bias_config"] = input_data["hft_bias_config"]
 
         return processed
 
@@ -265,6 +274,43 @@ class IntradayVolumeAdvisory(BaseOperator):
         if state.enable_hft_calc:
             advisory.hft_active = True
             p_input = state.hft_p_input if state.hft_p_input != 0.0 else state.price_change * 10.0
+            mass_input = state.hft_mass
+
+            # Retrieve hft_bias config
+            hft_bias_cfg = input_data.get("hft_bias_config")
+            if hft_bias_cfg is None:
+                if self.config and hasattr(self.config, "hft_bias"):
+                    hft_bias_cfg = getattr(self.config, "hft_bias")
+                elif self.context and getattr(self.context, "config", None) and hasattr(self.context.config, "hft_bias"):
+                    hft_bias_cfg = getattr(self.context.config, "hft_bias")
+            if hft_bias_cfg is None:
+                hft_bias_cfg = {
+                    "enabled": True,
+                    "bullish_multiplier_price": 1.05,
+                    "bullish_multiplier_volume": 1.05,
+                    "bullish_execution_scale": 1.10,
+                    "bullish_sell_ceiling_factor": 0.80,
+                    "trust_threshold_bullish": 0.70,
+                    "manipulation_threshold": 0.30,
+                }
+
+            trust_score = float(input_data.get("trust_score", 0.85))
+            manipulation_score = float(input_data.get("manipulation_score", 0.0))
+            drawdown_state = input_data.get("drawdown_state", False)
+
+            bullish_active = is_bullish_mode_allowed(
+                trust_score=trust_score,
+                manipulation_score=manipulation_score,
+                drawdown_state=drawdown_state,
+                hft_bias_config=hft_bias_cfg
+            )
+
+            if bullish_active and hft_bias_cfg:
+                p_mult = float(hft_bias_cfg.get("bullish_multiplier_price", 1.05))
+                v_mult = float(hft_bias_cfg.get("bullish_multiplier_volume", 1.05))
+                p_input *= p_mult
+                mass_input *= v_mult
+
             v_flow = (state.current_volume / state.avg_volume) if state.avg_volume > 0 else 1.0
             w_risk = advisory.risk_score / 100.0
 
@@ -272,7 +318,7 @@ class IntradayVolumeAdvisory(BaseOperator):
                 "p_input": p_input,
                 "w": w_risk,
                 "v": v_flow,
-                "M": state.hft_mass,
+                "M": mass_input,
                 "dt": 0.001
             }
 
@@ -287,6 +333,15 @@ class IntradayVolumeAdvisory(BaseOperator):
 
             impulse_factor = 1.0 + max(-0.5, min(0.5, advisory.hft_delta_v))
             advisory.recommended_weight = max(0.0, min(1.0, advisory.recommended_weight * impulse_factor))
+
+            # Post-Δv Bullish Execution Weight Scaling
+            if bullish_active and hft_bias_cfg:
+                exec_scale = float(hft_bias_cfg.get("bullish_execution_scale", 1.10))
+                # Apply only if trend is upward (price_change > 0 or hft_delta_v > 0) and volume supports the move
+                upward_trend = (state.price_change > 0.0 or advisory.hft_delta_v > 0.0)
+                volume_supports = (state.volume_anomaly_ratio >= 1.0)
+                if upward_trend and volume_supports:
+                    advisory.recommended_weight = max(0.0, min(1.0, advisory.recommended_weight * exec_scale))
 
         # Temporal Step Clamping (Drift Control)
         if 0.0 <= state.prev_recommended_weight <= 1.0:
