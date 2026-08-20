@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-11.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-12.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -26,6 +26,7 @@
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
+- [v12.0.0: Optional Autonomous Trade Execution Plugin & Governance](#v1200--optional-autonomous-trade-execution-plugin--governance)
 - [v11.0.0: Deterministic Governance Stack (Layers 8–15)](#v1100--deterministic-governance-stack-layers-815)
 - [Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
@@ -261,6 +262,35 @@ Every decision is logged with:
 **Full regulatory compliance and accountability.**
 
 ---
+
+## v12.0.0: Optional Autonomous Trade Execution Plugin & Governance
+
+AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and autonomous trading daemon designed to translate Volume Advisory Module (VAM) intraday signals on **SPY** and **QQQ** into automated equity trades.
+
+### Architectural Highlights & Safety Posture
+- **Alpaca REST Execution Adapter**: Integrated C++ plugin (`ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp/.hpp`) communicating with Alpaca REST v2 endpoints (`/v2/orders`, `/v2/positions`, `/v2/account`) using `cpp-httplib`.
+- **Python Execution Operator**: `VolumeExecutionOperator` in `core/finance_kernel/volume_execution.py` following the standard AILEE Finance Runtime Kernel operator pattern.
+- **Fail-Closed Credential Guards**: Requires valid environment variables (`ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`). If credentials are missing/malformed and mock mode is not explicitly enabled, execution fails closed and no orders are submitted.
+- **Paper Trading Default**: Defaults to Alpaca paper trading (`https://paper-api.alpaca.markets`). Live trading mode (`--mode=live`) requires an explicit CLI flag *and* `--confirm-live` safety confirmation.
+- **Multi-Layer Risk & Lockout Controls**:
+  - **Opt-In Flag**: Auto-execution is disabled by default (`--enable-auto-execute` required).
+  - **Daily Drawdown Lockout**: Monitored peak equity; breaches of `--max-drawdown-pct` automatically trigger position flattening and lockout.
+  - **Signal Hysteresis / Debouncing**: Requires signals (`CONTRARIAN_BUY`, `GROWTH_BUY`, `RISK_REDUCE`) to persist for $N$ consecutive bars (default `--hysteresis=2`) before placing orders.
+  - **Structured JSON Audit Logging**: Writes append-only, schema-stable execution records (`volume_trader_audit.log`) containing timestamp, price, signal breakdown, risk score, order details, and broker response IDs.
+
+### Standalone Runners
+- **C++ Execution Daemon**:
+  ```bash
+  # Dry-run analysis mode
+  ./examples/volume_auto_trader --symbol=SPY
+
+  # Paper trading mode with auto-execution
+  ./examples/volume_auto_trader --enable-auto-execute --mode=paper --symbol=SPY --max-position-usd=10000
+  ```
+- **Python Runner**:
+  ```bash
+  PYTHONPATH=. python3 simulations/run_volume_trader.py --enable-auto-execute --mode=paper --symbol=QQQ
+  ```
 
 ## v11.0.0: Deterministic Governance Stack (Layers 8–15)
 
@@ -668,7 +698,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `11.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `12.0.0`).
 
 ### For Quantitative Researchers
 

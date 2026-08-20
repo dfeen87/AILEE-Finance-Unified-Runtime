@@ -10,7 +10,9 @@
 #include "../../../../ailee_plugins/PluginRegistry.hpp"
 
 // Include cpp-httplib system headers
-#define CPPHTTPLIB_OPENSSL_SUPPORT 0
+#ifndef CPPHTTPLIB_OPENSSL_SUPPORT
+#define CPPHTTPLIB_OPENSSL_SUPPORT 1
+#endif
 #include "../../../../external/httplib.h"
 
 #include <cstdlib>

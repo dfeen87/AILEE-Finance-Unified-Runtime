@@ -31,7 +31,7 @@ def main():
         sys.exit(1)
 
     print("========================================================")
-    print(" AILEE Intraday Volume Auto-Trader Python Runner v11.0.0")
+    print(" AILEE Intraday Volume Auto-Trader Python Runner v12.0.0")
     print(f" Target Symbol:       {args.symbol}")
     print(f" Execution Enabled:   {'YES' if args.enable_auto_execute else 'NO (Dry-Run)'}")
     print(f" Mode:                {args.mode.upper()}")
