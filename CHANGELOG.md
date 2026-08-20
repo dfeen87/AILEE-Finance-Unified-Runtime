@@ -5,6 +5,15 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [12.0.0] - 2026-08-20
+
+### Added
+- **Optional Intraday Volume Auto-Trader Execution Plugin**:
+  - Alpaca REST API execution adapter (`AlpacaExecution`) supporting `/v2/orders`, `/v2/positions`, and `/v2/account`.
+  - Python execution operator (`VolumeExecutionOperator`) in `core/finance_kernel/volume_execution.py`.
+  - C++ standalone auto-trader daemon (`examples/volume_auto_trader.cpp`) and Python runner (`simulations/run_volume_trader.py`).
+  - Strict safety posture: explicit opt-in execution flag (`--enable-auto-execute`), paper-trading mode default, two-step live confirmation flag (`--confirm-live`), signal hysteresis/debounce filtering, daily drawdown lockout controls, and append-only structured JSON audit logging.
+
 ## [11.0.0] - 2026-07-02
 
 ### Added
