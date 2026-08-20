@@ -275,16 +275,35 @@ AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and auton
   where $I_{sp} = 1.0$, efficiency $\eta = 0.95$, attenuation $\alpha = 0.1$, micro-tick interval $dt = 0.001\text{s}$ (1 ms resolution), and dynamic liquidity mass floor $M(t) \ge 10^{-6}$.
 - **Fail-Closed Credential Guards**: Requires valid environment variables (`ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`). If credentials are missing/malformed and mock mode is not explicitly enabled, execution fails closed and no orders are submitted.
 - **Paper Trading Default**: Defaults to Alpaca paper trading (`https://paper-api.alpaca.markets`). Live trading mode (`--mode=live`) requires an explicit CLI flag *and* `--confirm-live` safety confirmation.
+- **Controlled Bullish Bias (Enabled / ON by Default)**: Integrates a safety-gated directional acceleration layer across C++ and Python execution kernels. Applies pre-physics signal input multipliers (`1.05x` price/volume inputs), post-$\Delta v$ execution weight scaling (`1.10x`), and dynamic SELL ceiling adjustments (`0.80x`), all strictly gated by safety rules (`trust_score >= 0.70`, `manipulation_score <= 0.30`, and drawdown state checks). Controlled Bullish Bias is **ON by default**, with an optional CLI flag (`--disable-bullish` or `--disable-bullish-bias`) or YAML configuration setting (`enabled: false`) to turn it OFF.
 - **Multi-Layer Risk & Lockout Controls**:
   - **Opt-In Flag**: Auto-execution is disabled by default (`--enable-auto-execute` required). High-frequency mode requires explicit opt-in (`--enable-hft`).
   - **Daily Drawdown Lockout**: Monitored peak equity; breaches of `--max-drawdown-pct` automatically trigger position flattening and lockout.
   - **Signal Hysteresis / Debouncing**: Requires signals (`CONTRARIAN_BUY`, `GROWTH_BUY`, `RISK_REDUCE`) to persist for $N$ consecutive bars (default `--hysteresis=2`) before placing orders.
   - **Structured JSON Audit Logging**: Writes append-only, schema-stable execution records (`volume_trader_audit.log`) containing timestamp, price, signal breakdown, risk score, HFT impulse $\Delta v$, order details, and broker response IDs.
 
+### Controlled Bullish Bias Layer
+The Controlled Bullish Bias layer introduces safety-gated acceleration for upward-trending volume signals:
+- **Default Status**: **ON / Enabled by default** across C++ (`ailee::HFTBiasConfig`) and Python (`VolumeExecutionOperator`, `IntradayVolumeAdvisory`, `AileeFinanceDomain`).
+- **Gating Safety Rails**:
+  - `trust_score >= 0.70`
+  - `manipulation_score <= 0.30`
+  - Daily drawdown limits not breached or near breach
+  - Level 3 protective mode override (restores standard 10% protective sell ceiling)
+- **Multipliers & Scaling**:
+  - Pre-physics price input multiplier: `1.05x`
+  - Pre-physics volume mass multiplier: `1.05x`
+  - Post-$\Delta v$ execution weight scaling: `1.10x`
+  - SELL ceiling factor: `0.80x`
+- **Disabling / Toggling Options**:
+  - CLI flag: `--disable-bullish` or `--disable-bullish-bias`
+  - Configuration (`ailee_hft_config.yaml`): `hft_bias.enabled: false`
+  - Python kwargs: `hft_bias_config={"enabled": False}`
+
 ### Standalone Runners
 - **C++ Execution Daemon**:
   ```bash
-  # Dry-run analysis mode
+  # Dry-run analysis mode (Controlled Bullish Bias ON by default)
   ./examples/volume_auto_trader --symbol=SPY
 
   # Paper trading mode with auto-execution
@@ -292,10 +311,17 @@ AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and auton
 
   # High-frequency analysis mode with auto-execution
   ./examples/volume_auto_trader --enable-auto-execute --enable-hft --hft-frequency-hz=1000 --symbol=SPY
+
+  # Option to turn Controlled Bullish Bias OFF
+  ./examples/volume_auto_trader --enable-auto-execute --disable-bullish --mode=paper --symbol=SPY
   ```
 - **Python Runner**:
   ```bash
+  # Python runner (Controlled Bullish Bias ON by default)
   PYTHONPATH=. python3 simulations/run_volume_trader.py --enable-auto-execute --enable-hft --mode=paper --symbol=QQQ
+
+  # Option to turn Controlled Bullish Bias OFF
+  PYTHONPATH=. python3 simulations/run_volume_trader.py --enable-auto-execute --disable-bullish --mode=paper --symbol=QQQ
   ```
 
 ### v5.0.0 SELL-Side Governance Framework
