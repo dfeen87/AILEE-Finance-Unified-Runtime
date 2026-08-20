@@ -14,6 +14,7 @@ from ailee_finance.domains.finance.sell_governance import (
     grace_layer_sell_adjustment,
     consensus_validation,
 )
+from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 
 
 class SellGovernanceDecision:
@@ -21,13 +22,21 @@ class SellGovernanceDecision:
     SELL Governance Decision Data Structure
     """
     def __init__(self, level, allowed_sell_amount, trust_score,
-                 manipulation_score, consensus_score, reason):
+                 manipulation_score, consensus_score, reason,
+                 bullish_mode_active=False, bullish_multiplier_price=1.05,
+                 bullish_multiplier_volume=1.05, bullish_execution_scale=1.10,
+                 bullish_sell_ceiling_factor=0.80):
         self.level = int(level)
         self.allowed_sell_amount = float(allowed_sell_amount)
         self.trust_score = float(trust_score)
         self.manipulation_score = float(manipulation_score)
         self.consensus_score = float(consensus_score)
         self.reason = str(reason)
+        self.bullish_mode_active = bool(bullish_mode_active)
+        self.bullish_multiplier_price = float(bullish_multiplier_price)
+        self.bullish_multiplier_volume = float(bullish_multiplier_volume)
+        self.bullish_execution_scale = float(bullish_execution_scale)
+        self.bullish_sell_ceiling_factor = float(bullish_sell_ceiling_factor)
 
     def to_dict(self):
         return {
@@ -36,7 +45,12 @@ class SellGovernanceDecision:
             "trust_score": self.trust_score,
             "manipulation_score": self.manipulation_score,
             "consensus_score": self.consensus_score,
-            "reason": self.reason
+            "reason": self.reason,
+            "bullish_mode_active": self.bullish_mode_active,
+            "bullish_multiplier_price": self.bullish_multiplier_price,
+            "bullish_multiplier_volume": self.bullish_multiplier_volume,
+            "bullish_execution_scale": self.bullish_execution_scale,
+            "bullish_sell_ceiling_factor": self.bullish_sell_ceiling_factor
         }
 
     def __repr__(self):
@@ -54,8 +68,20 @@ class AileeFinanceDomain:
     """
     VERSION = "5.0.0"
 
-    def __init__(self, log_path="logs/ailee_finance_sell_audit.log"):
+    def __init__(self, log_path="logs/ailee_finance_sell_audit.log", hft_bias_config=None):
         self.log_path = log_path
+        if hft_bias_config is None:
+            self.hft_bias_config = {
+                "enabled": True,
+                "bullish_multiplier_price": 1.05,
+                "bullish_multiplier_volume": 1.05,
+                "bullish_execution_scale": 1.10,
+                "bullish_sell_ceiling_factor": 0.80,
+                "trust_threshold_bullish": 0.70,
+                "manipulation_threshold": 0.30,
+            }
+        else:
+            self.hft_bias_config = dict(hft_bias_config)
 
     def compute_trust_score(self, signals):
         """
@@ -108,6 +134,11 @@ class AileeFinanceDomain:
                 "trust_score": round(decision.trust_score, 4),
                 "manipulation_score": round(decision.manipulation_score, 4),
                 "consensus_score": round(decision.consensus_score, 4),
+                "bullish_mode_active": decision.bullish_mode_active,
+                "bullish_multiplier_price": decision.bullish_multiplier_price,
+                "bullish_multiplier_volume": decision.bullish_multiplier_volume,
+                "bullish_execution_scale": decision.bullish_execution_scale,
+                "bullish_sell_ceiling_factor": decision.bullish_sell_ceiling_factor,
                 "reason": decision.reason
             }
 
@@ -148,9 +179,21 @@ class AileeFinanceDomain:
             )
             reason = intent.get("reason", "SELL intent evaluated successfully")
 
+        drawdown_state = signals.get("drawdown_state", False)
+        hft_cfg = signals.get("hft_bias_config", self.hft_bias_config)
+
+        bullish_active = is_bullish_mode_allowed(
+            trust_score=trust_score,
+            manipulation_score=manipulation_score,
+            drawdown_state=drawdown_state,
+            hft_bias_config=hft_cfg
+        )
+
+        sell_ceiling_factor = float(hft_cfg.get("bullish_sell_ceiling_factor", 0.80)) if hft_cfg else 0.80
+
         position_size = float(signals.get("position_size", 0.0))
         allowed_sell_amount = compute_sell_ceiling(
-            level, position_size
+            level, position_size, bullish_active=bullish_active, bullish_sell_ceiling_factor=sell_ceiling_factor
         )
 
         volatility = float(signals.get("volatility", 0.0))
@@ -158,13 +201,30 @@ class AileeFinanceDomain:
             volatility, allowed_sell_amount
         )
 
+        # Increased SELL sensitivity to downward manipulation
+        if manipulation_score > 0.0:
+            allowed_sell_amount *= max(0.0, 1.0 - 0.5 * manipulation_score)
+            if allowed_sell_amount > (position_size * 0.3) and consensus_score < 0.70:
+                allowed_sell_amount *= max(0.1, consensus_score)
+
+        allowed_sell_amount = max(0.0, allowed_sell_amount)
+
+        p_mult = float(hft_cfg.get("bullish_multiplier_price", 1.05)) if hft_cfg else 1.05
+        v_mult = float(hft_cfg.get("bullish_multiplier_volume", 1.05)) if hft_cfg else 1.05
+        e_scale = float(hft_cfg.get("bullish_execution_scale", 1.10)) if hft_cfg else 1.10
+
         decision = SellGovernanceDecision(
             level=level,
             allowed_sell_amount=allowed_sell_amount,
             trust_score=trust_score,
             manipulation_score=manipulation_score,
             consensus_score=consensus_score,
-            reason=reason
+            reason=reason,
+            bullish_mode_active=bullish_active,
+            bullish_multiplier_price=p_mult,
+            bullish_multiplier_volume=v_mult,
+            bullish_execution_scale=e_scale,
+            bullish_sell_ceiling_factor=sell_ceiling_factor
         )
 
         self.log_sell_audit(decision)

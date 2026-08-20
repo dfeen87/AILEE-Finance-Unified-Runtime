@@ -40,7 +40,7 @@ def validate_sell_intent(signals):
     }
 
 
-def compute_sell_ceiling(trust_level, position_size):
+def compute_sell_ceiling(trust_level, position_size, bullish_active=False, bullish_sell_ceiling_factor=0.8):
     """
     Govern how much of a position can be sold based on trust level:
     - Level 0: up to 100%
@@ -48,12 +48,20 @@ def compute_sell_ceiling(trust_level, position_size):
     - Level 2: up to 30%
     - Level 3: up to 10% (protective mode)
 
+    When bullish mode is active, reduces sell ceiling by bullish_sell_ceiling_factor (default 0.8),
+    except for Level 3 (protective mode) which overrides bullish bias and restores full safety behavior.
+
     Returns:
         float: Maximum allowed sell quantity
     """
     ceilings = {0: 1.0, 1: 0.6, 2: 0.3, 3: 0.1}
     cap_ratio = ceilings.get(trust_level, 0.1)
-    return max(0.0, float(position_size) * cap_ratio)
+    allowed = max(0.0, float(position_size) * cap_ratio)
+
+    if bullish_active and trust_level != 3:
+        allowed *= float(bullish_sell_ceiling_factor)
+
+    return max(0.0, allowed)
 
 
 def detect_sell_manipulation(market_data):

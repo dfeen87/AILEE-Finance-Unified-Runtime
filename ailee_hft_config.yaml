@@ -1,0 +1,8 @@
+hft_bias:
+  enabled: true
+  bullish_multiplier_price: 1.05
+  bullish_multiplier_volume: 1.05
+  bullish_execution_scale: 1.10
+  bullish_sell_ceiling_factor: 0.80
+  trust_threshold_bullish: 0.70
+  manipulation_threshold: 0.30
