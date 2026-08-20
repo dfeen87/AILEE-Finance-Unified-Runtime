@@ -292,6 +292,20 @@ AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and auton
   PYTHONPATH=. python3 simulations/run_volume_trader.py --enable-auto-execute --mode=paper --symbol=QQQ
   ```
 
+### v5.0.0 SELL-Side Governance Framework
+Complementing existing BUY-side safeguards, AILEE Finance introduces trust-governed, manipulation-resistant SELL operations:
+- **SELL Intent Validation**: Validates market context, liquidity levels, and intent flags before processing SELL triggers (`validate_sell_intent`).
+- **Dynamic SELL Ceilings**: Restricts allowable position liquidation quantities dynamically according to trust level:
+  - **Level 0**: Up to **100%** position size (High Trust, Low Manipulation, High Consensus)
+  - **Level 1**: Up to **60%** position size (Moderate High Trust)
+  - **Level 2**: Up to **30%** position size (Moderate Trust)
+  - **Level 3**: Up to **10%** position size (Protective Mode / Low Trust)
+- **Anti-Manipulation SELL Heuristics**: Active detection of spoofed bids, collapsing bid-side liquidity, MEV activity, and abnormal spread widening (`detect_sell_manipulation`).
+- **Grace-Layer Volatility Tolerance**: Automatically reduces sell quantities or applies tranche dampening when market volatility is temporarily elevated (`grace_layer_sell_adjustment`).
+- **Multi-Feed Consensus Validation**: Validates price agreement and confidence metrics across multiple independent data feeds (`consensus_validation`).
+- **Structured SELL Audit Logging**: Writes real-time JSON execution records to `logs/ailee_finance_sell_audit.log`.
+- **C++ Governor Adapter**: C++ bridge interface (`include/ailee_finance_governor.hpp` and `src/ailee_finance_governor.cpp`) mapping `RawSellSignals` to Python pipeline evaluations with standalone C++ fallback protection.
+
 ## v11.0.0: Deterministic Governance Stack (Layers 8–15)
 
 AILLEE Version 11.0.0 formally introduces the fully deterministic, allocator-free **Deterministic Governance Stack** with Layer 15 UFO Deformable Membrane Governance and Lyapunov reconciliation, as well as the Intraday Volume Advisory Contrarian Oversold Buy Signal Engine for SPY and QQQ.

@@ -50,6 +50,7 @@
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
 #include "../ailee_plugins/plugins/alerts/news/BreakingNewsAlertAdapter.cpp"
 #include "../ailee_plugins/plugins/execution/alpaca/AlpacaExecution.hpp"
+#include "ailee_finance_governor.hpp"
 
 // Simple Test Framework
 int tests_run = 0;
@@ -1988,6 +1989,58 @@ TEST(TestLayer15MembraneSizing) {
     ASSERT_EQ(sizeof(AILLE::MembraneTraceStep), 64ULL);
 }
 
+TEST(TestAileeFinanceGovernorEvaluateSellValid) {
+    ailee::AileeFinanceGovernor governor;
+    ailee::RawSellSignals signals;
+    signals.position_size = 1000.0;
+    signals.volatility = 0.10;
+    signals.trust_score = 0.90;
+    signals.intent_flag = true;
+
+    ailee::FeedDataCpp f1{"f1", 100.0, 0.95};
+    ailee::FeedDataCpp f2{"f2", 100.1, 0.95};
+    signals.feeds.push_back(f1);
+    signals.feeds.push_back(f2);
+
+    ailee::SellGovernanceDecisionCpp decision = governor.evaluateSell(signals);
+    ASSERT_EQ(decision.level, 0);
+    ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 1000.0);
+    ASSERT_TRUE(decision.trust_score >= 0.85);
+    ASSERT_TRUE(decision.manipulation_score <= 0.20);
+    ASSERT_TRUE(decision.consensus_score >= 0.80);
+}
+
+TEST(TestAileeFinanceGovernorEvaluateSellManipulated) {
+    ailee::AileeFinanceGovernor governor;
+    ailee::RawSellSignals signals;
+    signals.position_size = 500.0;
+    signals.volatility = 0.40;
+    signals.trust_score = 0.80;
+    signals.spoofed_bids = true;
+    signals.bid_liquidity_drop = 0.60;
+    signals.mev_detected = true;
+    signals.spread_widening = 0.30;
+    signals.intent_flag = true;
+
+    ailee::SellGovernanceDecisionCpp decision = governor.evaluateSell(signals);
+    ASSERT_TRUE(decision.manipulation_score > 0.60);
+    ASSERT_TRUE(decision.level >= 2);
+    ASSERT_TRUE(decision.allowed_sell_amount < 500.0);
+}
+
+TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent) {
+    ailee::AileeFinanceGovernor governor;
+    ailee::RawSellSignals signals;
+    signals.position_size = 100.0;
+    signals.intent_flag = false;
+    signals.intent_reason = "Manual override cancel";
+
+    ailee::SellGovernanceDecisionCpp decision = governor.evaluateSell(signals);
+    ASSERT_EQ(decision.level, 3);
+    ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 10.0);
+    ASSERT_TRUE(decision.reason.find("Manual override cancel") != std::string::npos || decision.reason.find("Invalid") != std::string::npos || decision.reason.find("invalid") != std::string::npos);
+}
+
 TEST(TestLayer15MembraneWalkthrough) {
     AILLE::MembraneState state{};
     state.base_radius = 1.0f;
@@ -2142,6 +2195,9 @@ int main() {
     RUN_TEST(TestLayer14MetaGovernanceLockHardening);
     RUN_TEST(TestLayer15MembraneSizing);
     RUN_TEST(TestLayer15MembraneWalkthrough);
+    RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
+    RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
+    RUN_TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
