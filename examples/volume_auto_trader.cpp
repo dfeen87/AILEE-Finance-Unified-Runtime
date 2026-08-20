@@ -33,6 +33,8 @@ struct DaemonConfig {
     bool enable_auto_execute{false};
     bool is_live{false};
     bool mock_mode{true};
+    bool enable_hft{false};
+    int hft_frequency_hz{1000};
     float max_position_usd{10000.0f};
     float max_daily_drawdown_pct{0.05f};
     float risk_reduce_factor{0.5f};
@@ -77,6 +79,8 @@ public:
              << "\"risk_elevated\":" << (adv.risk_elevated ? "true" : "false") << ","
              << "\"contrarian_buy\":" << (adv.contrarian_buy_signal ? "true" : "false") << ","
              << "\"growth_favorable\":" << (adv.growth_favorable ? "true" : "false") << ","
+             << "\"hft_active\":" << (adv.hft_active ? "true" : "false") << ","
+             << "\"hft_delta_v\":" << adv.hft_delta_v << ","
              << "\"details\":\"" << details << "\""
              << "}";
 
@@ -111,7 +115,9 @@ public:
         }
 
         // 2. Evaluate VAM
-        VolumeAdvisory adv = evaluate_volume_state(state, safety, nullptr, true, 1.0f);
+        VolumeState tick_state = state;
+        tick_state.enable_hft_calc = config_.enable_hft;
+        VolumeAdvisory adv = evaluate_volume_state(tick_state, safety, nullptr, true, 1.0f);
 
         // 3. Translate signal to order intent
         OrderSide desired_side = OrderSide::FLAT;
@@ -209,6 +215,8 @@ void printUsage(const char* prog) {
     std::cout << "Usage: " << prog << " [options]\n"
               << "Options:\n"
               << "  --enable-auto-execute     Enable live/mock trade execution (default: false / dry-run)\n"
+              << "  --enable-hft              Enable high-frequency price action & volume impulse analysis (default: false)\n"
+              << "  --hft-frequency-hz=NUM    HFT micro-tick sampling frequency in Hz [1..1000] (default: 1000)\n"
               << "  --mode=paper|live          Trading mode (default: paper)\n"
               << "  --symbol=SPY|QQQ           Target ETF ticker (default: SPY)\n"
               << "  --max-position-usd=NUM     Maximum dollar allocation (default: 10000)\n"
@@ -227,6 +235,11 @@ int main(int argc, char* argv[]) {
         std::string arg = argv[i];
         if (arg == "--enable-auto-execute") {
             cfg.enable_auto_execute = true;
+        } else if (arg == "--enable-hft") {
+            cfg.enable_hft = true;
+        } else if (arg.rfind("--hft-frequency-hz=", 0) == 0) {
+            int freq = std::atoi(arg.substr(19).c_str());
+            cfg.hft_frequency_hz = (freq > 1000) ? 1000 : ((freq < 1) ? 1 : freq);
         } else if (arg == "--mode=live") {
             cfg.is_live = true;
         } else if (arg == "--mode=paper") {
@@ -260,6 +273,7 @@ int main(int argc, char* argv[]) {
               << " AILEE Intraday Volume Auto-Trader Daemon v12.0.0\n"
               << " Target Symbol:       " << cfg.symbol << "\n"
               << " Execution Enabled:   " << (cfg.enable_auto_execute ? "YES" : "NO (Dry-Run)") << "\n"
+              << " High-Frequency (HFT):" << (cfg.enable_hft ? "ENABLED (" + std::to_string(cfg.hft_frequency_hz) + " Hz)" : "DISABLED") << "\n"
               << " Mode:                " << (cfg.is_live ? "LIVE" : "PAPER") << "\n"
               << " Mock Simulator:      " << (cfg.mock_mode ? "YES" : "NO") << "\n"
               << " Max Position (USD):  $" << cfg.max_position_usd << "\n"
@@ -284,6 +298,8 @@ int main(int argc, char* argv[]) {
     sim_ticks[1].avg_volume = 10000.0f;
     sim_ticks[1].volume_anomaly_ratio = 2.0f;
     sim_ticks[1].price_change = 0.008f;
+    sim_ticks[1].hft_p_input = 0.08f;
+    sim_ticks[1].hft_mass = 1.0f;
     sim_ticks[1].is_index_etf = true;
 
     // Tick 3: Second growth bar (confirms hysteresis)

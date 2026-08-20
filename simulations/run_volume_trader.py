@@ -18,6 +18,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 def main():
     parser = argparse.ArgumentParser(description="AILEE Intraday Volume Auto-Trader Python Runner")
     parser.add_argument("--enable-auto-execute", action="store_true", help="Enable trade execution (default: dry-run)")
+    parser.add_argument("--enable-hft", action="store_true", help="Enable high-frequency price action & volume impulse analysis")
+    parser.add_argument("--hft-frequency-hz", type=int, default=1000, help="HFT sampling frequency in Hz [1..1000] (default: 1000)")
     parser.add_argument("--mode", choices=["paper", "live"], default="paper", help="Trading mode")
     parser.add_argument("--confirm-live", action="store_true", help="Required safety flag for live mode")
     parser.add_argument("--symbol", default="SPY", help="Target ticker symbol")
@@ -34,6 +36,7 @@ def main():
     print(" AILEE Intraday Volume Auto-Trader Python Runner v12.0.0")
     print(f" Target Symbol:       {args.symbol}")
     print(f" Execution Enabled:   {'YES' if args.enable_auto_execute else 'NO (Dry-Run)'}")
+    print(f" High-Frequency (HFT):{'ENABLED (' + str(args.hft_frequency_hz) + ' Hz)' if args.enable_hft else 'DISABLED'}")
     print(f" Mode:                {args.mode.upper()}")
     print(f" Max Position (USD):  ${args.max_position_usd}")
     print(f" Max Daily Drawdown:  {args.max_drawdown_pct * 100:.1f}%")
@@ -43,6 +46,8 @@ def main():
     vam_op = IntradayVolumeAdvisory()
     exec_op = VolumeExecutionOperator(
         enable_auto_execute=args.enable_auto_execute,
+        enable_hft=args.enable_hft,
+        hft_frequency_hz=args.hft_frequency_hz,
         mode=args.mode,
         max_position_usd=args.max_position_usd,
         max_daily_drawdown_pct=args.max_drawdown_pct,
@@ -52,11 +57,11 @@ def main():
 
     # Simulated 5 intraday bar ticks
     ticks = [
-        {"current_volume": 10000.0, "avg_volume": 10000.0, "price_change": 0.002, "vwap_deviation": 0.0, "prev_volume_anomaly_ratio": 0.0, "is_index_etf": True, "enable_contrarian_oversold": True},
-        {"current_volume": 20000.0, "avg_volume": 10000.0, "price_change": 0.008, "vwap_deviation": 0.0, "prev_volume_anomaly_ratio": 0.0, "is_index_etf": True, "enable_contrarian_oversold": True},
-        {"current_volume": 20000.0, "avg_volume": 10000.0, "price_change": 0.008, "vwap_deviation": 0.0, "prev_volume_anomaly_ratio": 2.0, "is_index_etf": True, "enable_contrarian_oversold": True},
-        {"current_volume": 30000.0, "avg_volume": 10000.0, "price_change": -0.015, "vwap_deviation": -0.010, "prev_volume_anomaly_ratio": 0.0, "is_index_etf": True, "enable_contrarian_oversold": True},
-        {"current_volume": 30000.0, "avg_volume": 10000.0, "price_change": -0.015, "vwap_deviation": -0.010, "prev_volume_anomaly_ratio": 3.0, "is_index_etf": True, "enable_contrarian_oversold": True},
+        {"current_volume": 10000.0, "avg_volume": 10000.0, "price_change": 0.002, "vwap_deviation": 0.0, "prev_volume_anomaly_ratio": 0.0, "is_index_etf": True, "enable_contrarian_oversold": True, "enable_hft": args.enable_hft, "hft_p_input": 0.02},
+        {"current_volume": 20000.0, "avg_volume": 10000.0, "price_change": 0.008, "vwap_deviation": 0.0, "prev_volume_anomaly_ratio": 0.0, "is_index_etf": True, "enable_contrarian_oversold": True, "enable_hft": args.enable_hft, "hft_p_input": 0.08},
+        {"current_volume": 20000.0, "avg_volume": 10000.0, "price_change": 0.008, "vwap_deviation": 0.0, "prev_volume_anomaly_ratio": 2.0, "is_index_etf": True, "enable_contrarian_oversold": True, "enable_hft": args.enable_hft, "hft_p_input": 0.08},
+        {"current_volume": 30000.0, "avg_volume": 10000.0, "price_change": -0.015, "vwap_deviation": -0.010, "prev_volume_anomaly_ratio": 0.0, "is_index_etf": True, "enable_contrarian_oversold": True, "enable_hft": args.enable_hft, "hft_p_input": -0.15},
+        {"current_volume": 30000.0, "avg_volume": 10000.0, "price_change": -0.015, "vwap_deviation": -0.010, "prev_volume_anomaly_ratio": 3.0, "is_index_etf": True, "enable_contrarian_oversold": True, "enable_hft": args.enable_hft, "hft_p_input": -0.15},
     ]
 
     price = 500.0

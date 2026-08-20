@@ -30,15 +30,20 @@ struct alignas(64) VolumeState {
     float vwap_deviation;          ///< Percent deviation from Volume-Weighted Average Price
     float prev_volume_anomaly_ratio; ///< Previous interval's volume anomaly ratio
     float prev_recommended_weight;   ///< Previous interval's recommended weight
+    float hft_p_input;             ///< Price action signal power/intensity P_input(t)
+    float hft_mass;                ///< Dynamic liquidity mass M(t) (default: 1.0)
+    float hft_v0;                  ///< Baseline initial velocity v0
     bool is_index_etf;             ///< True for SPY/QQQ index ETFs (enables looser oversold thresholding)
     std::int8_t contrarian_override; ///< 0: follow config, 1: force enable, -1: force disable
-    std::uint8_t _reserved_padding[64 - 7 * sizeof(float) - sizeof(bool) - sizeof(std::int8_t)];
+    bool enable_hft_calc;          ///< True to execute HFT delta-v impulse calculation
+    std::uint8_t _reserved_padding[21];
 
     constexpr VolumeState()
         : current_volume(0.0f), avg_volume(0.0f), volume_anomaly_ratio(0.0f),
           price_change(0.0f), vwap_deviation(0.0f),
           prev_volume_anomaly_ratio(0.0f), prev_recommended_weight(-1.0f),
-          is_index_etf(false), contrarian_override(0),
+          hft_p_input(0.0f), hft_mass(1.0f), hft_v0(0.0f),
+          is_index_etf(false), contrarian_override(0), enable_hft_calc(false),
           _reserved_padding{} {}
 };
 static_assert(sizeof(VolumeState) == 64, "VolumeState must be exactly 64 bytes");
@@ -47,16 +52,19 @@ struct alignas(64) VolumeAdvisory {
     float recommended_weight;      ///< Proportional suggested weight [0.0, 1.0]
     float risk_score;              ///< Risk classification [0.0, 100.0]
     float oversold_score;          ///< Multi-factor oversold score [0.0, +inf)
+    float hft_delta_v;             ///< Calculated high-frequency impulse velocity Δv
     bool risk_elevated;            ///< True if high-risk anomalies are active
     bool growth_favorable;         ///< True if strong volume-price accumulation
     bool oversold_state;           ///< True if multi-factor oversold condition triggered
     bool contrarian_buy_signal;    ///< True if contrarian buy signal is active
-    std::uint8_t _reserved_padding[64 - 3 * sizeof(float) - 4 * sizeof(bool)];
+    bool hft_active;               ///< True if HFT impulse analysis was executed
+    std::uint8_t _reserved_padding[43];
 
     constexpr VolumeAdvisory()
         : recommended_weight(1.0f), risk_score(0.0f), oversold_score(0.0f),
+          hft_delta_v(0.0f),
           risk_elevated(false), growth_favorable(true),
-          oversold_state(false), contrarian_buy_signal(false),
+          oversold_state(false), contrarian_buy_signal(false), hft_active(false),
           _reserved_padding{} {}
 };
 static_assert(sizeof(VolumeAdvisory) == 64, "VolumeAdvisory must be exactly 64 bytes");
@@ -173,6 +181,33 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
 
     if (advisory.recommended_weight > 1.0f) advisory.recommended_weight = 1.0f;
     if (advisory.recommended_weight < 0.0f) advisory.recommended_weight = 0.0f;
+
+    // High-Frequency Trading (HFT) AILEE MATH Delta-V Impulse Integration
+    if (state.enable_hft_calc) {
+        advisory.hft_active = true;
+
+        Math::HFTSampleTick tick{};
+        tick.p_input = (state.hft_p_input != 0.0f) ? state.hft_p_input : state.price_change * 10.0f;
+        tick.w = advisory.risk_score / 100.0f;
+        tick.v = (state.avg_volume > 0.0f) ? (state.current_volume / state.avg_volume) : 1.0f;
+        tick.M = (state.hft_mass > 1e-6f) ? state.hft_mass : 1.0f;
+        tick.dt = 0.001f; // 1 ms micro-tick integration interval
+
+        advisory.hft_delta_v = Math::calculate_hft_tick_delta_v(
+            /*isp=*/1.0f,
+            /*efficiency=*/0.95f,
+            /*alpha=*/0.1f,
+            /*v0=*/state.hft_v0,
+            tick,
+            /*min_mass_floor=*/1e-6f
+        );
+
+        // Modulate recommended weight based on high-frequency impulse Δv
+        float impulse_factor = 1.0f + std::clamp(advisory.hft_delta_v, -0.5f, 0.5f);
+        advisory.recommended_weight *= impulse_factor;
+        if (advisory.recommended_weight > 1.0f) advisory.recommended_weight = 1.0f;
+        if (advisory.recommended_weight < 0.0f) advisory.recommended_weight = 0.0f;
+    }
 
     // Temporal Step Clamping (Drift Control)
     if (state.prev_recommended_weight >= 0.0f && state.prev_recommended_weight <= 1.0f) {

@@ -30,6 +30,8 @@ class VolumeExecutionOperator(BaseOperator):
         enable_auto_execute: bool = False,
         mode: str = "paper",
         mock_mode: bool = True,
+        enable_hft: bool = False,
+        hft_frequency_hz: int = 1000,
         max_position_usd: float = 10000.0,
         max_daily_drawdown_pct: float = 0.05,
         risk_reduce_factor: float = 0.5,
@@ -40,6 +42,8 @@ class VolumeExecutionOperator(BaseOperator):
         self.enable_auto_execute = enable_auto_execute
         self.mode = mode.lower()
         self.mock_mode = mock_mode
+        self.enable_hft = enable_hft
+        self.hft_frequency_hz = min(max(1, hft_frequency_hz), 1000)
         self.max_position_usd = max_position_usd
         self.max_daily_drawdown_pct = max_daily_drawdown_pct
         self.risk_reduce_factor = risk_reduce_factor
@@ -74,6 +78,8 @@ class VolumeExecutionOperator(BaseOperator):
             "risk_elevated": advisory_data.get("risk_elevated", False),
             "contrarian_buy": advisory_data.get("contrarian_buy_signal", False),
             "growth_favorable": advisory_data.get("growth_favorable", False),
+            "hft_active": advisory_data.get("hft_active", False),
+            "hft_delta_v": advisory_data.get("hft_delta_v", 0.0),
             "details": details
         }
         log_line = json.dumps(record)
