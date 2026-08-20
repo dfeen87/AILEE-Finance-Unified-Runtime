@@ -190,3 +190,16 @@ def test_neutral_fallback_when_bias_disabled(tmp_path):
     dec = domain.evaluate_sell(sig)
     assert dec.bullish_mode_active is False
     assert dec.allowed_sell_amount == 1000.0  # Returns to 100% neutral cap
+
+
+def test_volume_execution_operator_bullish_bias_defaults_and_toggle(tmp_path):
+    # Default instance: controlled bullish bias is ON by default
+    op_default = VolumeExecutionOperator(audit_log_file=str(tmp_path / "audit_default.log"))
+    assert op_default.hft_bias_config["enabled"] is True
+
+    # Disabled instance: controlled bullish bias explicitly turned OFF
+    op_disabled = VolumeExecutionOperator(
+        audit_log_file=str(tmp_path / "audit_disabled.log"),
+        hft_bias_config={"enabled": False}
+    )
+    assert op_disabled.hft_bias_config["enabled"] is False

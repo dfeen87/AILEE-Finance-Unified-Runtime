@@ -239,6 +239,8 @@ void printUsage(const char* prog) {
               << "  --enable-auto-execute     Enable live/mock trade execution (default: false / dry-run)\n"
               << "  --enable-hft              Enable high-frequency price action & volume impulse analysis (default: false)\n"
               << "  --hft-frequency-hz=NUM    HFT micro-tick sampling frequency in Hz [1..1000] (default: 1000)\n"
+              << "  --disable-bullish         Disable controlled bullish bias (default: enabled / ON)\n"
+              << "  --enable-bullish          Enable controlled bullish bias (default: enabled / ON)\n"
               << "  --mode=paper|live          Trading mode (default: paper)\n"
               << "  --symbol=SPY|QQQ           Target ETF ticker (default: SPY)\n"
               << "  --max-position-usd=NUM     Maximum dollar allocation (default: 10000)\n"
@@ -262,6 +264,10 @@ int main(int argc, char* argv[]) {
         } else if (arg.rfind("--hft-frequency-hz=", 0) == 0) {
             int freq = std::atoi(arg.substr(19).c_str());
             cfg.hft_frequency_hz = (freq > 1000) ? 1000 : ((freq < 1) ? 1 : freq);
+        } else if (arg == "--disable-bullish" || arg == "--disable-bullish-bias") {
+            cfg.hft_bias_cfg.enabled = false;
+        } else if (arg == "--enable-bullish" || arg == "--enable-bullish-bias") {
+            cfg.hft_bias_cfg.enabled = true;
         } else if (arg == "--mode=live") {
             cfg.is_live = true;
         } else if (arg == "--mode=paper") {
@@ -296,6 +302,7 @@ int main(int argc, char* argv[]) {
               << " Target Symbol:       " << cfg.symbol << "\n"
               << " Execution Enabled:   " << (cfg.enable_auto_execute ? "YES" : "NO (Dry-Run)") << "\n"
               << " High-Frequency (HFT):" << (cfg.enable_hft ? "ENABLED (" + std::to_string(cfg.hft_frequency_hz) + " Hz)" : "DISABLED") << "\n"
+              << " Controlled Bullish:  " << (cfg.hft_bias_cfg.enabled ? "ENABLED (ON)" : "DISABLED (OFF)") << "\n"
               << " Mode:                " << (cfg.is_live ? "LIVE" : "PAPER") << "\n"
               << " Mock Simulator:      " << (cfg.mock_mode ? "YES" : "NO") << "\n"
               << " Max Position (USD):  $" << cfg.max_position_usd << "\n"

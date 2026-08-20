@@ -179,6 +179,8 @@ class VolumeExecutionOperator(BaseOperator):
         if not self.enable_auto_execute:
             self.log_audit("DRY_RUN_SIGNAL", f"Auto-execution disabled. Would execute: {signal_type}", advisory_data, current_price, trust_score, manipulation_score, bullish_active)
             return
+
+        # 5. Order execution
         if desired_side == "FLAT":
             if self.current_position_side != "FLAT":
                 self.current_position_side = "FLAT"
@@ -196,22 +198,3 @@ class VolumeExecutionOperator(BaseOperator):
                 self.log_audit("ORDER_SUBMITTED", f"Order ID: {order_id} Qty: {qty}", advisory_data, current_price, trust_score, manipulation_score, bullish_active)
             else:
                 self.log_audit("SKIPPED_QTY_ZERO", "Calculated order quantity is 0", advisory_data, current_price, trust_score, manipulation_score, bullish_active)
-
-        # 5. Order execution
-        if desired_side == "FLAT":
-            if self.current_position_side != "FLAT":
-                self.current_position_side = "FLAT"
-                self.log_audit("FLAT_POSITION", "Position flattened successfully", advisory_data, current_price)
-        elif desired_side == "BUY":
-            alloc_usd = self.max_position_usd * advisory_data.get("recommended_weight", 1.0)
-            if advisory_data.get("risk_elevated"):
-                alloc_usd *= self.risk_reduce_factor
-
-            qty = int(alloc_usd // current_price) if current_price > 0 else 0
-            if qty > 0:
-                order_id = f"MOCK-PY-ALPACA-{self.order_counter}"
-                self.order_counter += 1
-                self.current_position_side = "BUY"
-                self.log_audit("ORDER_SUBMITTED", f"Order ID: {order_id} Qty: {qty}", advisory_data, current_price)
-            else:
-                self.log_audit("SKIPPED_QTY_ZERO", "Calculated order quantity is 0", advisory_data, current_price)
