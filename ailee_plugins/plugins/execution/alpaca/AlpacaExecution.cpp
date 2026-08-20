@@ -1,172 +1,281 @@
 /*
- * AILLE Plugin — AlpacaExecution (example implementation)
+ * AILLE Plugin — Alpaca Execution Implementation
  * AI-Load Integrity and Layered Evaluation
  *
  * Copyright (c) Don Michael Feeney Jr.
  * Licensed under the MIT License.
- *
- * Minimal, dependency-free example showing how an execution plugin
- * implements IExecutionProvider and consumes AILLE Decision objects.
- *
- * NOTE: This file uses mock/placeholder data. No real API calls are made
- *       and no API keys are stored here. Replace the stub implementations
- *       with live HTTP requests before using in a production environment.
- *
- * Decision Routing pattern applied here:
- *   DECISION_VALID        → submitOrder() at full confidence scaling
- *   FALLBACK_ACTIVATED    → submitOrder() at 50% confidence scaling
- *   REJECTED_*            → no order placed; decision is logged
- *
- * Integration:
- *   #include "ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp"
- *
- *   // Register once at startup
- *   AILLE::Plugins::PluginRegistry::instance().registerExecutionProvider(
- *       "alpaca",
- *       []{ return std::make_unique<AILLE::Plugins::Alpaca::AlpacaExecution>("AAPL", 100.0f); }
- *   );
- *
- *   // Route a decision
- *   auto exec = AILLE::Plugins::PluginRegistry::instance().createExecutionProvider("alpaca");
- *   exec->routeDecision(decision, "AAPL", 100.0f);
  */
 
-#include "../../../IExecutionProvider.hpp"
+#include "AlpacaExecution.hpp"
 #include "../../../../ailee_plugins/PluginRegistry.hpp"
 
-#include <atomic>
-#include <chrono>
+// Include cpp-httplib system headers
+#define CPPHTTPLIB_OPENSSL_SUPPORT 0
+#include "../../../../external/httplib.h"
+
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
+#include <chrono>
+#include <cmath>
 
 namespace AILLE {
 namespace Plugins {
 namespace Alpaca {
 
-// ============================================================================
-// ALPACA EXECUTION PLUGIN
-// ============================================================================
+AlpacaConfig AlpacaExecution::loadConfigFromEnv(bool fail_closed) {
+    AlpacaConfig cfg;
 
-class AlpacaExecution : public IExecutionProvider {
-public:
-    /// @param default_symbol  Ticker used when no symbol is passed to routeDecision.
-    /// @param base_qty        Maximum order quantity (shares) before confidence scaling.
-    explicit AlpacaExecution(const std::string& default_symbol = "AAPL",
-                             float base_qty = 100.0f)
-        : default_symbol_(default_symbol), base_qty_(base_qty) {}
+    const char* key_env = std::getenv("ALPACA_API_KEY_ID");
+    const char* sec_env = std::getenv("ALPACA_SECRET_KEY");
+    const char* url_env = std::getenv("ALPACA_BASE_URL");
 
-    std::string name() const override { return "alpaca"; }
-
-    /// Submit an order to Alpaca (placeholder — returns a synthetic order ID).
-    ///
-    /// In a real implementation, replace sendOrderRequest() with an HTTPS
-    /// POST to https://api.alpaca.markets/v2/orders using the bearer token
-    /// retrieved from a secure credential store (never hardcoded).
-    std::string submitOrder(const OrderRequest& request) override {
-        if (request.quantity <= 0.0f) {
-            std::cerr << "[AlpacaExecution] submitOrder skipped: quantity <= 0\n";
-            return {};
-        }
-
-        std::string side_str = sideToString(request.side);
-        std::string order_id = generateOrderId();
-
-        // Stub: log what would be sent to the Alpaca REST API
-        std::cout << "[AlpacaExecution] submitOrder"
-                  << " symbol="    << request.symbol
-                  << " side="      << side_str
-                  << " qty="       << request.quantity
-                  << " limit="     << request.limit_price
-                  << " order_id="  << order_id
-                  << "\n";
-
-        // Simulate a successful broker acknowledgement
-        sendOrderRequest(request, order_id);
-
-        return order_id;
+    if (key_env && std::string(key_env).length() > 0) {
+        cfg.api_key_id = key_env;
+    }
+    if (sec_env && std::string(sec_env).length() > 0) {
+        cfg.secret_key = sec_env;
+    }
+    if (url_env && std::string(url_env).length() > 0) {
+        cfg.base_url = url_env;
+    } else {
+        cfg.base_url = "https://paper-api.alpaca.markets";
     }
 
-    /// Cancel an order by its broker-assigned ID.
-    ///
-    /// In a real implementation, issue a DELETE request to
-    /// https://api.alpaca.markets/v2/orders/{order_id}.
-    bool cancelOrder(const std::string& order_id) override {
-        if (order_id.empty()) return false;
+    if (cfg.base_url.find("paper") == std::string::npos) {
+        cfg.is_live = true;
+    } else {
+        cfg.is_live = false;
+    }
 
-        std::cout << "[AlpacaExecution] cancelOrder order_id=" << order_id << "\n";
-        // Stub: simulate successful cancellation
+    if (fail_closed && (cfg.api_key_id.empty() || cfg.secret_key.empty())) {
+        cfg.mock_mode = false; // Cannot operate live/paper without creds
+    }
+
+    return cfg;
+}
+
+AlpacaExecution::AlpacaExecution(const AlpacaConfig& config)
+    : config_(config) {
+    if (!config_.api_key_id.empty() && !config_.secret_key.empty()) {
+        is_enabled_ = true;
+    } else if (config_.mock_mode) {
+        is_enabled_ = true;
+    } else {
+        is_enabled_ = false;
+        std::cerr << "[AlpacaExecution] Warning: Missing API credentials (ALPACA_API_KEY_ID/ALPACA_SECRET_KEY). Fail-closed mode active.\n";
+    }
+}
+
+std::string AlpacaExecution::parseHost(const std::string& url) const {
+    std::string host = url;
+    size_t pos = host.find("://");
+    if (pos != std::string::npos) {
+        host = host.substr(pos + 3);
+    }
+    pos = host.find('/');
+    if (pos != std::string::npos) {
+        host = host.substr(0, pos);
+    }
+    pos = host.find(':');
+    if (pos != std::string::npos) {
+        host = host.substr(0, pos);
+    }
+    return host;
+}
+
+int AlpacaExecution::parsePort(const std::string& url) const {
+    if (isHttps(url)) return 443;
+    size_t pos = url.find("://");
+    std::string rest = (pos != std::string::npos) ? url.substr(pos + 3) : url;
+    size_t slash = rest.find('/');
+    if (slash != std::string::npos) rest = rest.substr(0, slash);
+    size_t colon = rest.find(':');
+    if (colon != std::string::npos) {
+        return std::atoi(rest.substr(colon + 1).c_str());
+    }
+    return 80;
+}
+
+bool AlpacaExecution::isHttps(const std::string& url) const {
+    return url.rfind("https://", 0) == 0;
+}
+
+std::string AlpacaExecution::sideToString(OrderSide side) const {
+    switch (side) {
+        case OrderSide::BUY:  return "buy";
+        case OrderSide::SELL: return "sell";
+        default:              return "flat";
+    }
+}
+
+void AlpacaExecution::triggerLockout(const std::string& reason) {
+    locked_out_ = true;
+    lockout_reason_ = reason;
+    std::cerr << "[AlpacaExecution] LOCKOUT TRIGGERED: " << reason << "\n";
+}
+
+std::string AlpacaExecution::submitOrder(const OrderRequest& request) {
+    if (!is_enabled_) {
+        std::cerr << "[AlpacaExecution] submitOrder rejected: Plugin disabled (missing credentials/fail-closed).\n";
+        return {};
+    }
+    if (locked_out_) {
+        std::cerr << "[AlpacaExecution] submitOrder rejected: Plugin is locked out (" << lockout_reason_ << ").\n";
+        return {};
+    }
+    if (request.quantity <= 0.0f) {
+        std::cerr << "[AlpacaExecution] submitOrder skipped: quantity <= 0\n";
+        return {};
+    }
+
+    if (request.side == OrderSide::FLAT) {
+        bool ok = flattenPosition(request.symbol);
+        return ok ? "FLAT_SUCCESS" : "";
+    }
+
+    if (config_.mock_mode) {
+        std::ostringstream oss;
+        oss << "MOCK-ALPACA-" << order_counter_.fetch_add(1);
+        std::string mock_id = oss.str();
+        std::cout << "[AlpacaExecution] [MOCK SUBMIT] symbol=" << request.symbol
+                  << " side=" << sideToString(request.side)
+                  << " qty=" << request.quantity
+                  << " order_id=" << mock_id << "\n";
+        return mock_id;
+    }
+
+    std::string host = parseHost(config_.base_url);
+    int port = parsePort(config_.base_url);
+
+    httplib::Client cli(host, port);
+    cli.set_connection_timeout(5, 0); // 5 sec timeout
+
+    httplib::Headers headers = {
+        {"APCA-API-KEY-ID", config_.api_key_id},
+        {"APCA-API-SECRET-KEY", config_.secret_key},
+        {"Content-Type", "application/json"}
+    };
+
+    std::ostringstream json_body;
+    json_body << "{"
+              << "\"symbol\":\"" << request.symbol << "\","
+              << "\"qty\":" << static_cast<long>(request.quantity) << ","
+              << "\"side\":\"" << sideToString(request.side) << "\","
+              << "\"type\":\"market\","
+              << "\"time_in_force\":\"day\""
+              << "}";
+
+    auto res = cli.Post("/v2/orders", headers, json_body.str(), "application/json");
+
+    if (res && res->status == 200) {
+        // Simple extraction of order id from JSON body {"id": "xxx"...}
+        std::string body = res->body;
+        size_t id_pos = body.find("\"id\":\"");
+        if (id_pos != std::string::npos) {
+            size_t start = id_pos + 6;
+            size_t end = body.find("\"", start);
+            if (end != std::string::npos) {
+                return body.substr(start, end - start);
+            }
+        }
+        return "SUBMITTED_SUCCESS";
+    } else {
+        int status = res ? res->status : -1;
+        std::cerr << "[AlpacaExecution] HTTP POST /v2/orders failed with status: " << status << "\n";
+        return {};
+    }
+}
+
+bool AlpacaExecution::cancelOrder(const std::string& order_id) {
+    if (!is_enabled_ || order_id.empty()) return false;
+
+    if (config_.mock_mode) {
+        std::cout << "[AlpacaExecution] [MOCK CANCEL] order_id=" << order_id << "\n";
         return true;
     }
 
-    /// Override routeDecision to log rejected decisions before delegating
-    /// to the base-class Decision Routing pattern.
-    std::string routeDecision(const Decision& decision,
-                              const std::string& symbol,
-                              float base_qty) override {
-        const std::string& sym = symbol.empty() ? default_symbol_ : symbol;
-        float qty = (base_qty > 0.0f) ? base_qty : base_qty_;
+    std::string host = parseHost(config_.base_url);
+    int port = parsePort(config_.base_url);
 
-        if (decision.status == REJECTED_LOW_CONFIDENCE ||
-            decision.status == REJECTED_NO_CONSENSUS   ||
-            decision.status == ERROR_NO_MODELS) {
-            std::cout << "[AlpacaExecution] decision rejected — no order placed."
-                      << " reason=" << decision.reasoning << "\n";
-            return {};
+    httplib::Client cli(host, port);
+    httplib::Headers headers = {
+        {"APCA-API-KEY-ID", config_.api_key_id},
+        {"APCA-API-SECRET-KEY", config_.secret_key}
+    };
+
+    std::string path = "/v2/orders/" + order_id;
+    auto res = cli.Delete(path.c_str(), headers);
+
+    return (res && (res->status == 200 || res->status == 204));
+}
+
+bool AlpacaExecution::flattenPosition(const std::string& symbol) {
+    if (!is_enabled_) return false;
+
+    if (config_.mock_mode) {
+        std::cout << "[AlpacaExecution] [MOCK FLATTEN] symbol=" << symbol << "\n";
+        return true;
+    }
+
+    std::string host = parseHost(config_.base_url);
+    int port = parsePort(config_.base_url);
+
+    httplib::Client cli(host, port);
+    httplib::Headers headers = {
+        {"APCA-API-KEY-ID", config_.api_key_id},
+        {"APCA-API-SECRET-KEY", config_.secret_key}
+    };
+
+    std::string path = "/v2/positions/" + symbol;
+    auto res = cli.Delete(path.c_str(), headers);
+
+    return (res && (res->status == 200 || res->status == 204));
+}
+
+float AlpacaExecution::getAccountEquity() {
+    if (!is_enabled_) return -1.0f;
+
+    if (config_.mock_mode) {
+        return 100000.0f; // Mock 100k equity
+    }
+
+    std::string host = parseHost(config_.base_url);
+    int port = parsePort(config_.base_url);
+
+    httplib::Client cli(host, port);
+    httplib::Headers headers = {
+        {"APCA-API-KEY-ID", config_.api_key_id},
+        {"APCA-API-SECRET-KEY", config_.secret_key}
+    };
+
+    auto res = cli.Get("/v2/account", headers);
+    if (res && res->status == 200) {
+        std::string body = res->body;
+        size_t eq_pos = body.find("\"equity\":\"");
+        if (eq_pos != std::string::npos) {
+            size_t start = eq_pos + 10;
+            size_t end = body.find("\"", start);
+            if (end != std::string::npos) {
+                return std::strtof(body.substr(start, end - start).c_str(), nullptr);
+            }
         }
-
-        // Delegate to base-class routing (applies confidence scaling)
-        return IExecutionProvider::routeDecision(decision, sym, qty);
     }
+    return -1.0f;
+}
 
-private:
-    std::string default_symbol_;
-    float       base_qty_;
-
-    // Monotonically increasing order counter (thread-safe)
-    std::atomic<uint64_t> order_counter_{1};
-
-    // ---- Stub helpers -------------------------------------------------------
-
-    std::string generateOrderId() {
-        std::ostringstream oss;
-        oss << "ALPACA-" << order_counter_.fetch_add(1);
-        return oss.str();
-    }
-
-    static std::string sideToString(OrderSide side) {
-        switch (side) {
-            case OrderSide::BUY:  return "buy";
-            case OrderSide::SELL: return "sell";
-            default:              return "flat";
-        }
-    }
-
-    /// Placeholder for a real Alpaca REST API call.
-    static void sendOrderRequest(const OrderRequest& /*request*/,
-                                 const std::string&  /*order_id*/) {
-        // TODO: implement HTTP POST to Alpaca /v2/orders
-        // Use a secure credential store — never hardcode API keys.
-    }
-};
-
-// ============================================================================
-// SELF-REGISTRATION
-// ============================================================================
-
-/// Registers this plugin with the global PluginRegistry at static-init time.
-/// Link this translation unit to activate auto-registration.
 namespace {
     struct AlpacaExecutionRegistrar {
         AlpacaExecutionRegistrar() {
             PluginRegistry::instance().registerExecutionProvider(
                 "alpaca",
                 []() -> std::unique_ptr<IExecutionProvider> {
-                    return std::make_unique<AlpacaExecution>();
+                    auto cfg = AlpacaExecution::loadConfigFromEnv(/*fail_closed=*/false);
+                    return std::make_unique<AlpacaExecution>(cfg);
                 }
             );
         }
     };
-    // NOLINTNEXTLINE(cert-err58-cpp) — intentional static initialisation
     const AlpacaExecutionRegistrar g_alpaca_registrar;
 } // anonymous namespace
 

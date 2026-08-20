@@ -49,6 +49,7 @@
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
 #include "../ailee_plugins/plugins/alerts/news/BreakingNewsAlertAdapter.cpp"
+#include "../ailee_plugins/plugins/execution/alpaca/AlpacaExecution.hpp"
 
 // Simple Test Framework
 int tests_run = 0;
@@ -199,6 +200,45 @@ TEST(TestBreakingNewsAlertAdapterEnrichesBuySellHoldAlerts) {
     enriched = adapter.enrichAlert(alert);
     ASSERT_TRUE(enriched.side == AlertSide::ALERT_HOLD);
     ASSERT_TRUE(enriched.message.find("Company announces") != std::string::npos);
+}
+
+TEST(TestAlpacaExecutionPluginMockIntegration) {
+    using namespace AILLE::Plugins;
+    using namespace AILLE::Plugins::Alpaca;
+
+    AlpacaConfig cfg;
+    cfg.mock_mode = true;
+    cfg.max_position_usd = 10000.0f;
+    cfg.max_daily_drawdown = 0.05f;
+
+    AlpacaExecution exec(cfg);
+    ASSERT_TRUE(exec.isEnabled());
+    ASSERT_FALSE(exec.isLockedOut());
+    ASSERT_TRUE(exec.name() == "alpaca");
+
+    OrderRequest req;
+    req.symbol = "SPY";
+    req.side = OrderSide::BUY;
+    req.quantity = 10.0f;
+
+    std::string order_id = exec.submitOrder(req);
+    ASSERT_FALSE(order_id.empty());
+    ASSERT_TRUE(order_id.rfind("MOCK-ALPACA-", 0) == 0);
+
+    bool cancelled = exec.cancelOrder(order_id);
+    ASSERT_TRUE(cancelled);
+
+    bool flattened = exec.flattenPosition("SPY");
+    ASSERT_TRUE(flattened);
+
+    float equity = exec.getAccountEquity();
+    ASSERT_FLOAT_EQ(equity, 100000.0f);
+
+    exec.triggerLockout("Test drawdown breach");
+    ASSERT_TRUE(exec.isLockedOut());
+
+    std::string rejected_id = exec.submitOrder(req);
+    ASSERT_TRUE(rejected_id.empty());
 }
 
 TEST(TestBreakingNewsAlertAdapterRegistersAsOptionalAlertOnly) {
@@ -2031,6 +2071,7 @@ int main() {
     RUN_TEST(TestTradingAlertAdapterRejectedDecisionIsHoldAlert);
     RUN_TEST(TestRobinhoodAlertAdapterRegistersWithoutExecutionProvider);
     RUN_TEST(TestBreakingNewsAlertAdapterEnrichesBuySellHoldAlerts);
+    RUN_TEST(TestAlpacaExecutionPluginMockIntegration);
     RUN_TEST(TestBreakingNewsAlertAdapterRegistersAsOptionalAlertOnly);
     RUN_TEST(TestConfigurationDefaults);
     RUN_TEST(TestSafetyLayer);
