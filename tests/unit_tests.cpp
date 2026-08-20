@@ -2928,6 +2928,66 @@ int main() {
     // Reset safety
     safety.kill_switch = false;
 
+    // AILEE MATH HFT Delta-V Unit Tests
+    {
+        AILLE::Math::HFTSampleTick ticks[2];
+        ticks[0].p_input = 0.05f;
+        ticks[0].w = 0.2f;
+        ticks[0].v = 1.5f;
+        ticks[0].M = 1.0f;
+        ticks[0].dt = 0.001f;
+
+        ticks[1].p_input = 0.10f;
+        ticks[1].w = 0.1f;
+        ticks[1].v = 2.0f;
+        ticks[1].M = 0.0f; // Tests mass floor clamping M >= 1e-6
+        ticks[1].dt = 0.001f;
+
+        float delta_v = AILLE::Math::calculate_hft_delta_v(1.0f, 0.95f, 0.1f, 0.0f, ticks, 2);
+        if (delta_v <= 0.0f) {
+            std::cerr << "FAIL: calculate_hft_delta_v returned non-positive value for positive impulse.\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        // Test zero efficiency returns zero
+        float zero_eff_v = AILLE::Math::calculate_hft_delta_v(1.0f, 0.0f, 0.1f, 0.0f, ticks, 2);
+        if (zero_eff_v != 0.0f) {
+            std::cerr << "FAIL: calculate_hft_delta_v did not return 0 for 0 efficiency.\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        // Test null/empty ticks returns zero
+        float empty_v = AILLE::Math::calculate_hft_delta_v(1.0f, 0.95f, 0.1f, 0.0f, nullptr, 0);
+        if (empty_v != 0.0f) {
+            std::cerr << "FAIL: calculate_hft_delta_v did not return 0 for empty ticks.\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+
+        // Test HFT integration in VolumeState / VolumeAdvisory
+        AILLE::VolumeState hft_state;
+        hft_state.current_volume = 20000.0f;
+        hft_state.avg_volume = 10000.0f;
+        hft_state.volume_anomaly_ratio = 2.0f;
+        hft_state.price_change = 0.008f;
+        hft_state.hft_p_input = 0.08f;
+        hft_state.hft_mass = 1.0f;
+        hft_state.enable_hft_calc = true;
+
+        AILLE::VolumeAdvisory hft_adv = AILLE::evaluate_volume_state(hft_state, &safety);
+        if (!hft_adv.hft_active || hft_adv.hft_delta_v <= 0.0f) {
+            std::cerr << "FAIL: evaluate_volume_state did not calculate positive hft_delta_v when enable_hft_calc=true.\n";
+            tests_failed++;
+        } else {
+            tests_run++;
+        }
+    }
+
     AILLE::VolumeAdvisory engine_vol_adv;
     engine.set_volume_state(&vol_state);
     engine.set_volume_advisory(&engine_vol_adv);

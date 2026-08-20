@@ -6,16 +6,59 @@ Evaluates intraday volume, anomalies relative to baseline, price changes,
 and VWAP deviations to output structured risk and growth scores.
 """
 
+import math
+from typing import List, Dict, Any, Optional
+
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import BaseOperator
+
+
+def calculate_hft_delta_v(
+    isp: float,
+    efficiency: float,
+    alpha: float,
+    v0: float,
+    ticks: List[Dict[str, float]],
+    min_mass_floor: float = 1e-6
+) -> float:
+    """
+    Calculates high-frequency impulse velocity Δv across micro-tick price action & volume stream.
+    Δv = Isp * η * e^(-α * v0^2) * ∫0^tf [P_input(t) * e^(-α * w(t)^2) * e^(2 * α * v0) * v(t)] / M(t) dt
+    """
+    if not ticks or efficiency <= 0.0:
+        return 0.0
+
+    integral_sum = 0.0
+    exp_2_alpha_v0 = math.exp(2.0 * alpha * v0)
+    mass_floor = max(min_mass_floor, 1e-6)
+
+    for tick in ticks:
+        p_input = tick.get("p_input", 0.0)
+        w = tick.get("w", 0.0)
+        v = tick.get("v", 0.0)
+        M = tick.get("M", 1.0)
+        dt = tick.get("dt", 0.001)
+
+        m_safe = max(M, mass_floor)
+        exp_neg_alpha_w2 = math.exp(-alpha * w * w)
+        dt_val = max(dt, 0.001)
+
+        integrand = (p_input * exp_neg_alpha_w2 * exp_2_alpha_v0 * v) / m_safe
+        integral_sum += integrand * dt_val
+
+    exp_neg_alpha_v02 = math.exp(-alpha * v0 * v0)
+    return isp * efficiency * exp_neg_alpha_v02 * integral_sum
+
 
 class VolumeState:
     """Intraday volume metrics snapshot."""
     def __init__(self, current_volume: float = 0.0, avg_volume: float = 0.0,
                  price_change: float = 0.0, vwap_deviation: float = 0.0,
                  prev_volume_anomaly_ratio: float = 0.0, prev_recommended_weight: float = -1.0,
-                 is_index_etf: bool = False, contrarian_override: int = 0):
+                 hft_p_input: float = 0.0, hft_mass: float = 1.0, hft_v0: float = 0.0,
+                 is_index_etf: bool = False, contrarian_override: int = 0,
+                 enable_hft_calc: bool = False):
         self.current_volume = current_volume
         self.avg_volume = avg_volume
         self.volume_anomaly_ratio = (current_volume / avg_volume) if avg_volume > 0 else 1.0
@@ -23,8 +66,12 @@ class VolumeState:
         self.vwap_deviation = vwap_deviation
         self.prev_volume_anomaly_ratio = prev_volume_anomaly_ratio
         self.prev_recommended_weight = prev_recommended_weight
+        self.hft_p_input = hft_p_input
+        self.hft_mass = hft_mass
+        self.hft_v0 = hft_v0
         self.is_index_etf = is_index_etf
         self.contrarian_override = contrarian_override
+        self.enable_hft_calc = enable_hft_calc
 
 
 class VolumeAdvisory:
@@ -33,10 +80,12 @@ class VolumeAdvisory:
         self.recommended_weight = 1.0
         self.risk_score = 0.0
         self.oversold_score = 0.0
+        self.hft_delta_v = 0.0
         self.risk_elevated = False
         self.growth_favorable = True
         self.oversold_state = False
         self.contrarian_buy_signal = False
+        self.hft_active = False
 
 
 class IntradayVolumeAdvisory(BaseOperator):
@@ -74,8 +123,12 @@ class IntradayVolumeAdvisory(BaseOperator):
             "vwap_deviation": vwap_deviation,
             "prev_volume_anomaly_ratio": prev_vol_anomaly,
             "prev_recommended_weight": prev_weight,
+            "hft_p_input": float(input_data.get("hft_p_input", 0.0)),
+            "hft_mass": float(input_data.get("hft_mass", 1.0)),
+            "hft_v0": float(input_data.get("hft_v0", 0.0)),
             "is_index_etf": is_index_etf,
-            "contrarian_override": contrarian_override
+            "contrarian_override": contrarian_override,
+            "enable_hft_calc": bool(input_data.get("enable_hft_calc", False) or input_data.get("enable_hft", False))
         }
 
         if "stabilizer_factor" in input_data:
@@ -127,8 +180,12 @@ class IntradayVolumeAdvisory(BaseOperator):
             vwap_deviation=input_data["vwap_deviation"],
             prev_volume_anomaly_ratio=input_data.get("prev_volume_anomaly_ratio", 0.0),
             prev_recommended_weight=input_data.get("prev_recommended_weight", -1.0),
+            hft_p_input=input_data.get("hft_p_input", 0.0),
+            hft_mass=input_data.get("hft_mass", 1.0),
+            hft_v0=input_data.get("hft_v0", 0.0),
             is_index_etf=input_data.get("is_index_etf", False),
-            contrarian_override=input_data.get("contrarian_override", 0)
+            contrarian_override=input_data.get("contrarian_override", 0),
+            enable_hft_calc=input_data.get("enable_hft_calc", False) or input_data.get("enable_hft", False)
         )
 
         enable_contrarian = False
@@ -204,6 +261,33 @@ class IntradayVolumeAdvisory(BaseOperator):
 
         advisory.recommended_weight = max(0.0, min(1.0, advisory.recommended_weight))
 
+        # High-Frequency Trading (HFT) AILEE MATH Delta-V Impulse Integration
+        if state.enable_hft_calc:
+            advisory.hft_active = True
+            p_input = state.hft_p_input if state.hft_p_input != 0.0 else state.price_change * 10.0
+            v_flow = (state.current_volume / state.avg_volume) if state.avg_volume > 0 else 1.0
+            w_risk = advisory.risk_score / 100.0
+
+            tick_dict = {
+                "p_input": p_input,
+                "w": w_risk,
+                "v": v_flow,
+                "M": state.hft_mass,
+                "dt": 0.001
+            }
+
+            advisory.hft_delta_v = calculate_hft_delta_v(
+                isp=1.0,
+                efficiency=0.95,
+                alpha=0.1,
+                v0=state.hft_v0,
+                ticks=[tick_dict],
+                min_mass_floor=1e-6
+            )
+
+            impulse_factor = 1.0 + max(-0.5, min(0.5, advisory.hft_delta_v))
+            advisory.recommended_weight = max(0.0, min(1.0, advisory.recommended_weight * impulse_factor))
+
         # Temporal Step Clamping (Drift Control)
         if 0.0 <= state.prev_recommended_weight <= 1.0:
             diff = advisory.recommended_weight - state.prev_recommended_weight
@@ -218,10 +302,12 @@ class IntradayVolumeAdvisory(BaseOperator):
             "recommended_weight": advisory.recommended_weight,
             "risk_score": advisory.risk_score,
             "oversold_score": advisory.oversold_score,
+            "hft_delta_v": advisory.hft_delta_v,
             "risk_elevated": advisory.risk_elevated,
             "growth_favorable": advisory.growth_favorable,
             "oversold_state": advisory.oversold_state,
-            "contrarian_buy_signal": advisory.contrarian_buy_signal
+            "contrarian_buy_signal": advisory.contrarian_buy_signal,
+            "hft_active": advisory.hft_active
         }
 
     def postprocess(self, result_data: dict) -> dict:

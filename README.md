@@ -270,13 +270,16 @@ AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and auton
 ### Architectural Highlights & Safety Posture
 - **Alpaca REST Execution Adapter**: Integrated C++ plugin (`ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp/.hpp`) communicating with Alpaca REST v2 endpoints (`/v2/orders`, `/v2/positions`, `/v2/account`) using `cpp-httplib`.
 - **Python Execution Operator**: `VolumeExecutionOperator` in `core/finance_kernel/volume_execution.py` following the standard AILEE Finance Runtime Kernel operator pattern.
+- **High-Frequency AILEE MATH Impulse Engine**: Continuous micro-tick price action & volume analysis evaluating impulse velocity $\Delta v$ for execution speed through the Governance pipeline:
+  $$\Delta v = I_{sp} \cdot \eta \cdot e^{-\alpha v_0^2} \int_0^{t_f} \frac{P_{input}(t) \cdot e^{-\alpha w(t)^2} \cdot e^{2 \alpha v_0} \cdot v(t)}{M(t)} \, dt$$
+  where $I_{sp} = 1.0$, efficiency $\eta = 0.95$, attenuation $\alpha = 0.1$, micro-tick interval $dt = 0.001\text{s}$ (1 ms resolution), and dynamic liquidity mass floor $M(t) \ge 10^{-6}$.
 - **Fail-Closed Credential Guards**: Requires valid environment variables (`ALPACA_API_KEY_ID`, `ALPACA_SECRET_KEY`). If credentials are missing/malformed and mock mode is not explicitly enabled, execution fails closed and no orders are submitted.
 - **Paper Trading Default**: Defaults to Alpaca paper trading (`https://paper-api.alpaca.markets`). Live trading mode (`--mode=live`) requires an explicit CLI flag *and* `--confirm-live` safety confirmation.
 - **Multi-Layer Risk & Lockout Controls**:
-  - **Opt-In Flag**: Auto-execution is disabled by default (`--enable-auto-execute` required).
+  - **Opt-In Flag**: Auto-execution is disabled by default (`--enable-auto-execute` required). High-frequency mode requires explicit opt-in (`--enable-hft`).
   - **Daily Drawdown Lockout**: Monitored peak equity; breaches of `--max-drawdown-pct` automatically trigger position flattening and lockout.
   - **Signal Hysteresis / Debouncing**: Requires signals (`CONTRARIAN_BUY`, `GROWTH_BUY`, `RISK_REDUCE`) to persist for $N$ consecutive bars (default `--hysteresis=2`) before placing orders.
-  - **Structured JSON Audit Logging**: Writes append-only, schema-stable execution records (`volume_trader_audit.log`) containing timestamp, price, signal breakdown, risk score, order details, and broker response IDs.
+  - **Structured JSON Audit Logging**: Writes append-only, schema-stable execution records (`volume_trader_audit.log`) containing timestamp, price, signal breakdown, risk score, HFT impulse $\Delta v$, order details, and broker response IDs.
 
 ### Standalone Runners
 - **C++ Execution Daemon**:
@@ -286,10 +289,13 @@ AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and auton
 
   # Paper trading mode with auto-execution
   ./examples/volume_auto_trader --enable-auto-execute --mode=paper --symbol=SPY --max-position-usd=10000
+
+  # High-frequency analysis mode with auto-execution
+  ./examples/volume_auto_trader --enable-auto-execute --enable-hft --hft-frequency-hz=1000 --symbol=SPY
   ```
 - **Python Runner**:
   ```bash
-  PYTHONPATH=. python3 simulations/run_volume_trader.py --enable-auto-execute --mode=paper --symbol=QQQ
+  PYTHONPATH=. python3 simulations/run_volume_trader.py --enable-auto-execute --enable-hft --mode=paper --symbol=QQQ
   ```
 
 ### v5.0.0 SELL-Side Governance Framework

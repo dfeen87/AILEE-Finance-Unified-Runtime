@@ -7,6 +7,7 @@ from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import create_default_registry
 from core.finance_kernel.finance_kernel import FinanceRuntimeKernel
+from core.finance_kernel.volume_advisory import IntradayVolumeAdvisory, VolumeState, calculate_hft_delta_v
 
 def test_volume_operator_registration():
     registry = create_default_registry()
@@ -220,3 +221,39 @@ def test_volume_operator_contrarian_safety_precedence():
     assert data["recommended_weight"] == 0.0
     assert data["contrarian_buy_signal"] is False
     assert data["oversold_state"] is False
+
+def test_volume_operator_hft_math_delta_v():
+    ticks = [
+        {"p_input": 0.05, "w": 0.2, "v": 1.5, "M": 1.0, "dt": 0.001},
+        {"p_input": 0.10, "w": 0.1, "v": 2.0, "M": 0.0, "dt": 0.001} # Mass floor M >= 1e-6
+    ]
+    dv = calculate_hft_delta_v(isp=1.0, efficiency=0.95, alpha=0.1, v0=0.0, ticks=ticks)
+    assert dv > 0.0
+
+    zero_eff_dv = calculate_hft_delta_v(isp=1.0, efficiency=0.0, alpha=0.1, v0=0.0, ticks=ticks)
+    assert zero_eff_dv == 0.0
+
+    empty_dv = calculate_hft_delta_v(isp=1.0, efficiency=0.95, alpha=0.1, v0=0.0, ticks=[])
+    assert empty_dv == 0.0
+
+def test_volume_operator_hft_mode():
+    context = FinanceKernelContext(ledger_id="test-ledger", session_id="test-session")
+    config = FinanceKernelConfig()
+    registry = create_default_registry()
+    kernel = FinanceRuntimeKernel(context, config, registry)
+
+    input_data = {
+        "current_volume": 20000.0,
+        "avg_volume": 10000.0,
+        "price_change": 0.008,
+        "vwap_deviation": 0.0,
+        "enable_hft": True,
+        "hft_p_input": 0.08,
+        "hft_mass": 1.0
+    }
+
+    result = kernel.execute_operator("volume_operator", input_data)
+    assert result.status == "SUCCESS"
+    data = result.data
+    assert data["hft_active"] is True
+    assert data["hft_delta_v"] > 0.0
