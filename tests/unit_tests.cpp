@@ -45,6 +45,7 @@
 #include "../extensions/aille_stress_regime_override.hpp"
 #include "../extensions/aille_meta_governance.hpp"
 #include "../extensions/aille_membrane.hpp"
+#include "../extensions/aille_anomaly.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -1989,6 +1990,40 @@ TEST(TestLayer15MembraneSizing) {
     ASSERT_EQ(sizeof(AILLE::MembraneTraceStep), 64ULL);
 }
 
+TEST(TestLayer16AnomalySizing) {
+    ASSERT_EQ(sizeof(AILLE::AnomalyState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::AnomalyAdvisory), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::AnomalyObservabilityMetrics), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::AnomalyTraceStep), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::AnomalyConfig), 64ULL);
+}
+
+TEST(TestLayer16AnomalyEvaluation) {
+    AILLE::AnomalyState state{};
+    state.ewma_volatility = 0.035f;
+    state.baseline_volatility = 0.010f; // 3.5x expansion
+    state.bid_size = 100.0f;
+    state.ask_size = 100.0f;
+    state.baseline_depth = 1000.0f; // 80% thinning
+    state.rolling_correlation = 0.10f;
+    state.expected_correlation = 0.90f; // 0.80 drop
+    state.vol_debounce_count = 5;
+    state.liq_debounce_count = 5;
+    state.corr_debounce_count = 5;
+
+    AILLE::AnomalyConfig config{};
+
+    AILLE::AnomalyAdvisory adv = AILLE::evaluate_anomaly_advisory(state, config);
+
+    ASSERT_EQ(adv.advisory_active, 1);
+    ASSERT_EQ(adv.volatility_anomaly, 1);
+    ASSERT_EQ(adv.liquidity_anomaly, 1);
+    ASSERT_EQ(adv.correlation_break, 1);
+    ASSERT_TRUE(adv.anomaly_severity > 50.0f);
+    ASSERT_FLOAT_EQ(adv.volatility_expansion_ratio, 3.5f);
+    ASSERT_FLOAT_EQ(adv.depth_thinning_pct, 0.80f);
+}
+
 TEST(TestAileeFinanceGovernorEvaluateSellValid) {
     ailee::AileeFinanceGovernor governor;
     ailee::RawSellSignals signals;
@@ -2282,6 +2317,8 @@ int main() {
     RUN_TEST(TestLayer14MetaGovernanceLockHardening);
     RUN_TEST(TestLayer15MembraneSizing);
     RUN_TEST(TestLayer15MembraneWalkthrough);
+    RUN_TEST(TestLayer16AnomalySizing);
+    RUN_TEST(TestLayer16AnomalyEvaluation);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent);

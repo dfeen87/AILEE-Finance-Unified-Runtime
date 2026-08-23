@@ -46,7 +46,8 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_temporal_consistency.cpp \
            extensions/aille_stress_regime_override.cpp \
            extensions/aille_meta_governance.cpp \
-           extensions/aille_membrane.cpp
+           extensions/aille_membrane.cpp \
+           extensions/aille_anomaly.cpp
 
 PYTHON_FLAGS = $(shell python3-config --cflags --embed --ldflags 2>/dev/null || python3-config --cflags --ldflags 2>/dev/null || echo "")
 

@@ -6,6 +6,7 @@
 #include "aille_crown_walk.hpp"
 #include "aille_weathering.hpp"
 #include "aille_pilgrimage.hpp"
+#include "aille_anomaly.hpp"
 
 namespace aillee_spire {
 
@@ -39,6 +40,9 @@ namespace aillee_spire {
 
     // Returns the deterministic Pilgrimage Layer synchronization report
     aillee_pilgrimage::PilgrimageReport get_pilgrimage() noexcept;
+
+    // Returns the Layer 16 Market Condition Anomaly Advisory report
+    AILLE::AnomalyAdvisory get_anomaly_advisory() noexcept;
 
 } // namespace aillee_spire
 

@@ -8,6 +8,8 @@ namespace {
     AILLE::GlobalResonanceBeacon static_beacon;
     AILLE::HarmonicSync static_sync;
     AILLE::EchoDampener static_dampener;
+    AILLE::AnomalyState static_anomaly_state;
+    AILLE::AnomalyConfig static_anomaly_config;
 }
 
 namespace aillee_spire {
@@ -46,6 +48,10 @@ namespace aillee_spire {
 
     aillee_pilgrimage::PilgrimageReport get_pilgrimage() noexcept {
         return aillee_pilgrimage::perform();
+    }
+
+    AILLE::AnomalyAdvisory get_anomaly_advisory() noexcept {
+        return AILLE::evaluate_anomaly_advisory(static_anomaly_state, static_anomaly_config);
     }
 
 } // namespace aillee_spire

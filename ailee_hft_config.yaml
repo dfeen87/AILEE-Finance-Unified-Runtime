@@ -6,3 +6,13 @@ hft_bias:
   bullish_sell_ceiling_factor: 0.80
   trust_threshold_bullish: 0.70
   manipulation_threshold: 0.30
+
+anomaly_detection:
+  enabled: true
+  volatility_threshold: 2.5
+  depth_thinning_threshold: 0.50
+  min_expected_correlation: 0.40
+  vol_debounce_target: 3
+  liq_debounce_target: 3
+  corr_debounce_target: 5
+  log_path: "logs/anomaly_trace.log"

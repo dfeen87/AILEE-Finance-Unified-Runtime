@@ -366,7 +366,10 @@ AILLEE Version 11.0.0 formally introduces the fully deterministic, allocator-fre
 - **Layer 15 — Deterministic Deformable Membrane & Compute-Aware Governor**
   UFO-inspired deformable radial membrane modeling allocation as a live polar geometry surface with 12 facet strings. Monitors operational costs (latency, REST/WebSocket load, model cost) and enforces a Bounded Compute Envelope clamp under system stress.
 
-### Deterministic Governance Stack Specifications (Layers 8–15)
+- **Layer 16 — Deterministic Anomaly Detection & Market Condition Layer**
+  Real-time, allocator-free market condition monitoring layer evaluating volatility expansion, order book depth thinning, and correlation breakdowns. Emits non-directive cautionary advisories over Spire WebSockets and structured audit logs.
+
+### Deterministic Governance Stack Specifications (Layers 8–16)
 
 To guarantee absolute binary stability, predictable cache locality, and zero heap fragmentation across all platforms, every core algorithm in Layers 8–14 is designed as a pure functional pipeline operating over strictly aligned, fixed-size **64-byte structs** (`alignas(64)` and `static_assert(sizeof(...) == 64)`).
 
@@ -439,6 +442,15 @@ To guarantee absolute binary stability, predictable cache locality, and zero hea
   * `MembraneMetrics` — Computed asymmetry, curvature, tension, and Lyapunov energy metrics.
   * `ComputeEnvelopeState` — Input latency, load, model cost, and dynamic exposure clamp.
   * `MembraneTraceStep` — Trace step logging transition symbol (L.D.E.) and details.
+
+#### 9. Layer 16 — Deterministic Anomaly Detection & Market Condition Layer
+* **Core Function:** `evaluate_anomaly_advisory(...)` — Evaluates volatility expansion, depth thinning, and correlation breaks.
+* **64-byte Structs:**
+  * `AnomalyState` — Input price, volume, depth, EWMA/baseline volatility, and correlation.
+  * `AnomalyAdvisory` — Non-directive active anomaly flags, expansion ratios, and severity score.
+  * `AnomalyObservabilityMetrics` — Observability metrics for export planes.
+  * `AnomalyTraceStep` — Trace record containing nanosecond timestamp, symbol ID, and metrics.
+  * `AnomalyConfig` — Sensitivity thresholds and multi-bar debounce targets.
 
 ---
 

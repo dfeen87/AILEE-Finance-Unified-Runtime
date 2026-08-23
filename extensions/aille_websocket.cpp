@@ -230,6 +230,19 @@ std::string WebSocketServer::buildSpireJSON() {
     json << "      \"sync_alignment\": " << pilgrimage.sync.sync_alignment << ",\n";
     json << "      \"dampening_alignment\": " << pilgrimage.sync.dampening_alignment << "\n";
     json << "    }\n";
+    json << "  },\n";
+
+    // Anomaly Advisory (Layer 16)
+    auto anomaly = aillee_spire::get_anomaly_advisory();
+    json << "  \"anomaly_advisory\": {\n";
+    json << "    \"volatility_expansion_ratio\": " << anomaly.volatility_expansion_ratio << ",\n";
+    json << "    \"depth_thinning_pct\": " << anomaly.depth_thinning_pct << ",\n";
+    json << "    \"rolling_correlation\": " << anomaly.rolling_correlation << ",\n";
+    json << "    \"anomaly_severity\": " << anomaly.anomaly_severity << ",\n";
+    json << "    \"volatility_anomaly\": " << (anomaly.volatility_anomaly ? "true" : "false") << ",\n";
+    json << "    \"liquidity_anomaly\": " << (anomaly.liquidity_anomaly ? "true" : "false") << ",\n";
+    json << "    \"correlation_break\": " << (anomaly.correlation_break ? "true" : "false") << ",\n";
+    json << "    \"advisory_active\": " << (anomaly.advisory_active ? "true" : "false") << "\n";
     json << "  }\n";
 
     json << "}";
