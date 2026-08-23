@@ -5,6 +5,18 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0] - 2026-09-01
+
+### Added
+- **Layer 16 — Deterministic Anomaly Detection & Market Condition Subsystem**:
+  - Real-time market condition monitoring evaluating volatility expansion (EWMA), order book depth thinning (L1/L2 liquidity displacement), and cross-asset pair correlation breaks.
+  - Strictly non-directive, cautionary advisory messages with zero trading recommendations or accusatory language.
+  - C++ low-latency deterministic implementation (`extensions/aille_anomaly.hpp/.cpp`) using strictly 64-byte, cache-aligned, allocator-free structs (`AnomalyState`, `AnomalyAdvisory`, `AnomalyObservabilityMetrics`, `AnomalyTraceStep`, `AnomalyConfig`).
+  - Python Finance Runtime Kernel operator (`core/finance_kernel/anomaly_detection.py`) with complete input validation, bounds clamping, and NaN/Inf hardening.
+  - Spire interface integration (`aillee_spire::get_anomaly_advisory()`) and WebSocket JSON broadcast payload formatting.
+  - Threshold configuration schema exposure in `ailee_hft_config.yaml`.
+  - Comprehensive unit test suites in C++ (`tests/unit_tests.cpp`) and Python (`tests/test_finance_kernel_anomaly.py`).
+
 ## [12.0.0] - 2026-08-20
 
 ### Added

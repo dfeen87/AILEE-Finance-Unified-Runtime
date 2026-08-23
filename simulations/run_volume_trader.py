@@ -35,7 +35,7 @@ def main():
         sys.exit(1)
 
     print("========================================================")
-    print(" AILEE Intraday Volume Auto-Trader Python Runner v12.0.0")
+    print(" AILEE Intraday Volume Auto-Trader Python Runner v13.0.0")
     print(f" Target Symbol:       {args.symbol}")
     print(f" Execution Enabled:   {'YES' if args.enable_auto_execute else 'NO (Dry-Run)'}")
     print(f" High-Frequency (HFT):{'ENABLED (' + str(args.hft_frequency_hz) + ' Hz)' if args.enable_hft else 'DISABLED'}")

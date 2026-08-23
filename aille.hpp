@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "12.0.0";
-constexpr int AILLE_VERSION_MAJOR = 12;
+constexpr const char* AILLE_VERSION = "13.0.0";
+constexpr int AILLE_VERSION_MAJOR = 13;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -71,6 +71,9 @@ struct MacroSignalState;
 struct MacroSignalAdvisory;
 struct VolumeState;
 struct VolumeAdvisory;
+struct AnomalyState;
+struct AnomalyAdvisory;
+struct AnomalyConfig;
 
 // ============================================================================
 // LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS
@@ -670,6 +673,9 @@ private:
     MarketStabilizerAdvisory* stabilizer_advisory_ = nullptr;
     const VolumeState* volume_state_ = nullptr;
     VolumeAdvisory* volume_advisory_ = nullptr;
+    const AnomalyState* anomaly_state_ = nullptr;
+    AnomalyAdvisory* anomaly_advisory_ = nullptr;
+    const AnomalyConfig* anomaly_config_ = nullptr;
 
     const StressOverrideRules* stress_rules_ = nullptr;
     const StressPortfolioState* stress_state_ = nullptr;
@@ -722,6 +728,11 @@ public:
     void set_volume_advisory(VolumeAdvisory* advisory) { volume_advisory_ = advisory; }
     void evaluate_volume_advisory();
 
+    void set_anomaly_state(const AnomalyState* state) { anomaly_state_ = state; }
+    void set_anomaly_advisory(AnomalyAdvisory* advisory) { anomaly_advisory_ = advisory; }
+    void set_anomaly_config(const AnomalyConfig* cfg) { anomaly_config_ = cfg; }
+    void evaluate_anomaly_advisory();
+
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
     void evaluate_macro_advisory() noexcept;
@@ -747,6 +758,7 @@ public:
         evaluate_platinum_advisory();
         evaluate_forex_usd_advisory();
         evaluate_volume_advisory();
+        evaluate_anomaly_advisory();
         evaluate_macro_advisory();
         evaluate_stabilizer_advisory();
 

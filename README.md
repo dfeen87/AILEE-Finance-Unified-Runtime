@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-12.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-13.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -26,8 +26,9 @@
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
+- [v13.0.0: Real-Time Market Condition Intelligence & Anomaly Detection (Layer 16)](#v1300-real-time-market-condition-intelligence--anomaly-detection-layer-16)
 - [v12.0.0: Optional Autonomous Trade Execution Plugin & Governance](#v1200--optional-autonomous-trade-execution-plugin--governance)
-- [v11.0.0: Deterministic Governance Stack (Layers 8–15)](#v1100--deterministic-governance-stack-layers-815)
+- [v11.0.0: Deterministic Governance Stack (Layers 8–16)](#v1100--deterministic-governance-stack-layers-816)
 - [Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
@@ -263,6 +264,19 @@ Every decision is logged with:
 
 ---
 
+## v13.0.0: Real-Time Market Condition Intelligence & Anomaly Detection (Layer 16)
+
+AILEE Version 13.0.0 introduces **Layer 16: Real-Time Market Condition Intelligence & Anomaly Detection Subsystem** (`ANOMALY_DETECTION_V1`).
+
+### Core Highlights
+- **Multi-Factor Anomaly Detection**: Monitors volatility expansion relative to rolling EWMA baselines, order book L1/L2 depth thinning percentages, and pairwise asset correlation drops (e.g., SPY/QQQ).
+- **Strict Non-Directive Safety Posture**: Generates human-readable, cautionary alerts highlighting market conditions (*"Caution: abnormal volatility detected in SPY (3.5x baseline)"*) strictly free from trading recommendations, buy/sell instructions, or allegations of market manipulation.
+- **Low-Latency Allocator-Free C++ Core**: Implemented in `extensions/aille_anomaly.hpp/.cpp` using 64-byte cache-aligned structs (`AnomalyState`, `AnomalyAdvisory`, `AnomalyObservabilityMetrics`, `AnomalyTraceStep`, `AnomalyConfig`).
+- **Python Kernel Operator**: Implemented in `core/finance_kernel/anomaly_detection.py` with multi-horizon calibration, input validation, and NaN/Inf hardening.
+- **Spire Interface & WebSocket Broadcast**: Exposes anomaly state reports via `aillee_spire::get_anomaly_advisory()` and streams live JSON payloads over Spire WebSocket connections.
+
+---
+
 ## v12.0.0: Optional Autonomous Trade Execution Plugin & Governance
 
 AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and autonomous trading daemon designed to translate Volume Advisory Module (VAM) intraday signals on **SPY** and **QQQ** into automated equity trades.
@@ -366,7 +380,10 @@ AILLEE Version 11.0.0 formally introduces the fully deterministic, allocator-fre
 - **Layer 15 — Deterministic Deformable Membrane & Compute-Aware Governor**
   UFO-inspired deformable radial membrane modeling allocation as a live polar geometry surface with 12 facet strings. Monitors operational costs (latency, REST/WebSocket load, model cost) and enforces a Bounded Compute Envelope clamp under system stress.
 
-### Deterministic Governance Stack Specifications (Layers 8–15)
+- **Layer 16 — Deterministic Anomaly Detection & Market Condition Layer**
+  Real-time, allocator-free market condition monitoring layer evaluating volatility expansion, order book depth thinning, and correlation breakdowns. Emits non-directive cautionary advisories over Spire WebSockets and structured audit logs.
+
+### Deterministic Governance Stack Specifications (Layers 8–16)
 
 To guarantee absolute binary stability, predictable cache locality, and zero heap fragmentation across all platforms, every core algorithm in Layers 8–14 is designed as a pure functional pipeline operating over strictly aligned, fixed-size **64-byte structs** (`alignas(64)` and `static_assert(sizeof(...) == 64)`).
 
@@ -439,6 +456,15 @@ To guarantee absolute binary stability, predictable cache locality, and zero hea
   * `MembraneMetrics` — Computed asymmetry, curvature, tension, and Lyapunov energy metrics.
   * `ComputeEnvelopeState` — Input latency, load, model cost, and dynamic exposure clamp.
   * `MembraneTraceStep` — Trace step logging transition symbol (L.D.E.) and details.
+
+#### 9. Layer 16 — Deterministic Anomaly Detection & Market Condition Layer
+* **Core Function:** `evaluate_anomaly_advisory(...)` — Evaluates volatility expansion, depth thinning, and correlation breaks.
+* **64-byte Structs:**
+  * `AnomalyState` — Input price, volume, depth, EWMA/baseline volatility, and correlation.
+  * `AnomalyAdvisory` — Non-directive active anomaly flags, expansion ratios, and severity score.
+  * `AnomalyObservabilityMetrics` — Observability metrics for export planes.
+  * `AnomalyTraceStep` — Trace record containing nanosecond timestamp, symbol ID, and metrics.
+  * `AnomalyConfig` — Sensitivity thresholds and multi-bar debounce targets.
 
 ---
 
@@ -744,7 +770,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `12.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `13.0.0`).
 
 ### For Quantitative Researchers
 
