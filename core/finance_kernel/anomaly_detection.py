@@ -92,19 +92,31 @@ class AnomalyDetectionOperator(BaseOperator):
         symbol = str(input_data.get("symbol", "SPY")).upper()
         pair_symbol = str(input_data.get("pair_symbol", DEFAULT_CORRELATION_PAIRS.get(symbol, "QQQ"))).upper()
 
+        def _safe_float(val, default=0.0):
+            try:
+                f = float(val)
+                if math.isnan(f) or math.isinf(f):
+                    return default
+                return f
+            except (TypeError, ValueError):
+                return default
+
+        roll_corr = _safe_float(input_data.get("rolling_correlation", 1.0), 1.0)
+        exp_corr = _safe_float(input_data.get("expected_correlation", 1.0), 1.0)
+
         processed = {
             "symbol": symbol,
             "pair_symbol": pair_symbol,
-            "last_price": max(0.0001, float(input_data["last_price"])),
-            "volume": max(0.0, float(input_data.get("volume", 0.0))),
-            "bid_size": max(0.0, float(input_data.get("bid_size", 0.0))),
-            "ask_size": max(0.0, float(input_data.get("ask_size", 0.0))),
-            "ewma_volatility": max(0.0, float(input_data["ewma_volatility"])),
-            "baseline_volatility": max(1e-6, float(input_data["baseline_volatility"])),
-            "baseline_depth": max(0.0, float(input_data.get("baseline_depth", 0.0))),
-            "pair_last_price": max(0.0, float(input_data.get("pair_last_price", 0.0))),
-            "rolling_correlation": float(input_data.get("rolling_correlation", 1.0)),
-            "expected_correlation": float(input_data.get("expected_correlation", 1.0)),
+            "last_price": max(0.0001, _safe_float(input_data["last_price"], 1.0)),
+            "volume": max(0.0, _safe_float(input_data.get("volume", 0.0), 0.0)),
+            "bid_size": max(0.0, _safe_float(input_data.get("bid_size", 0.0), 0.0)),
+            "ask_size": max(0.0, _safe_float(input_data.get("ask_size", 0.0), 0.0)),
+            "ewma_volatility": max(0.0, _safe_float(input_data["ewma_volatility"], 0.0)),
+            "baseline_volatility": max(1e-6, _safe_float(input_data["baseline_volatility"], 1e-6)),
+            "baseline_depth": max(0.0, _safe_float(input_data.get("baseline_depth", 0.0), 0.0)),
+            "pair_last_price": max(0.0, _safe_float(input_data.get("pair_last_price", 0.0), 0.0)),
+            "rolling_correlation": max(-1.0, min(1.0, roll_corr)),
+            "expected_correlation": max(-1.0, min(1.0, exp_corr)),
             "vol_debounce_count": int(input_data.get("vol_debounce_count", 0)),
             "liq_debounce_count": int(input_data.get("liq_debounce_count", 0)),
             "corr_debounce_count": int(input_data.get("corr_debounce_count", 0)),

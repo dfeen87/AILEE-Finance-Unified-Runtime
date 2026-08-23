@@ -2024,6 +2024,17 @@ TEST(TestLayer16AnomalyEvaluation) {
     ASSERT_FLOAT_EQ(adv.depth_thinning_pct, 0.80f);
 }
 
+TEST(TestLayer16AnomalyHardening) {
+    AILLE::AnomalyState state{};
+    state.last_price = NAN;
+    state.ewma_volatility = 0.05f;
+    state.baseline_volatility = 0.01f;
+
+    AILLE::AnomalyAdvisory adv = AILLE::evaluate_anomaly_advisory(state);
+    ASSERT_EQ(adv.advisory_active, 0);
+    ASSERT_FLOAT_EQ(adv.volatility_expansion_ratio, 1.0f);
+}
+
 TEST(TestAileeFinanceGovernorEvaluateSellValid) {
     ailee::AileeFinanceGovernor governor;
     ailee::RawSellSignals signals;
@@ -2319,6 +2330,7 @@ int main() {
     RUN_TEST(TestLayer15MembraneWalkthrough);
     RUN_TEST(TestLayer16AnomalySizing);
     RUN_TEST(TestLayer16AnomalyEvaluation);
+    RUN_TEST(TestLayer16AnomalyHardening);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent);

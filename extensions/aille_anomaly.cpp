@@ -15,7 +15,8 @@ namespace AILLE {
 
 void AILLEEngine::evaluate_anomaly_advisory() {
     if (anomaly_state_ != nullptr && anomaly_advisory_ != nullptr) {
-        *anomaly_advisory_ = AILLE::evaluate_anomaly_advisory(*anomaly_state_, AnomalyConfig(), safety_state_);
+        AnomalyConfig cfg = (anomaly_config_ != nullptr) ? *anomaly_config_ : AnomalyConfig();
+        *anomaly_advisory_ = AILLE::evaluate_anomaly_advisory(*anomaly_state_, cfg, safety_state_);
     }
 }
 
@@ -36,12 +37,34 @@ void AILLEEngine::evaluate_anomaly_advisory() {
         return advisory;
     }
 
-    // 2. Volatility Expansion Calculation
-    if (state.baseline_volatility > 1e-6f) {
-        advisory.volatility_expansion_ratio = state.ewma_volatility / state.baseline_volatility;
-    } else {
+    // 2. Numerical safety check (NaN / Inf inputs)
+    if (std::isnan(state.last_price) || std::isinf(state.last_price) ||
+        std::isnan(state.ewma_volatility) || std::isinf(state.ewma_volatility) ||
+        std::isnan(state.baseline_volatility) || std::isinf(state.baseline_volatility) ||
+        std::isnan(state.bid_size) || std::isinf(state.bid_size) ||
+        std::isnan(state.ask_size) || std::isinf(state.ask_size) ||
+        std::isnan(state.baseline_depth) || std::isinf(state.baseline_depth) ||
+        std::isnan(state.rolling_correlation) || std::isinf(state.rolling_correlation) ||
+        std::isnan(state.expected_correlation) || std::isinf(state.expected_correlation)) {
         advisory.volatility_expansion_ratio = 1.0f;
+        advisory.depth_thinning_pct = 0.0f;
+        advisory.rolling_correlation = 1.0f;
+        advisory.anomaly_severity = 0.0f;
+        advisory.advisory_active = 0;
+        return advisory;
     }
+
+    // Sanitize and clamp inputs
+    float ewma_vol = std::max(0.0f, state.ewma_volatility);
+    float base_vol = std::max(1e-6f, state.baseline_volatility);
+    float bid_size = std::max(0.0f, state.bid_size);
+    float ask_size = std::max(0.0f, state.ask_size);
+    float base_depth = std::max(0.0f, state.baseline_depth);
+    float roll_corr = std::clamp(state.rolling_correlation, -1.0f, 1.0f);
+    float exp_corr = std::clamp(state.expected_correlation, -1.0f, 1.0f);
+
+    // 3. Volatility Expansion Calculation
+    advisory.volatility_expansion_ratio = ewma_vol / base_vol;
 
     bool vol_raw_anomaly = (advisory.volatility_expansion_ratio >= config.volatility_threshold);
     if (state.vol_debounce_count >= config.vol_debounce_target) {
@@ -52,12 +75,12 @@ void AILLEEngine::evaluate_anomaly_advisory() {
         advisory.volatility_anomaly = 0;
     }
 
-    // 3. Liquidity Displacement / Order Book Thinning Calculation
-    float current_depth = state.bid_size + state.ask_size;
-    if (state.baseline_depth > 1e-6f) {
-        float depth_ratio = current_depth / state.baseline_depth;
+    // 4. Liquidity Displacement / Order Book Thinning Calculation
+    float current_depth = bid_size + ask_size;
+    if (base_depth > 1e-6f) {
+        float depth_ratio = current_depth / base_depth;
         if (depth_ratio < 1.0f) {
-            advisory.depth_thinning_pct = 1.0f - depth_ratio;
+            advisory.depth_thinning_pct = std::clamp(1.0f - depth_ratio, 0.0f, 1.0f);
         } else {
             advisory.depth_thinning_pct = 0.0f;
         }
@@ -74,9 +97,9 @@ void AILLEEngine::evaluate_anomaly_advisory() {
         advisory.liquidity_anomaly = 0;
     }
 
-    // 4. Pair Correlation Break Calculation
-    advisory.rolling_correlation = state.rolling_correlation;
-    float corr_drop = state.expected_correlation - state.rolling_correlation;
+    // 5. Pair Correlation Break Calculation
+    advisory.rolling_correlation = roll_corr;
+    float corr_drop = exp_corr - roll_corr;
     bool corr_raw_anomaly = (corr_drop >= config.min_expected_correlation);
 
     if (state.corr_debounce_count >= config.corr_debounce_target) {
@@ -87,7 +110,7 @@ void AILLEEngine::evaluate_anomaly_advisory() {
         advisory.correlation_break = 0;
     }
 
-    // 5. Severity Score & Active Advisory Flag
+    // 6. Severity Score & Active Advisory Flag
     float vol_score = std::clamp((advisory.volatility_expansion_ratio - 1.0f) * 20.0f, 0.0f, 40.0f);
     float liq_score = advisory.depth_thinning_pct * 30.0f;
     float corr_score = std::clamp(corr_drop * 30.0f, 0.0f, 30.0f);

@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "12.0.0";
-constexpr int AILLE_VERSION_MAJOR = 12;
+constexpr const char* AILLE_VERSION = "13.0.0";
+constexpr int AILLE_VERSION_MAJOR = 13;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -675,6 +675,7 @@ private:
     VolumeAdvisory* volume_advisory_ = nullptr;
     const AnomalyState* anomaly_state_ = nullptr;
     AnomalyAdvisory* anomaly_advisory_ = nullptr;
+    const AnomalyConfig* anomaly_config_ = nullptr;
 
     const StressOverrideRules* stress_rules_ = nullptr;
     const StressPortfolioState* stress_state_ = nullptr;
@@ -729,6 +730,7 @@ public:
 
     void set_anomaly_state(const AnomalyState* state) { anomaly_state_ = state; }
     void set_anomaly_advisory(AnomalyAdvisory* advisory) { anomaly_advisory_ = advisory; }
+    void set_anomaly_config(const AnomalyConfig* cfg) { anomaly_config_ = cfg; }
     void evaluate_anomaly_advisory();
 
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }

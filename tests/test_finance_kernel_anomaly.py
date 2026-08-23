@@ -98,3 +98,20 @@ def test_anomaly_operator_correlation_break():
     assert result["advisory_active"] is True
     assert result["correlation_break"] is True
     assert "Caution: correlation break observed between SPY and QQQ" in result["messages"][0]
+
+
+def test_anomaly_operator_nan_input_hardening():
+    operator = AnomalyDetectionOperator()
+    input_data = {
+        "symbol": "SPY",
+        "last_price": 500.0,
+        "ewma_volatility": float("nan"),
+        "baseline_volatility": 0.01,
+        "rolling_correlation": float("nan"),
+    }
+    validated = operator.validate(input_data)
+    processed = operator.preprocess(validated)
+    result = operator.execute(processed)
+
+    assert result["advisory_active"] is False
+    assert result["rolling_correlation"] == 1.0

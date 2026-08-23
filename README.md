@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-12.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-13.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -26,8 +26,9 @@
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
+- [v13.0.0: Real-Time Market Condition Intelligence & Anomaly Detection (Layer 16)](#v1300-real-time-market-condition-intelligence--anomaly-detection-layer-16)
 - [v12.0.0: Optional Autonomous Trade Execution Plugin & Governance](#v1200--optional-autonomous-trade-execution-plugin--governance)
-- [v11.0.0: Deterministic Governance Stack (Layers 8–15)](#v1100--deterministic-governance-stack-layers-815)
+- [v11.0.0: Deterministic Governance Stack (Layers 8–16)](#v1100--deterministic-governance-stack-layers-816)
 - [Technical Specifications](#technical-specifications)
 - [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
@@ -260,6 +261,19 @@ Every decision is logged with:
 - Cryptographic hash (blockchain-style integrity)
 
 **Full regulatory compliance and accountability.**
+
+---
+
+## v13.0.0: Real-Time Market Condition Intelligence & Anomaly Detection (Layer 16)
+
+AILEE Version 13.0.0 introduces **Layer 16: Real-Time Market Condition Intelligence & Anomaly Detection Subsystem** (`ANOMALY_DETECTION_V1`).
+
+### Core Highlights
+- **Multi-Factor Anomaly Detection**: Monitors volatility expansion relative to rolling EWMA baselines, order book L1/L2 depth thinning percentages, and pairwise asset correlation drops (e.g., SPY/QQQ).
+- **Strict Non-Directive Safety Posture**: Generates human-readable, cautionary alerts highlighting market conditions (*"Caution: abnormal volatility detected in SPY (3.5x baseline)"*) strictly free from trading recommendations, buy/sell instructions, or allegations of market manipulation.
+- **Low-Latency Allocator-Free C++ Core**: Implemented in `extensions/aille_anomaly.hpp/.cpp` using 64-byte cache-aligned structs (`AnomalyState`, `AnomalyAdvisory`, `AnomalyObservabilityMetrics`, `AnomalyTraceStep`, `AnomalyConfig`).
+- **Python Kernel Operator**: Implemented in `core/finance_kernel/anomaly_detection.py` with multi-horizon calibration, input validation, and NaN/Inf hardening.
+- **Spire Interface & WebSocket Broadcast**: Exposes anomaly state reports via `aillee_spire::get_anomaly_advisory()` and streams live JSON payloads over Spire WebSocket connections.
 
 ---
 
@@ -756,7 +770,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `12.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `13.0.0`).
 
 ### For Quantitative Researchers
 

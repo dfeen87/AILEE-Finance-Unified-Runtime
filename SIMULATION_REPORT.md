@@ -1,5 +1,5 @@
 # AILEE Unified Finance Runtime: Simulation & Optimization Report
-**Version:** 12.0.0 (Config v4.1.0)
+**Version:** 13.0.0 (Config v4.1.0)
 **Date:** March 2026
 **Author:** AILEE Quantitative Engineering Team
 

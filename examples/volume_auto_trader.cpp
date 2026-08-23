@@ -298,7 +298,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "========================================================\n"
-              << " AILEE Intraday Volume Auto-Trader Daemon v12.0.0\n"
+              << " AILEE Intraday Volume Auto-Trader Daemon v13.0.0\n"
               << " Target Symbol:       " << cfg.symbol << "\n"
               << " Execution Enabled:   " << (cfg.enable_auto_execute ? "YES" : "NO (Dry-Run)") << "\n"
               << " High-Frequency (HFT):" << (cfg.enable_hft ? "ENABLED (" + std::to_string(cfg.hft_frequency_hz) + " Hz)" : "DISABLED") << "\n"
