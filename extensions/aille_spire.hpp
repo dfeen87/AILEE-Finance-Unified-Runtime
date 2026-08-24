@@ -58,6 +58,9 @@ namespace aillee_spire {
     // Returns Layer 18 WNFS Advisory report
     AILLE::WNFSAdvisory get_wnfs_advisory() noexcept;
 
+    // Returns Layer 18 WNFS Observability Metrics (non-hot-path read-only view)
+    AILLE::WNFSObservabilityMetrics get_wnfs_observability() noexcept;
+
 } // namespace aillee_spire
 
 #endif // AILLEE_SPIRE_HPP

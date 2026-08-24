@@ -52,6 +52,7 @@ class WNFSState:
     def __init__(self, expected_sequence: int = 1, processed_frames: int = 0,
                  gap_count: int = 0, wave_phase: float = 0.0,
                  wave_amplitude: float = 1.0, symbol_id: int = 0,
+                 clone_status_mask: int = 0, degraded_clone_count: int = 0,
                  channel_status: int = WNFS_STATUS_HEALTHY):
         self.expected_sequence = expected_sequence
         self.processed_frames = processed_frames
@@ -59,6 +60,8 @@ class WNFSState:
         self.wave_phase = wave_phase
         self.wave_amplitude = wave_amplitude
         self.symbol_id = symbol_id
+        self.clone_status_mask = clone_status_mask
+        self.degraded_clone_count = degraded_clone_count
         self.channel_status = channel_status
 
 
@@ -109,6 +112,8 @@ class WNFSOperator(BaseOperator):
             "expected_sequence": int(input_data.get("expected_sequence", 1)),
             "processed_frames": int(input_data.get("processed_frames", 0)),
             "gap_count": int(input_data.get("gap_count", 0)),
+            "clone_status_mask": int(input_data.get("clone_status_mask", 0)),
+            "degraded_clone_count": int(input_data.get("degraded_clone_count", 0)),
             "channel_status": int(input_data.get("channel_status", WNFS_STATUS_HEALTHY)),
             "max_sequence_gaps": int(input_data.get("max_sequence_gaps", 5)),
         }
@@ -147,6 +152,31 @@ class WNFSOperator(BaseOperator):
                 "messages": advisory.messages
             }
 
+        clone_mask = input_data["clone_status_mask"]
+        degraded_clones = input_data["degraded_clone_count"]
+
+        if clone_mask != 0 or degraded_clones > 0:
+            advisory.ingestion_confidence = 0.0
+            advisory.wave_energy_factor = 0.0
+            advisory.stream_degraded = True
+            advisory.hft_freeze_required = True
+            advisory.trigger_stress_escalation = True
+            advisory.messages.append("Multi-clone cluster consensus degraded: triggering immediate risk-off freeze.")
+            return {
+                "channel_id": advisory.channel_id,
+                "ingestion_confidence": 0.0,
+                "wave_energy_factor": 0.0,
+                "tick_acceleration": 0.0,
+                "stream_degraded": True,
+                "trigger_stress_escalation": True,
+                "hft_freeze_required": True,
+                "channel_status": WNFS_STATUS_DEGRADED,
+                "expected_sequence": input_data["expected_sequence"],
+                "processed_frames": input_data["processed_frames"],
+                "gap_count": input_data["gap_count"],
+                "messages": advisory.messages
+            }
+
         seq_id = input_data["sequence_id"]
         expected_seq = input_data["expected_sequence"]
         processed_frames = input_data["processed_frames"]
@@ -155,6 +185,7 @@ class WNFSOperator(BaseOperator):
         max_gaps = input_data["max_sequence_gaps"]
         flags = input_data["frame_flags"]
 
+        is_out_of_order = False
         if processed_frames > 0:
             if seq_id > expected_seq:
                 gaps = seq_id - expected_seq
@@ -165,34 +196,38 @@ class WNFSOperator(BaseOperator):
             elif seq_id < expected_seq:
                 channel_status = WNFS_STATUS_DEGRADED
                 flags |= WNFS_FLAG_OUT_OF_ORDER
-                advisory.messages.append("Out of order frame received.")
+                is_out_of_order = True
+                advisory.messages.append("Out of order frame rejected.")
 
-        expected_seq = seq_id + 1
-        processed_frames += 1
+        if not is_out_of_order:
+            expected_seq = seq_id + 1
+            processed_frames += 1
 
         two_pi = 6.283185307179586
         wave_phase = math.fmod(seq_id * 0.1, two_pi)
         depth_sum = input_data["bid_size"] + input_data["ask_size"]
         wave_amplitude = (input_data["last_size"] / depth_sum) if depth_sum > 0.0 else 1.0
 
-        if (flags & (WNFS_FLAG_GAP | WNFS_FLAG_CORRUPTED | WNFS_FLAG_OUT_OF_ORDER)) or channel_status != WNFS_STATUS_HEALTHY:
+        if is_out_of_order or (flags & (WNFS_FLAG_GAP | WNFS_FLAG_CORRUPTED | WNFS_FLAG_OUT_OF_ORDER)) or channel_status != WNFS_STATUS_HEALTHY:
             advisory.stream_degraded = True
             advisory.hft_freeze_required = True
 
-            if gap_count >= max_gaps:
+            if gap_count >= max_gaps or (flags & WNFS_FLAG_CORRUPTED):
                 channel_status = WNFS_STATUS_CORRUPTED
                 advisory.trigger_stress_escalation = True
                 advisory.ingestion_confidence = 0.0
-                advisory.messages.append("CRITICAL: Maximum sequence gaps exceeded. Triggering Layer 13/14 escalation.")
+                advisory.wave_energy_factor = 0.0
+                advisory.messages.append("CRITICAL: Wave stream corrupted or max sequence gaps exceeded. Triggering Layer 13/14 escalation.")
             else:
-                advisory.ingestion_confidence = 0.5
+                advisory.ingestion_confidence = 0.0 if is_out_of_order else 0.5
+                advisory.wave_energy_factor = 0.0 if is_out_of_order else wave_amplitude
         else:
             advisory.ingestion_confidence = 1.0
+            advisory.wave_energy_factor = wave_amplitude
             advisory.stream_degraded = False
             advisory.hft_freeze_required = False
             advisory.trigger_stress_escalation = False
 
-        advisory.wave_energy_factor = wave_amplitude
         advisory.tick_acceleration = input_data["vwap_delta"]
 
         return {

@@ -77,4 +77,17 @@ namespace aillee_spire {
         return AILLE::evaluate_wnfs_advisory(static_wnfs_frame, local_state, static_wnfs_config);
     }
 
+    AILLE::WNFSObservabilityMetrics get_wnfs_observability() noexcept {
+        AILLE::WNFSObservabilityMetrics obs;
+        obs.processed_frames = static_wnfs_state.processed_frames;
+        obs.gap_count = static_wnfs_state.gap_count;
+        obs.clone_status_mask = static_wnfs_state.clone_status_mask;
+        obs.degraded_clone_count = static_wnfs_state.degraded_clone_count;
+        obs.channel_status = static_wnfs_state.channel_status;
+        obs.stream_degraded = (static_wnfs_state.channel_status != AILLE::WNFS_STATUS_HEALTHY) ? 1 : 0;
+        obs.ingestion_confidence = (obs.stream_degraded != 0) ? 0.0f : 1.0f;
+        obs.wave_energy_factor = static_wnfs_state.wave_amplitude;
+        return obs;
+    }
+
 } // namespace aillee_spire

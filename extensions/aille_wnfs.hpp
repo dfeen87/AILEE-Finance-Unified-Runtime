@@ -74,12 +74,15 @@ struct alignas(64) WNFSState final {
     float wave_phase;                ///< Calculated WNN wave phase [0.0, 2π]
     float wave_amplitude;            ///< Ingestion energy / volume impulse amplitude
     std::uint32_t symbol_id;         ///< Channel symbol identifier
+    std::uint32_t clone_status_mask;  ///< Bitmask of active cluster clone health statuses
+    std::uint8_t degraded_clone_count;///< Total number of clones currently degraded
     std::uint8_t channel_status;     ///< 0: HEALTHY, 1: DEGRADED, 2: CORRUPTED, 3: LOCKED
-    std::uint8_t _padding[23];
+    std::uint8_t _padding[22];
 
     constexpr WNFSState()
         : expected_sequence(1), processed_frames(0), gap_count(0),
           wave_phase(0.0f), wave_amplitude(1.0f), symbol_id(0),
+          clone_status_mask(0), degraded_clone_count(0),
           channel_status(WNFS_STATUS_HEALTHY), _padding{} {}
 };
 static_assert(sizeof(WNFSState) == 64, "WNFSState must be exactly 64 bytes");
@@ -107,13 +110,16 @@ struct alignas(64) WNFSObservabilityMetrics final {
     std::uint64_t gap_count;
     float ingestion_confidence;
     float wave_energy_factor;
+    std::uint32_t clone_status_mask;
+    std::uint8_t degraded_clone_count;
     std::uint8_t channel_status;
     std::uint8_t stream_degraded;
-    std::uint8_t _padding[38];
+    std::uint8_t _padding[33];
 
     constexpr WNFSObservabilityMetrics()
         : processed_frames(0), gap_count(0), ingestion_confidence(1.0f),
-          wave_energy_factor(1.0f), channel_status(WNFS_STATUS_HEALTHY),
+          wave_energy_factor(1.0f), clone_status_mask(0),
+          degraded_clone_count(0), channel_status(WNFS_STATUS_HEALTHY),
           stream_degraded(0), _padding{} {}
 };
 static_assert(sizeof(WNFSObservabilityMetrics) == 64, "WNFSObservabilityMetrics must be exactly 64 bytes");

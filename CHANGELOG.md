@@ -5,7 +5,7 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [18.0.0] - 2026-11-15
+## [16.0.0] - 2026-11-15
 ### Added
 - **Layer 18 — WaveNativeFinanceStream (WNFS)** real-time streaming data ingestion and wave synchronization transport layer under version tag `WAVE_NATIVE_FINANCE_STREAM_V1`.
 - Direct binary zero-copy struct mapping (`WNFSFrame`) and lock-free wave channel ring-buffers (`WNFSChannel`).

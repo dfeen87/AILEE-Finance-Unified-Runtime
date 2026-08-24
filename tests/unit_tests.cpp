@@ -2199,6 +2199,23 @@ TEST(TestWNFSIngestionAndEscalation) {
     ASSERT_FLOAT_EQ(adv.ingestion_confidence, 1.0f);
     ASSERT_EQ(adv.stream_degraded, 0);
 
+    // Multi-Clone Consensus Bitmask Risk-Off Test
+    AILLE::WNFSState clone_state = state;
+    clone_state.clone_status_mask = 0x02; // Clone 1 degraded
+    clone_state.degraded_clone_count = 1;
+    AILLE::WNFSAdvisory clone_adv = AILLE::evaluate_wnfs_advisory(f1, clone_state, config);
+    ASSERT_FLOAT_EQ(clone_adv.ingestion_confidence, 0.0f);
+    ASSERT_EQ(clone_adv.stream_degraded, 1);
+    ASSERT_EQ(clone_adv.hft_freeze_required, 1);
+    ASSERT_EQ(clone_adv.trigger_stress_escalation, 1);
+
+    // Out of Order Tick Rejection Test
+    AILLE::WNFSFrame ooo_frame;
+    ooo_frame.sequence_id = 1; // Expected is 2
+    AILLE::WNFSAdvisory ooo_adv = AILLE::evaluate_wnfs_advisory(ooo_frame, state, config);
+    ASSERT_EQ(ooo_adv.stream_degraded, 1);
+    ASSERT_FLOAT_EQ(ooo_adv.ingestion_confidence, 0.0f);
+
     // Sequence Gap Test
     AILLE::WNFSFrame gap_frame;
     gap_frame.sequence_id = 10;
@@ -2207,6 +2224,14 @@ TEST(TestWNFSIngestionAndEscalation) {
     AILLE::WNFSAdvisory gap_adv = AILLE::evaluate_wnfs_advisory(gap_frame, state, config);
     ASSERT_EQ(gap_adv.stream_degraded, 1);
     ASSERT_EQ(gap_adv.hft_freeze_required, 1);
+
+    // Chart Indicator & Spire Observability Dispatch Test
+    AILLE::ChartConditionPayload chart_payload = AILLE::evaluate_wnfs_stream_indicator(gap_adv, 100);
+    ASSERT_EQ(chart_payload.indicator_type, static_cast<std::uint8_t>(AILLE::ChartIndicatorType::WaveNativeFinanceStream));
+    ASSERT_EQ(chart_payload.condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::StateChaotic));
+
+    AILLE::WNFSObservabilityMetrics obs = aillee_spire::get_wnfs_observability();
+    ASSERT_EQ(obs.channel_status, static_cast<std::uint8_t>(AILLE::WNFS_STATUS_HEALTHY));
 }
 
 TEST(TestChartIndicatorRegistryDispatch) {

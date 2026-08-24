@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "15.0.0";
-constexpr int AILLE_VERSION_MAJOR = 15;
+constexpr const char* AILLE_VERSION = "16.0.0";
+constexpr int AILLE_VERSION_MAJOR = 16;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -778,6 +778,7 @@ public:
         evaluate_forex_usd_advisory();
         evaluate_volume_advisory();
         evaluate_anomaly_advisory();
+        evaluate_wnfs_advisory();
         evaluate_macro_advisory();
         evaluate_stabilizer_advisory();
 

@@ -29,6 +29,7 @@ class ChartIndicatorType(IntEnum):
     CorrelationBreakdown = 7
     BaselineDeterioration = 8
     StructuralFatigue = 9
+    WaveNativeFinanceStream = 10
 
 
 class ChartConditionState(IntEnum):
@@ -104,6 +105,7 @@ INDICATOR_TYPE_MAP = {
     ChartIndicatorType.CorrelationBreakdown: "CorrelationBreakdown",
     ChartIndicatorType.BaselineDeterioration: "BaselineDeterioration",
     ChartIndicatorType.StructuralFatigue: "StructuralFatigue",
+    ChartIndicatorType.WaveNativeFinanceStream: "WaveNativeFinanceStream",
 }
 
 CONDITION_STATE_MAP = {

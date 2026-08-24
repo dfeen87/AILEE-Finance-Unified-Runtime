@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-15.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-16.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -26,7 +26,7 @@
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
-- [v18.0.0: WaveNativeFinanceStream (WNFS) Streaming Ingestion (Layer 18)](#v1800-wavenativefinancestream-wnfs-streaming-ingestion-layer-18)
+- [v16.0.0: WaveNativeFinanceStream (WNFS) Streaming Ingestion (Layer 18)](#v1600-wavenativefinancestream-wnfs-streaming-ingestion-layer-18)
 - [v13.0.0: Real-Time Market Condition Intelligence & Anomaly Detection (Layer 16)](#v1300-real-time-market-condition-intelligence--anomaly-detection-layer-16)
 - [v15.0.0: Structural-Stress Indicators, Regime Diagnostics & StressRegimePayload](#v1500-structural-stress-indicators-regime-diagnostics-and-stressregimepayload)
 - [v14.0.0: Real-Time Chart Intelligence & Environment Diagnostics Subsystem (Layer 17)](#v1400-real-time-chart-intelligence--environment-diagnostics-subsystem-layer-17)
@@ -267,7 +267,7 @@ Every decision is logged with:
 
 ---
 
-## v18.0.0: WaveNativeFinanceStream (WNFS) Streaming Ingestion (Layer 18)
+## v16.0.0: WaveNativeFinanceStream (WNFS) Streaming Ingestion (Layer 18)
 
 AILEE Version 18 introduces **Layer 18: WaveNativeFinanceStream (WNFS)** (`WAVE_NATIVE_FINANCE_STREAM_V1`), integrating Wave Native Network (WNN) wave channels as the real-time financial streaming data transport backbone.
 
@@ -798,7 +798,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `15.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `16.0.0`).
 
 ### For Quantitative Researchers
 
