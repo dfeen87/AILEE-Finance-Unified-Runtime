@@ -1,9 +1,10 @@
 # Copyright (c) Don Michael Feeney Jr.
 # Licensed under the MIT License.
-"""Deterministic Real-Time Chart Intelligence & Environment Diagnostics Operator (Layer 17).
+"""Deterministic Real-Time Chart Intelligence & Environment Diagnostics Operator (Layer 17 - V15 Expansion).
 
 Generates environment-driven technical indicators derived from anomaly intelligence,
-volatility tracking, liquidity displacement metrics, and correlation divergence analysis.
+volatility tracking, liquidity displacement metrics, correlation divergence analysis,
+allocator-free structural-stress indicators, and regime-aware diagnostics.
 These indicators are strictly diagnostic, not predictive, and imply no trading intent.
 """
 
@@ -23,6 +24,11 @@ class ChartIndicatorType(IntEnum):
     CorrelationDivergenceIndex = 2
     BaselineStrengthMeter = 3
     PatternEnvironmentScore = 4
+    VolatilityInstability = 5
+    LiquidityErosion = 6
+    CorrelationBreakdown = 7
+    BaselineDeterioration = 8
+    StructuralFatigue = 9
 
 
 class ChartConditionState(IntEnum):
@@ -38,13 +44,53 @@ class ChartConditionState(IntEnum):
     Weak = 9
     Average = 10
     Strong = 11
+    # Stress State Band (V15 Grouped Expansion)
+    StateStable = 12
+    StateUnstable = 13
+    StateChaotic = 14
+    StatePreserved = 15
+    StateEroding = 16
+    StateDepleted = 17
+    StateWeakening = 18
+    StateDeteriorating = 19
+    StateLowFatigue = 20
+    StateMediumFatigue = 21
+    StateHighFatigue = 22
+
+
+class PatternHintGroup(IntEnum):
+    ExpansionGroup = 0
+    StressGroup = 1
 
 
 class PatternHint(IntEnum):
     NoneHint = 0
+    # Expansion Group
     CupHandleLike = 1
     PennantLike = 2
     FlagLike = 3
+    # Stress Group (V15 Expansion)
+    BreakdownLike = 4
+    ExhaustionLike = 5
+    StressConsolidationLike = 6
+
+
+class VolatilityRegime(IntEnum):
+    Low = 0
+    Medium = 1
+    High = 2
+
+
+class LiquidityRegime(IntEnum):
+    Thin = 0
+    Normal = 1
+    Deep = 2
+
+
+class CorrelationRegime(IntEnum):
+    Stable = 0
+    Transitional = 1
+    Unstable = 2
 
 
 INDICATOR_TYPE_MAP = {
@@ -53,6 +99,11 @@ INDICATOR_TYPE_MAP = {
     ChartIndicatorType.CorrelationDivergenceIndex: "CorrelationDivergenceIndex",
     ChartIndicatorType.BaselineStrengthMeter: "BaselineStrengthMeter",
     ChartIndicatorType.PatternEnvironmentScore: "PatternEnvironmentScore",
+    ChartIndicatorType.VolatilityInstability: "VolatilityInstability",
+    ChartIndicatorType.LiquidityErosion: "LiquidityErosion",
+    ChartIndicatorType.CorrelationBreakdown: "CorrelationBreakdown",
+    ChartIndicatorType.BaselineDeterioration: "BaselineDeterioration",
+    ChartIndicatorType.StructuralFatigue: "StructuralFatigue",
 }
 
 CONDITION_STATE_MAP = {
@@ -68,6 +119,17 @@ CONDITION_STATE_MAP = {
     ChartConditionState.Weak: "Weak",
     ChartConditionState.Average: "Average",
     ChartConditionState.Strong: "Strong",
+    ChartConditionState.StateStable: "StateStable",
+    ChartConditionState.StateUnstable: "StateUnstable",
+    ChartConditionState.StateChaotic: "StateChaotic",
+    ChartConditionState.StatePreserved: "StatePreserved",
+    ChartConditionState.StateEroding: "StateEroding",
+    ChartConditionState.StateDepleted: "StateDepleted",
+    ChartConditionState.StateWeakening: "StateWeakening",
+    ChartConditionState.StateDeteriorating: "StateDeteriorating",
+    ChartConditionState.StateLowFatigue: "StateLowFatigue",
+    ChartConditionState.StateMediumFatigue: "StateMediumFatigue",
+    ChartConditionState.StateHighFatigue: "StateHighFatigue",
 }
 
 PATTERN_HINT_MAP = {
@@ -75,7 +137,82 @@ PATTERN_HINT_MAP = {
     PatternHint.CupHandleLike: "CupHandleLike",
     PatternHint.PennantLike: "PennantLike",
     PatternHint.FlagLike: "FlagLike",
+    PatternHint.BreakdownLike: "BreakdownLike",
+    PatternHint.ExhaustionLike: "ExhaustionLike",
+    PatternHint.StressConsolidationLike: "StressConsolidationLike",
 }
+
+PATTERN_HINT_GROUP_MAP = {
+    PatternHintGroup.ExpansionGroup: "ExpansionGroup",
+    PatternHintGroup.StressGroup: "StressGroup",
+}
+
+VOLATILITY_REGIME_MAP = {
+    VolatilityRegime.Low: "Low",
+    VolatilityRegime.Medium: "Medium",
+    VolatilityRegime.High: "High",
+}
+
+LIQUIDITY_REGIME_MAP = {
+    LiquidityRegime.Thin: "Thin",
+    LiquidityRegime.Normal: "Normal",
+    LiquidityRegime.Deep: "Deep",
+}
+
+CORRELATION_REGIME_MAP = {
+    CorrelationRegime.Stable: "Stable",
+    CorrelationRegime.Transitional: "Transitional",
+    CorrelationRegime.Unstable: "Unstable",
+}
+
+
+class RegimeModifier:
+    """Regime modifier adjusting indicator evaluation thresholds dynamically."""
+    def __init__(self, volatility_regime_factor: float = 1.0, liquidity_regime_factor: float = 1.0,
+                 correlation_regime_factor: float = 1.0, volatility_regime: VolatilityRegime = VolatilityRegime.Medium,
+                 liquidity_regime: LiquidityRegime = LiquidityRegime.Normal,
+                 correlation_regime: CorrelationRegime = CorrelationRegime.Stable):
+        self.volatility_regime_factor = volatility_regime_factor
+        self.liquidity_regime_factor = liquidity_regime_factor
+        self.correlation_regime_factor = correlation_regime_factor
+        self.volatility_regime = volatility_regime
+        self.liquidity_regime = liquidity_regime
+        self.correlation_regime = correlation_regime
+
+
+class StressRegimePayload:
+    """32-byte unified payload bridging stress indicators and regime diagnostics."""
+    def __init__(self, volatility_regime: VolatilityRegime = VolatilityRegime.Low,
+                 liquidity_regime: LiquidityRegime = LiquidityRegime.Normal,
+                 correlation_regime: CorrelationRegime = CorrelationRegime.Stable,
+                 stress_score: float = 0.0, deterioration_score: float = 0.0,
+                 instability_score: float = 0.0, regime_confidence: float = 1.0,
+                 reserved_flags: int = 0, timestamp_ns: int = 0):
+        self.volatility_regime = volatility_regime
+        self.liquidity_regime = liquidity_regime
+        self.correlation_regime = correlation_regime
+        self.stress_score = stress_score
+        self.deterioration_score = deterioration_score
+        self.instability_score = instability_score
+        self.regime_confidence = regime_confidence
+        self.reserved_flags = reserved_flags
+        self.timestamp_ns = timestamp_ns
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "volatility_regime": VOLATILITY_REGIME_MAP.get(self.volatility_regime, "Medium"),
+            "liquidity_regime": LIQUIDITY_REGIME_MAP.get(self.liquidity_regime, "Normal"),
+            "correlation_regime": CORRELATION_REGIME_MAP.get(self.correlation_regime, "Stable"),
+            "stress_score": round(self.stress_score, 2),
+            "deterioration_score": round(self.deterioration_score, 2),
+            "instability_score": round(self.instability_score, 2),
+            "regime_confidence": round(self.regime_confidence, 2),
+            "reserved_flags": self.reserved_flags,
+            "timestamp_ns": self.timestamp_ns
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict())
 
 
 class BaselineState:
@@ -124,8 +261,10 @@ class PatternConditionPayload:
     """Pattern diagnostic resemblance payload."""
     def __init__(self, pattern_hint: PatternHint, prior_expansion_score: float,
                  consolidation_score: float, support_strength_score: float,
-                 symmetry_score: float, timestamp_ns: int = 0):
+                 symmetry_score: float, pattern_group: PatternHintGroup = PatternHintGroup.ExpansionGroup,
+                 timestamp_ns: int = 0):
         self.pattern_hint = pattern_hint
+        self.pattern_group = pattern_group
         self.prior_expansion_score = prior_expansion_score
         self.consolidation_score = consolidation_score
         self.support_strength_score = support_strength_score
@@ -135,6 +274,7 @@ class PatternConditionPayload:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "pattern_hint": PATTERN_HINT_MAP.get(self.pattern_hint, "None"),
+            "pattern_group": PATTERN_HINT_GROUP_MAP.get(self.pattern_group, "ExpansionGroup"),
             "scores": {
                 "prior_expansion": round(self.prior_expansion_score, 2),
                 "consolidation": round(self.consolidation_score, 2),
@@ -215,10 +355,66 @@ class ChartIntelligenceOperator(BaseOperator):
             )
         }
 
+    def _compute_regime_modifier(self, input_data: dict, baseline: BaselineState) -> RegimeModifier:
+        """Computes regime classifications once per evaluation cycle."""
+        ewma_vol = input_data["ewma_volatility"]
+        base_vol = baseline.vol_30d if baseline.vol_30d > 1e-6 else input_data["baseline_volatility"]
+        vol_ratio = ewma_vol / base_vol if base_vol > 1e-6 else 1.0
+
+        if vol_ratio >= 1.8:
+            v_regime = VolatilityRegime.High
+            v_factor = 1.30
+        elif vol_ratio <= 0.70:
+            v_regime = VolatilityRegime.Low
+            v_factor = 0.85
+        else:
+            v_regime = VolatilityRegime.Medium
+            v_factor = 1.00
+
+        curr_depth = input_data["bid_size"] + input_data["ask_size"]
+        base_depth = baseline.liq_30d if baseline.liq_30d > 1e-6 else input_data["baseline_depth"]
+        depth_ratio = curr_depth / base_depth if base_depth > 1e-6 else 1.0
+
+        if depth_ratio <= 0.50:
+            l_regime = LiquidityRegime.Thin
+            l_factor = 1.25
+        elif depth_ratio >= 1.50:
+            l_regime = LiquidityRegime.Deep
+            l_factor = 0.85
+        else:
+            l_regime = LiquidityRegime.Normal
+            l_factor = 1.00
+
+        roll_corr = max(-1.0, min(1.0, input_data["rolling_correlation"]))
+        exp_corr = max(-1.0, min(1.0, baseline.vol_corr_30d if baseline.vol_corr_30d < 1.0 else input_data["expected_correlation"]))
+        corr_drop = max(0.0, exp_corr - roll_corr)
+
+        if corr_drop >= 0.50 or roll_corr <= 0.0:
+            c_regime = CorrelationRegime.Unstable
+            c_factor = 1.30
+        elif corr_drop >= 0.25:
+            c_regime = CorrelationRegime.Transitional
+            c_factor = 1.15
+        else:
+            c_regime = CorrelationRegime.Stable
+            c_factor = 1.00
+
+        return RegimeModifier(
+            volatility_regime_factor=v_factor,
+            liquidity_regime_factor=l_factor,
+            correlation_regime_factor=c_factor,
+            volatility_regime=v_regime,
+            liquidity_regime=l_regime,
+            correlation_regime=c_regime
+        )
+
     def execute(self, input_data: dict) -> dict:
-        """Evaluates structural chart indicators and pattern diagnostic resemblance."""
+        """Evaluates structural chart indicators, structural stress indicators, and pattern diagnostics."""
         baseline: BaselineState = input_data["baseline"]
         timestamp_ns = input_data["timestamp_ns"]
+
+        # Compute regime modifier once per evaluation cycle
+        modifier = self._compute_regime_modifier(input_data, baseline)
 
         # 1. Volatility Expansion Bands
         ewma_vol = input_data["ewma_volatility"]
@@ -310,7 +506,117 @@ class ChartIntelligenceOperator(BaseOperator):
             timestamp_ns=timestamp_ns
         )
 
-        # 5. Pattern Diagnostic Engine
+        # 5. Volatility Instability Indicator
+        vol_spike = abs(ewma_vol - base_vol)
+        raw_instability = max(0.0, min(10.0, vol_spike / base_vol if base_vol > 1e-6 else 0.0))
+        vi_score = max(0.0, min(100.0, raw_instability * 40.0 * modifier.volatility_regime_factor))
+        if vi_score >= 70.0:
+            vi_state = ChartConditionState.StateChaotic
+        elif vi_score >= 35.0:
+            vi_state = ChartConditionState.StateUnstable
+        else:
+            vi_state = ChartConditionState.StateStable
+
+        payload_vi = ChartConditionPayload(
+            indicator_type=ChartIndicatorType.VolatilityInstability,
+            condition_state=vi_state,
+            normalized_score=vi_score,
+            raw_metrics=[ewma_vol, base_vol, raw_instability],
+            timestamp_ns=timestamp_ns
+        )
+
+        # 6. Liquidity Erosion Indicator
+        c_depth = max(0.001, curr_depth)
+        b_depth = max(0.001, base_depth)
+        thin_rate = max(0.0, min(1.0, (b_depth - c_depth) / b_depth if c_depth < b_depth else 0.0))
+        vol_anom = max(0.1, min(20.0, input_data["volume_anomaly_ratio"]))
+        le_score = max(0.0, min(100.0, thin_rate * 80.0 * modifier.liquidity_regime_factor))
+        if le_score >= 60.0 or thin_rate >= 0.60:
+            le_state = ChartConditionState.StateDepleted
+        elif le_score >= 30.0 or thin_rate >= 0.25:
+            le_state = ChartConditionState.StateEroding
+        else:
+            le_state = ChartConditionState.StatePreserved
+
+        payload_le = ChartConditionPayload(
+            indicator_type=ChartIndicatorType.LiquidityErosion,
+            condition_state=le_state,
+            normalized_score=le_score,
+            raw_metrics=[thin_rate, c_depth, vol_anom],
+            timestamp_ns=timestamp_ns
+        )
+
+        # 7. Correlation Breakdown Indicator
+        cb_score = max(0.0, min(100.0, corr_drop * 60.0 * modifier.correlation_regime_factor))
+        if cb_score >= 65.0 or corr_drop >= 0.60:
+            cb_state = ChartConditionState.StateDeteriorating
+        elif cb_score >= 30.0 or corr_drop >= 0.25:
+            cb_state = ChartConditionState.StateWeakening
+        else:
+            cb_state = ChartConditionState.StateStable
+
+        payload_cb = ChartConditionPayload(
+            indicator_type=ChartIndicatorType.CorrelationBreakdown,
+            condition_state=cb_state,
+            normalized_score=cb_score,
+            raw_metrics=[roll_corr, exp_corr, corr_drop],
+            timestamp_ns=timestamp_ns
+        )
+
+        # 8. Baseline Deterioration Indicator
+        vol_5m = max(0.0, min(100.0, baseline.vol_5m))
+        vol_1h = max(0.0, min(100.0, baseline.vol_1h))
+        vol_30d = max(1e-6, min(100.0, baseline.vol_30d))
+        drift_s = abs(vol_5m - vol_30d) / vol_30d
+        drift_m = abs(vol_1h - vol_30d) / vol_30d
+        bd_score = max(0.0, min(100.0, (drift_s * 40.0 + drift_m * 30.0) * modifier.volatility_regime_factor))
+        if bd_score >= 60.0:
+            bd_state = ChartConditionState.StateDeteriorating
+        elif bd_score >= 30.0:
+            bd_state = ChartConditionState.StateWeakening
+        else:
+            bd_state = ChartConditionState.Strong
+
+        payload_bd = ChartConditionPayload(
+            indicator_type=ChartIndicatorType.BaselineDeterioration,
+            condition_state=bd_state,
+            normalized_score=bd_score,
+            raw_metrics=[drift_s, drift_m, vol_30d],
+            timestamp_ns=timestamp_ns
+        )
+
+        # 9. Structural Fatigue Indicator
+        sf_score = max(0.0, min(100.0, (vi_score * 0.35 + le_score * 0.40 + bd_score * 0.25) * modifier.volatility_regime_factor))
+        if sf_score >= 65.0:
+            sf_state = ChartConditionState.StateHighFatigue
+        elif sf_score >= 35.0:
+            sf_state = ChartConditionState.StateMediumFatigue
+        else:
+            sf_state = ChartConditionState.StateLowFatigue
+
+        payload_sf = ChartConditionPayload(
+            indicator_type=ChartIndicatorType.StructuralFatigue,
+            condition_state=sf_state,
+            normalized_score=sf_score,
+            raw_metrics=[vi_score, le_score, bd_score],
+            timestamp_ns=timestamp_ns
+        )
+
+        # 10. StressRegimePayload
+        unified_stress = max(vi_score, le_score, bd_score, sf_score)
+        stress_payload = StressRegimePayload(
+            volatility_regime=modifier.volatility_regime,
+            liquidity_regime=modifier.liquidity_regime,
+            correlation_regime=modifier.correlation_regime,
+            stress_score=unified_stress,
+            deterioration_score=bd_score,
+            instability_score=vi_score,
+            regime_confidence=1.0,
+            reserved_flags=0,
+            timestamp_ns=timestamp_ns
+        )
+
+        # 11. Pattern Diagnostic Engine Expansion
         prior_exp = max(0.0, min(100.0, (vol_ratio - 1.0) * 60.0 if vol_ratio > 1.0 else 0.0))
         comp_term = (1.0 - vol_ratio) * 100.0 if vol_ratio <= 1.0 else 0.0
         depth_term = (1.0 - thinning_pct) * 50.0
@@ -318,17 +624,31 @@ class ChartIntelligenceOperator(BaseOperator):
         supp_score = max(0.0, min(100.0, base_score * 0.7 + (1.0 - corr_drop) * 30.0))
         sym_score = max(0.0, min(100.0, 100.0 - (abs(vol_ratio - 1.0) * 30.0 + thinning_pct * 40.0)))
 
-        if supp_score >= 65.0 and consol_score >= 50.0 and thinning_pct < 0.30:
+        if corr_drop >= 0.50 and le_score >= 40.0 and vi_score >= 40.0:
+            pattern_hint = PatternHint.BreakdownLike
+            pattern_group = PatternHintGroup.StressGroup
+        elif bd_score >= 50.0 and sf_score >= 50.0:
+            pattern_hint = PatternHint.ExhaustionLike
+            pattern_group = PatternHintGroup.StressGroup
+        elif consol_score >= 45.0 and base_score <= 45.0 and thinning_pct >= 0.30:
+            pattern_hint = PatternHint.StressConsolidationLike
+            pattern_group = PatternHintGroup.StressGroup
+        elif supp_score >= 65.0 and consol_score >= 50.0 and thinning_pct < 0.30:
             pattern_hint = PatternHint.CupHandleLike
+            pattern_group = PatternHintGroup.ExpansionGroup
         elif prior_exp >= 40.0 and consol_score >= 60.0 and sym_score >= 60.0:
             pattern_hint = PatternHint.PennantLike
+            pattern_group = PatternHintGroup.ExpansionGroup
         elif prior_exp >= 35.0 and consol_score >= 40.0 and supp_score >= 45.0:
             pattern_hint = PatternHint.FlagLike
+            pattern_group = PatternHintGroup.ExpansionGroup
         else:
             pattern_hint = PatternHint.NoneHint
+            pattern_group = PatternHintGroup.ExpansionGroup
 
         pattern_payload = PatternConditionPayload(
             pattern_hint=pattern_hint,
+            pattern_group=pattern_group,
             prior_expansion_score=prior_exp,
             consolidation_score=consol_score,
             support_strength_score=supp_score,
@@ -336,14 +656,18 @@ class ChartIntelligenceOperator(BaseOperator):
             timestamp_ns=timestamp_ns
         )
 
-        payloads = [payload_vol, payload_liq, payload_corr, payload_base]
+        payloads = [
+            payload_vol, payload_liq, payload_corr, payload_base,
+            payload_vi, payload_le, payload_cb, payload_bd, payload_sf
+        ]
 
         return {
             "symbol": input_data["symbol"],
             "pair_symbol": input_data["pair_symbol"],
             "payloads": [p.to_dict() for p in payloads],
             "pattern_diagnostics": pattern_payload.to_dict(),
-            "volatility_regime": INDICATOR_TYPE_MAP[ChartIndicatorType.VolatilityExpansionBands] + ":" + CONDITION_STATE_MAP[vol_state],
-            "liquidity_regime": INDICATOR_TYPE_MAP[ChartIndicatorType.LiquidityDisplacementZones] + ":" + CONDITION_STATE_MAP[liq_state],
-            "correlation_regime": INDICATOR_TYPE_MAP[ChartIndicatorType.CorrelationDivergenceIndex] + ":" + CONDITION_STATE_MAP[corr_state]
+            "stress_regime_payload": stress_payload.to_dict(),
+            "volatility_regime": VOLATILITY_REGIME_MAP[modifier.volatility_regime],
+            "liquidity_regime": LIQUIDITY_REGIME_MAP[modifier.liquidity_regime],
+            "correlation_regime": CORRELATION_REGIME_MAP[modifier.correlation_regime]
         }

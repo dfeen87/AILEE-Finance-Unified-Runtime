@@ -2041,6 +2041,8 @@ TEST(TestChartIntelligenceStructSizing) {
     ASSERT_EQ(sizeof(AILLE::ChartConditionPayload), 64ULL);
     ASSERT_EQ(sizeof(AILLE::PatternEnvironmentState), 64ULL);
     ASSERT_EQ(sizeof(AILLE::PatternConditionPayload), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::StressRegimePayload), 32ULL);
+    ASSERT_EQ(alignof(AILLE::StressRegimePayload), 32ULL);
 }
 
 TEST(TestChartIntelligenceIndicatorsAndSerialization) {
@@ -2082,6 +2084,58 @@ TEST(TestChartIntelligenceIndicatorsAndSerialization) {
     std::size_t pn = AILLE::serialize_pattern_payload_json(pattern, buf, sizeof(buf));
     ASSERT_TRUE(pn > 0);
     ASSERT_TRUE(std::string(buf).find("\"pattern_hint\":") != std::string::npos);
+}
+
+TEST(TestV15StructuralStressIndicatorsAndRegimes) {
+    AILLE::AnomalyState anomaly{};
+    anomaly.ewma_volatility = 0.03f;
+    anomaly.baseline_volatility = 0.01f;
+    anomaly.bid_size = 20.0f;
+    anomaly.ask_size = 20.0f;
+    anomaly.baseline_depth = 200.0f;
+    anomaly.rolling_correlation = -0.30f;
+    anomaly.expected_correlation = 0.85f;
+
+    AILLE::VolumeState volume{};
+    volume.volume_anomaly_ratio = 4.0f;
+
+    AILLE::BaselineState baseline{};
+    baseline.vol_5m = 0.035f;
+    baseline.vol_1h = 0.030f;
+    baseline.vol_30d = 0.010f;
+    baseline.liq_30d = 200.0f;
+    baseline.vol_corr_30d = 0.85f;
+
+    AILLE::RegimeModifier modifier = AILLE::compute_regime_modifier(anomaly, volume, baseline);
+    ASSERT_EQ(modifier.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::High));
+    ASSERT_EQ(modifier.liquidity_regime, static_cast<std::uint8_t>(AILLE::LiquidityRegime::Thin));
+    ASSERT_EQ(modifier.correlation_regime, static_cast<std::uint8_t>(AILLE::CorrelationRegime::Unstable));
+
+    AILLE::ChartConditionPayload payloads[5];
+    payloads[0] = AILLE::evaluate_volatility_instability(anomaly, volume, baseline, modifier, 100);
+    payloads[1] = AILLE::evaluate_liquidity_erosion(anomaly, volume, baseline, modifier, 100);
+    payloads[2] = AILLE::evaluate_correlation_breakdown(anomaly, volume, baseline, modifier, 100);
+    payloads[3] = AILLE::evaluate_baseline_deterioration(anomaly, volume, baseline, modifier, 100);
+    payloads[4] = AILLE::evaluate_structural_fatigue(payloads[0], payloads[1], payloads[3], modifier, 100);
+
+    ASSERT_EQ(payloads[0].condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::StateChaotic));
+    ASSERT_EQ(payloads[1].condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::StateDepleted));
+
+    AILLE::StressRegimePayload stress = AILLE::evaluate_stress_regime_payload(payloads, 5, modifier, 100);
+    ASSERT_TRUE(stress.stress_score > 50.0f);
+
+    char buf[512];
+    std::size_t sn = AILLE::serialize_stress_regime_payload_json(stress, buf, sizeof(buf));
+    ASSERT_TRUE(sn > 0);
+    ASSERT_TRUE(std::string(buf).find("\"volatility_regime\":\"High\"") != std::string::npos);
+
+    AILLE::PatternConditionPayload pattern = AILLE::evaluate_pattern_diagnostics(payloads, 5, baseline, 100);
+    ASSERT_EQ(pattern.pattern_group, static_cast<std::uint8_t>(AILLE::PatternHintGroup::StressGroup));
+
+    AILLE::SharedRegimeRingBuffer ring_buffer;
+    ring_buffer.push(0.05f, 8);
+    ring_buffer.push(0.02f, 8);
+    ASSERT_TRUE(ring_buffer.mean() > 0.0f);
 }
 
 TEST(TestChartIndicatorRegistryDispatch) {
@@ -2400,6 +2454,7 @@ int main() {
     RUN_TEST(TestLayer16AnomalyHardening);
     RUN_TEST(TestChartIntelligenceStructSizing);
     RUN_TEST(TestChartIntelligenceIndicatorsAndSerialization);
+    RUN_TEST(TestV15StructuralStressIndicatorsAndRegimes);
     RUN_TEST(TestChartIndicatorRegistryDispatch);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
