@@ -291,6 +291,10 @@ class PatternConditionPayload:
 class ChartIntelligenceOperator(BaseOperator):
     """Deterministic Operator deriving environment technical indicators and pattern diagnostics."""
 
+    def __init__(self):
+        super().__init__()
+        self._prev_modifier: Optional[RegimeModifier] = None
+
     def validate(self, input_data: dict) -> dict:
         """Validates input metrics for chart indicator calculation."""
         required = ["last_price", "ewma_volatility", "baseline_volatility"]
@@ -356,50 +360,86 @@ class ChartIntelligenceOperator(BaseOperator):
         }
 
     def _compute_regime_modifier(self, input_data: dict, baseline: BaselineState) -> RegimeModifier:
-        """Computes regime classifications once per evaluation cycle."""
+        """Computes regime classifications once per evaluation cycle with transition hysteresis."""
         ewma_vol = input_data["ewma_volatility"]
         base_vol = baseline.vol_30d if baseline.vol_30d > 1e-6 else input_data["baseline_volatility"]
         vol_ratio = ewma_vol / base_vol if base_vol > 1e-6 else 1.0
 
-        if vol_ratio >= 1.8:
-            v_regime = VolatilityRegime.High
-            v_factor = 1.30
-        elif vol_ratio <= 0.70:
-            v_regime = VolatilityRegime.Low
-            v_factor = 0.85
+        prev_v = self._prev_modifier.volatility_regime if self._prev_modifier else VolatilityRegime.Medium
+
+        if prev_v == VolatilityRegime.Low:
+            if vol_ratio >= 0.75:
+                v_regime = VolatilityRegime.High if vol_ratio >= 1.85 else VolatilityRegime.Medium
+            else:
+                v_regime = VolatilityRegime.Low
+        elif prev_v == VolatilityRegime.High:
+            if vol_ratio <= 1.70:
+                v_regime = VolatilityRegime.Low if vol_ratio <= 0.65 else VolatilityRegime.Medium
+            else:
+                v_regime = VolatilityRegime.High
         else:
-            v_regime = VolatilityRegime.Medium
-            v_factor = 1.00
+            if vol_ratio >= 1.85:
+                v_regime = VolatilityRegime.High
+            elif vol_ratio <= 0.65:
+                v_regime = VolatilityRegime.Low
+            else:
+                v_regime = VolatilityRegime.Medium
+
+        v_factor = 1.30 if v_regime == VolatilityRegime.High else (0.85 if v_regime == VolatilityRegime.Low else 1.00)
 
         curr_depth = input_data["bid_size"] + input_data["ask_size"]
         base_depth = baseline.liq_30d if baseline.liq_30d > 1e-6 else input_data["baseline_depth"]
         depth_ratio = curr_depth / base_depth if base_depth > 1e-6 else 1.0
 
-        if depth_ratio <= 0.50:
-            l_regime = LiquidityRegime.Thin
-            l_factor = 1.25
-        elif depth_ratio >= 1.50:
-            l_regime = LiquidityRegime.Deep
-            l_factor = 0.85
+        prev_l = self._prev_modifier.liquidity_regime if self._prev_modifier else LiquidityRegime.Normal
+
+        if prev_l == LiquidityRegime.Thin:
+            if depth_ratio >= 0.55:
+                l_regime = LiquidityRegime.Deep if depth_ratio >= 1.55 else LiquidityRegime.Normal
+            else:
+                l_regime = LiquidityRegime.Thin
+        elif prev_l == LiquidityRegime.Deep:
+            if depth_ratio <= 1.40:
+                l_regime = LiquidityRegime.Thin if depth_ratio <= 0.45 else LiquidityRegime.Normal
+            else:
+                l_regime = LiquidityRegime.Deep
         else:
-            l_regime = LiquidityRegime.Normal
-            l_factor = 1.00
+            if depth_ratio <= 0.45:
+                l_regime = LiquidityRegime.Thin
+            elif depth_ratio >= 1.55:
+                l_regime = LiquidityRegime.Deep
+            else:
+                l_regime = LiquidityRegime.Normal
+
+        l_factor = 1.25 if l_regime == LiquidityRegime.Thin else (0.85 if l_regime == LiquidityRegime.Deep else 1.00)
 
         roll_corr = max(-1.0, min(1.0, input_data["rolling_correlation"]))
         exp_corr = max(-1.0, min(1.0, baseline.vol_corr_30d if baseline.vol_corr_30d < 1.0 else input_data["expected_correlation"]))
         corr_drop = max(0.0, exp_corr - roll_corr)
 
-        if corr_drop >= 0.50 or roll_corr <= 0.0:
-            c_regime = CorrelationRegime.Unstable
-            c_factor = 1.30
-        elif corr_drop >= 0.25:
-            c_regime = CorrelationRegime.Transitional
-            c_factor = 1.15
-        else:
-            c_regime = CorrelationRegime.Stable
-            c_factor = 1.00
+        prev_c = self._prev_modifier.correlation_regime if self._prev_modifier else CorrelationRegime.Stable
 
-        return RegimeModifier(
+        if prev_c == CorrelationRegime.Stable:
+            if corr_drop >= 0.28 or roll_corr <= 0.0:
+                c_regime = CorrelationRegime.Unstable if (corr_drop >= 0.53 or roll_corr <= 0.0) else CorrelationRegime.Transitional
+            else:
+                c_regime = CorrelationRegime.Stable
+        elif prev_c == CorrelationRegime.Unstable:
+            if corr_drop <= 0.47 and roll_corr > 0.0:
+                c_regime = CorrelationRegime.Stable if corr_drop <= 0.22 else CorrelationRegime.Transitional
+            else:
+                c_regime = CorrelationRegime.Unstable
+        else:
+            if corr_drop >= 0.53 or roll_corr <= 0.0:
+                c_regime = CorrelationRegime.Unstable
+            elif corr_drop <= 0.22:
+                c_regime = CorrelationRegime.Stable
+            else:
+                c_regime = CorrelationRegime.Transitional
+
+        c_factor = 1.30 if c_regime == CorrelationRegime.Unstable else (1.15 if c_regime == CorrelationRegime.Transitional else 1.00)
+
+        modifier = RegimeModifier(
             volatility_regime_factor=v_factor,
             liquidity_regime_factor=l_factor,
             correlation_regime_factor=c_factor,
@@ -407,6 +447,8 @@ class ChartIntelligenceOperator(BaseOperator):
             liquidity_regime=l_regime,
             correlation_regime=c_regime
         )
+        self._prev_modifier = modifier
+        return modifier
 
     def execute(self, input_data: dict) -> dict:
         """Evaluates structural chart indicators, structural stress indicators, and pattern diagnostics."""

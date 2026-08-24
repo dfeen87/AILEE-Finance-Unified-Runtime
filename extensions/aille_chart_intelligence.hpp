@@ -383,7 +383,8 @@ struct ChartIndicatorRegistry final {
 [[nodiscard]] RegimeModifier compute_regime_modifier(
     const AnomalyState& anomaly,
     const VolumeState& volume,
-    const BaselineState& baseline
+    const BaselineState& baseline,
+    const RegimeModifier* prev_modifier = nullptr
 ) noexcept;
 
 [[nodiscard]] ChartConditionPayload evaluate_volatility_instability(

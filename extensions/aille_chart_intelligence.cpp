@@ -361,60 +361,109 @@ ChartConditionPayload evaluate_baseline_strength_meter(
 RegimeModifier compute_regime_modifier(
     const AnomalyState& anomaly,
     const VolumeState& volume,
-    const BaselineState& baseline
+    const BaselineState& baseline,
+    const RegimeModifier* prev_modifier
 ) noexcept {
     (void)volume;
     RegimeModifier modifier{};
 
-    // 1. Volatility Regime
+    // 1. Volatility Regime with Hysteresis
     float ewma_vol = sanitize_float(anomaly.ewma_volatility, 0.0f);
     float base_vol = sanitize_float(baseline.vol_30d > 1e-6f ? baseline.vol_30d : anomaly.baseline_volatility, 1e-6f);
     float vol_ratio = (base_vol > 1e-6f) ? (ewma_vol / base_vol) : 1.0f;
 
-    if (vol_ratio >= 1.8f) {
-        modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::High);
-        modifier.volatility_regime_factor = 1.30f;
-    } else if (vol_ratio <= 0.70f) {
-        modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Low);
-        modifier.volatility_regime_factor = 0.85f;
-    } else {
-        modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Medium);
-        modifier.volatility_regime_factor = 1.00f;
+    VolatilityRegime prev_v = prev_modifier ? static_cast<VolatilityRegime>(prev_modifier->volatility_regime) : VolatilityRegime::Medium;
+
+    if (prev_v == VolatilityRegime::Low) {
+        if (vol_ratio >= 0.75f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(vol_ratio >= 1.85f ? VolatilityRegime::High : VolatilityRegime::Medium);
+        } else {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Low);
+        }
+    } else if (prev_v == VolatilityRegime::High) {
+        if (vol_ratio <= 1.70f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(vol_ratio <= 0.65f ? VolatilityRegime::Low : VolatilityRegime::Medium);
+        } else {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::High);
+        }
+    } else { // Medium
+        if (vol_ratio >= 1.85f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::High);
+        } else if (vol_ratio <= 0.65f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Low);
+        } else {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Medium);
+        }
     }
 
-    // 2. Liquidity Regime
+    auto v_enum = static_cast<VolatilityRegime>(modifier.volatility_regime);
+    modifier.volatility_regime_factor = (v_enum == VolatilityRegime::High) ? 1.30f : ((v_enum == VolatilityRegime::Low) ? 0.85f : 1.00f);
+
+    // 2. Liquidity Regime with Hysteresis
     float bid_sz = sanitize_float(anomaly.bid_size, 0.0f);
     float ask_sz = sanitize_float(anomaly.ask_size, 0.0f);
     float curr_depth = bid_sz + ask_sz;
     float base_depth = sanitize_float(baseline.liq_30d > 1e-6f ? baseline.liq_30d : anomaly.baseline_depth, 1000.0f);
     float depth_ratio = (base_depth > 1e-6f) ? (curr_depth / base_depth) : 1.0f;
 
-    if (depth_ratio <= 0.50f) {
-        modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Thin);
-        modifier.liquidity_regime_factor = 1.25f;
-    } else if (depth_ratio >= 1.50f) {
-        modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Deep);
-        modifier.liquidity_regime_factor = 0.85f;
-    } else {
-        modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Normal);
-        modifier.liquidity_regime_factor = 1.00f;
+    LiquidityRegime prev_l = prev_modifier ? static_cast<LiquidityRegime>(prev_modifier->liquidity_regime) : LiquidityRegime::Normal;
+
+    if (prev_l == LiquidityRegime::Thin) {
+        if (depth_ratio >= 0.55f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(depth_ratio >= 1.55f ? LiquidityRegime::Deep : LiquidityRegime::Normal);
+        } else {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Thin);
+        }
+    } else if (prev_l == LiquidityRegime::Deep) {
+        if (depth_ratio <= 1.40f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(depth_ratio <= 0.45f ? LiquidityRegime::Thin : LiquidityRegime::Normal);
+        } else {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Deep);
+        }
+    } else { // Normal
+        if (depth_ratio <= 0.45f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Thin);
+        } else if (depth_ratio >= 1.55f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Deep);
+        } else {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Normal);
+        }
     }
 
-    // 3. Correlation Regime
+    auto l_enum = static_cast<LiquidityRegime>(modifier.liquidity_regime);
+    modifier.liquidity_regime_factor = (l_enum == LiquidityRegime::Thin) ? 1.25f : ((l_enum == LiquidityRegime::Deep) ? 0.85f : 1.00f);
+
+    // 3. Correlation Regime with Hysteresis
     float roll_corr = std::clamp(sanitize_float(anomaly.rolling_correlation, 1.0f), -1.0f, 1.0f);
     float exp_corr = std::clamp(sanitize_float(baseline.vol_corr_30d < 1.0f ? baseline.vol_corr_30d : anomaly.expected_correlation, 1.0f), -1.0f, 1.0f);
     float corr_drop = std::max(0.0f, exp_corr - roll_corr);
 
-    if (corr_drop >= 0.50f || roll_corr <= 0.0f) {
-        modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Unstable);
-        modifier.correlation_regime_factor = 1.30f;
-    } else if (corr_drop >= 0.25f) {
-        modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Transitional);
-        modifier.correlation_regime_factor = 1.15f;
-    } else {
-        modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Stable);
-        modifier.correlation_regime_factor = 1.00f;
+    CorrelationRegime prev_c = prev_modifier ? static_cast<CorrelationRegime>(prev_modifier->correlation_regime) : CorrelationRegime::Stable;
+
+    if (prev_c == CorrelationRegime::Stable) {
+        if (corr_drop >= 0.28f || roll_corr <= 0.0f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>((corr_drop >= 0.53f || roll_corr <= 0.0f) ? CorrelationRegime::Unstable : CorrelationRegime::Transitional);
+        } else {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Stable);
+        }
+    } else if (prev_c == CorrelationRegime::Unstable) {
+        if (corr_drop <= 0.47f && roll_corr > 0.0f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>(corr_drop <= 0.22f ? CorrelationRegime::Stable : CorrelationRegime::Transitional);
+        } else {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Unstable);
+        }
+    } else { // Transitional
+        if (corr_drop >= 0.53f || roll_corr <= 0.0f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Unstable);
+        } else if (corr_drop <= 0.22f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Stable);
+        } else {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Transitional);
+        }
     }
+
+    auto c_enum = static_cast<CorrelationRegime>(modifier.correlation_regime);
+    modifier.correlation_regime_factor = (c_enum == CorrelationRegime::Unstable) ? 1.30f : ((c_enum == CorrelationRegime::Transitional) ? 1.15f : 1.00f);
 
     return modifier;
 }

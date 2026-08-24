@@ -2138,6 +2138,37 @@ TEST(TestV15StructuralStressIndicatorsAndRegimes) {
     ASSERT_TRUE(ring_buffer.mean() > 0.0f);
 }
 
+TEST(TestV15RegimeHysteresisAndRingBufferAdaptivity) {
+    AILLE::AnomalyState anomaly{};
+    anomaly.ewma_volatility = 0.01f;
+    anomaly.baseline_volatility = 0.01f;
+    anomaly.bid_size = 100.0f;
+    anomaly.ask_size = 100.0f;
+    anomaly.baseline_depth = 200.0f;
+    anomaly.rolling_correlation = 0.90f;
+    anomaly.expected_correlation = 0.90f;
+
+    AILLE::VolumeState volume{};
+    AILLE::BaselineState baseline{};
+    baseline.vol_30d = 0.01f;
+    baseline.liq_30d = 200.0f;
+
+    AILLE::RegimeModifier mod1 = AILLE::compute_regime_modifier(anomaly, volume, baseline, nullptr);
+    ASSERT_EQ(mod1.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::Medium));
+
+    anomaly.ewma_volatility = 0.0182f;
+    AILLE::RegimeModifier mod2 = AILLE::compute_regime_modifier(anomaly, volume, baseline, &mod1);
+    ASSERT_EQ(mod2.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::Medium));
+
+    anomaly.ewma_volatility = 0.0190f;
+    AILLE::RegimeModifier mod3 = AILLE::compute_regime_modifier(anomaly, volume, baseline, &mod2);
+    ASSERT_EQ(mod3.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::High));
+
+    anomaly.ewma_volatility = 0.0175f;
+    AILLE::RegimeModifier mod4 = AILLE::compute_regime_modifier(anomaly, volume, baseline, &mod3);
+    ASSERT_EQ(mod4.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::High));
+}
+
 TEST(TestChartIndicatorRegistryDispatch) {
     AILLE::ChartIndicatorRegistry registry;
     registry.register_indicator(0, AILLE::evaluate_volatility_expansion_bands, true);
@@ -2455,6 +2486,7 @@ int main() {
     RUN_TEST(TestChartIntelligenceStructSizing);
     RUN_TEST(TestChartIntelligenceIndicatorsAndSerialization);
     RUN_TEST(TestV15StructuralStressIndicatorsAndRegimes);
+    RUN_TEST(TestV15RegimeHysteresisAndRingBufferAdaptivity);
     RUN_TEST(TestChartIndicatorRegistryDispatch);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
