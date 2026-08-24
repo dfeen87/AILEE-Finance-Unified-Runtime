@@ -5,6 +5,14 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [14.0.0] - 2026-10-01
+### Added
+- Real-Time Chart Intelligence & Environment Diagnostics Subsystem (Layer 17) under version tag `CHART_INTELLIGENCE_V1`.
+- Allocator-free, strictly 64-byte cache-aligned `BaselineState`, `ChartConditionPayload`, `PatternEnvironmentState`, and `PatternConditionPayload` structs with `static_assert` guarantees.
+- Technical indicators: Volatility Expansion Bands, Liquidity Displacement Zones, Correlation Divergence Index, Baseline Strength Meter.
+- Non-predictive `PatternDiagnosticEngine` providing CupHandleLike, PennantLike, and FlagLike environment resemblance scoring.
+- Allocator-free `ChartIndicatorRegistry` dispatch table and JSON serialization helpers in C++ and Python.
+
 ## [13.0.0] - 2026-09-01
 
 ### Added

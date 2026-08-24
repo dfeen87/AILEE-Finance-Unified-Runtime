@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <type_traits>
 #include "../aille.hpp"
 #include "aille_anomaly.hpp"
 #include "aille_volume_advisory.hpp"
@@ -88,6 +89,8 @@ struct alignas(64) BaselineState final {
           _padding{} {}
 };
 static_assert(sizeof(BaselineState) == 64, "BaselineState must be exactly 64 bytes");
+static_assert(alignof(BaselineState) == 64, "BaselineState must be alignas(64)");
+static_assert(std::is_trivially_copyable_v<BaselineState>, "BaselineState must be trivially copyable");
 
 struct alignas(64) ChartConditionPayload final {
     std::uint64_t timestamp_ns;    ///< Nanosecond resolution evaluation timestamp
@@ -109,6 +112,8 @@ struct alignas(64) ChartConditionPayload final {
           symbol_id(0), _padding{} {}
 };
 static_assert(sizeof(ChartConditionPayload) == 64, "ChartConditionPayload must be exactly 64 bytes");
+static_assert(alignof(ChartConditionPayload) == 64, "ChartConditionPayload must be alignas(64)");
+static_assert(std::is_trivially_copyable_v<ChartConditionPayload>, "ChartConditionPayload must be trivially copyable");
 
 struct alignas(64) PatternEnvironmentState final {
     float prior_expansion_score;     ///< Strength of recent expansion [0.0, 100.0]
@@ -125,6 +130,8 @@ struct alignas(64) PatternEnvironmentState final {
           _padding{} {}
 };
 static_assert(sizeof(PatternEnvironmentState) == 64, "PatternEnvironmentState must be exactly 64 bytes");
+static_assert(alignof(PatternEnvironmentState) == 64, "PatternEnvironmentState must be alignas(64)");
+static_assert(std::is_trivially_copyable_v<PatternEnvironmentState>, "PatternEnvironmentState must be trivially copyable");
 
 struct alignas(64) PatternConditionPayload final {
     std::uint64_t timestamp_ns;        ///< Nanosecond timestamp
@@ -142,6 +149,8 @@ struct alignas(64) PatternConditionPayload final {
           _padding{} {}
 };
 static_assert(sizeof(PatternConditionPayload) == 64, "PatternConditionPayload must be exactly 64 bytes");
+static_assert(alignof(PatternConditionPayload) == 64, "PatternConditionPayload must be alignas(64)");
+static_assert(std::is_trivially_copyable_v<PatternConditionPayload>, "PatternConditionPayload must be trivially copyable");
 
 // ============================================================================
 // ALLOCATOR-FREE REGISTRY DISPATCH FUNCTION POINTERS

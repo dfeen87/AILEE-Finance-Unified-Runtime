@@ -88,7 +88,7 @@ check_deps:
 	@printf "$(COLOR_GREEN)✓ Dependencies verified.$(COLOR_RESET)\n"
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v13.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v14.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o demo; then \
@@ -251,9 +251,9 @@ release:
 			exit 1; \
 		fi; \
 	done
-	@echo "13.0.0" > release/VERSION
-	@printf "$(COLOR_GREEN)✓ Stamped Version: 13.0.0$(COLOR_RESET)\n"
-	@printf "$(COLOR_GREEN)AILEE CORE v13.0.0 Release Package Ready.$(COLOR_RESET)\n"
+	@echo "14.0.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 14.0.0$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v14.0.0 Release Package Ready.$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:
@@ -264,10 +264,10 @@ clean:
 	@echo "✓ Cleaned build artifacts"
 
 install: aille.hpp
-	@echo "Installing AILLE v13.0.0 Framework..."
+	@echo "Installing AILLE v14.0.0 Framework..."
 	@echo "Copying headers to system path..."
 	sudo cp aille.hpp /usr/local/include/
-	@echo "✓ Header installed (Version 13.0.0)"
+	@echo "✓ Header installed (Version 14.0.0)"
 
 uninstall:
 	sudo rm -f /usr/local/include/aille.hpp
