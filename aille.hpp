@@ -74,6 +74,10 @@ struct VolumeAdvisory;
 struct AnomalyState;
 struct AnomalyAdvisory;
 struct AnomalyConfig;
+struct BaselineState;
+struct ChartConditionPayload;
+struct PatternEnvironmentState;
+struct PatternConditionPayload;
 
 // ============================================================================
 // LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS

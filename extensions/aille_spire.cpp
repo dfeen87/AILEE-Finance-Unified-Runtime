@@ -54,4 +54,19 @@ namespace aillee_spire {
         return AILLE::evaluate_anomaly_advisory(static_anomaly_state, static_anomaly_config);
     }
 
+    std::size_t get_chart_condition_payloads(
+        const AILLE::AnomalyState& anomaly,
+        const AILLE::VolumeState& volume,
+        const AILLE::BaselineState& baseline,
+        AILLE::ChartConditionPayload* outputs,
+        std::size_t max_outputs
+    ) noexcept {
+        if (outputs == nullptr || max_outputs < 4) return 0;
+        outputs[0] = AILLE::evaluate_volatility_expansion_bands(anomaly, volume, baseline);
+        outputs[1] = AILLE::evaluate_liquidity_displacement_zones(anomaly, volume, baseline);
+        outputs[2] = AILLE::evaluate_correlation_divergence_index(anomaly, volume, baseline);
+        outputs[3] = AILLE::evaluate_baseline_strength_meter(anomaly, volume, baseline);
+        return 4;
+    }
+
 } // namespace aillee_spire

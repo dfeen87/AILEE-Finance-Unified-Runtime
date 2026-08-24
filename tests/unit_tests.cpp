@@ -46,6 +46,7 @@
 #include "../extensions/aille_meta_governance.hpp"
 #include "../extensions/aille_membrane.hpp"
 #include "../extensions/aille_anomaly.hpp"
+#include "../extensions/aille_chart_intelligence.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -2035,6 +2036,72 @@ TEST(TestLayer16AnomalyHardening) {
     ASSERT_FLOAT_EQ(adv.volatility_expansion_ratio, 1.0f);
 }
 
+TEST(TestChartIntelligenceStructSizing) {
+    ASSERT_EQ(sizeof(AILLE::BaselineState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::ChartConditionPayload), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::PatternEnvironmentState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::PatternConditionPayload), 64ULL);
+}
+
+TEST(TestChartIntelligenceIndicatorsAndSerialization) {
+    AILLE::AnomalyState anomaly{};
+    anomaly.ewma_volatility = 0.02f;
+    anomaly.baseline_volatility = 0.01f;
+    anomaly.bid_size = 50.0f;
+    anomaly.ask_size = 50.0f;
+    anomaly.baseline_depth = 200.0f;
+    anomaly.rolling_correlation = 0.20f;
+    anomaly.expected_correlation = 0.90f;
+
+    AILLE::VolumeState volume{};
+    volume.volume_anomaly_ratio = 2.5f;
+
+    AILLE::BaselineState baseline{};
+    baseline.vol_5m = 0.02f;
+    baseline.vol_1h = 0.02f;
+    baseline.vol_30d = 0.01f;
+    baseline.liq_30d = 200.0f;
+    baseline.vol_corr_30d = 0.90f;
+
+    AILLE::ChartConditionPayload payloads[4];
+    payloads[0] = AILLE::evaluate_volatility_expansion_bands(anomaly, volume, baseline, 100);
+    payloads[1] = AILLE::evaluate_liquidity_displacement_zones(anomaly, volume, baseline, 100);
+    payloads[2] = AILLE::evaluate_correlation_divergence_index(anomaly, volume, baseline, 100);
+    payloads[3] = AILLE::evaluate_baseline_strength_meter(anomaly, volume, baseline, 100);
+
+    ASSERT_EQ(payloads[0].condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::Expansion));
+    ASSERT_EQ(payloads[1].condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::Displaced));
+    ASSERT_EQ(payloads[2].condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::Broken));
+
+    char buf[512];
+    std::size_t n = AILLE::serialize_chart_payload_json(payloads[0], buf, sizeof(buf));
+    ASSERT_TRUE(n > 0);
+    ASSERT_TRUE(std::string(buf).find("\"indicator\":\"VolatilityExpansionBands\"") != std::string::npos);
+
+    AILLE::PatternConditionPayload pattern = AILLE::evaluate_pattern_diagnostics(payloads, 4, baseline, 100);
+    std::size_t pn = AILLE::serialize_pattern_payload_json(pattern, buf, sizeof(buf));
+    ASSERT_TRUE(pn > 0);
+    ASSERT_TRUE(std::string(buf).find("\"pattern_hint\":") != std::string::npos);
+}
+
+TEST(TestChartIndicatorRegistryDispatch) {
+    AILLE::ChartIndicatorRegistry registry;
+    registry.register_indicator(0, AILLE::evaluate_volatility_expansion_bands, true);
+    registry.register_indicator(1, AILLE::evaluate_liquidity_displacement_zones, true);
+
+    AILLE::AnomalyState anomaly{};
+    anomaly.ewma_volatility = 0.01f;
+    anomaly.baseline_volatility = 0.01f;
+    AILLE::VolumeState volume{};
+    AILLE::BaselineState baseline{};
+
+    AILLE::ChartConditionPayload outputs[4];
+    std::size_t count = 0;
+    registry.execute_active(anomaly, volume, baseline, outputs, 4, count);
+
+    ASSERT_EQ(count, 2ULL);
+}
+
 TEST(TestAileeFinanceGovernorEvaluateSellValid) {
     ailee::AileeFinanceGovernor governor;
     ailee::RawSellSignals signals;
@@ -2331,6 +2398,9 @@ int main() {
     RUN_TEST(TestLayer16AnomalySizing);
     RUN_TEST(TestLayer16AnomalyEvaluation);
     RUN_TEST(TestLayer16AnomalyHardening);
+    RUN_TEST(TestChartIntelligenceStructSizing);
+    RUN_TEST(TestChartIntelligenceIndicatorsAndSerialization);
+    RUN_TEST(TestChartIndicatorRegistryDispatch);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellValid);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent);
