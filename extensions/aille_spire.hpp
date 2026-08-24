@@ -7,6 +7,7 @@
 #include "aille_weathering.hpp"
 #include "aille_pilgrimage.hpp"
 #include "aille_anomaly.hpp"
+#include "aille_chart_intelligence.hpp"
 
 namespace aillee_spire {
 
@@ -43,6 +44,15 @@ namespace aillee_spire {
 
     // Returns the Layer 16 Market Condition Anomaly Advisory report
     AILLE::AnomalyAdvisory get_anomaly_advisory() noexcept;
+
+    // Returns Layer 17 Chart Condition Payloads
+    std::size_t get_chart_condition_payloads(
+        const AILLE::AnomalyState& anomaly,
+        const AILLE::VolumeState& volume,
+        const AILLE::BaselineState& baseline,
+        AILLE::ChartConditionPayload* outputs,
+        std::size_t max_outputs
+    ) noexcept;
 
 } // namespace aillee_spire
 
