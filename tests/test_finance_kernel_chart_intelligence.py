@@ -1,6 +1,6 @@
 # Copyright (c) Don Michael Feeney Jr.
 # Licensed under the MIT License.
-"""Unit tests for Layer 17 Real-Time Chart Intelligence Subsystem."""
+"""Unit tests for Layer 17 Real-Time Chart Intelligence Subsystem (V15 Expansion)."""
 
 import pytest
 import math
@@ -9,9 +9,14 @@ from core.finance_kernel.chart_intelligence import (
     ChartIndicatorType,
     ChartConditionState,
     PatternHint,
+    PatternHintGroup,
+    VolatilityRegime,
+    LiquidityRegime,
+    CorrelationRegime,
     BaselineState,
     ChartConditionPayload,
-    PatternConditionPayload
+    PatternConditionPayload,
+    StressRegimePayload
 )
 
 
@@ -36,10 +41,11 @@ def test_chart_intelligence_operator_basic():
     result = op.execute(preprocessed)
 
     assert result["symbol"] == "SPY"
-    assert len(result["payloads"]) == 4
-    assert result["volatility_regime"] == "VolatilityExpansionBands:Neutral"
-    assert result["liquidity_regime"] == "LiquidityDisplacementZones:Neutral"
-    assert result["correlation_regime"] == "CorrelationDivergenceIndex:Neutral"
+    assert len(result["payloads"]) == 9
+    assert result["volatility_regime"] == "Medium"
+    assert result["liquidity_regime"] == "Normal"
+    assert result["correlation_regime"] == "Stable"
+    assert "stress_regime_payload" in result
 
 
 def test_nan_inf_inputs_handling():
@@ -136,28 +142,41 @@ def test_correlation_collapse_scenarios():
 
     corr_payload = result["payloads"][2]
     assert corr_payload["state"] == "Broken"
-    assert result["correlation_regime"] == "CorrelationDivergenceIndex:Broken"
+    assert result["correlation_regime"] == "Unstable"
 
 
-def test_pattern_diagnostic_cup_and_handle():
+def test_v15_structural_stress_indicators_and_regimes():
     op = ChartIntelligenceOperator()
     input_data = {
         "symbol": "SPY",
-        "last_price": 100.0,
-        "ewma_volatility": 0.010,
+        "pair_symbol": "QQQ",
+        "last_price": 500.0,
+        "ewma_volatility": 0.035,
         "baseline_volatility": 0.010,
-        "bid_size": 90.0,
-        "ask_size": 90.0,
-        "baseline_depth": 100.0,
-        "rolling_correlation": 0.90,
-        "expected_correlation": 0.90,
-        "vol_5m": 0.010,
-        "vol_1h": 0.010,
-        "vol_30d": 0.010
+        "bid_size": 10.0,
+        "ask_size": 10.0,
+        "baseline_depth": 200.0,
+        "rolling_correlation": -0.30,
+        "expected_correlation": 0.85,
+        "volume_anomaly_ratio": 4.0,
+        "vol_5m": 0.035,
+        "vol_1h": 0.030,
+        "vol_30d": 0.010,
+        "timestamp_ns": 99999
     }
     preprocessed = op.preprocess(input_data)
     result = op.execute(preprocessed)
 
+    assert result["volatility_regime"] == "High"
+    assert result["liquidity_regime"] == "Thin"
+    assert result["correlation_regime"] == "Unstable"
+
+    stress = result["stress_regime_payload"]
+    assert stress["volatility_regime"] == "High"
+    assert stress["liquidity_regime"] == "Thin"
+    assert stress["correlation_regime"] == "Unstable"
+    assert stress["stress_score"] > 50.0
+
     diag = result["pattern_diagnostics"]
-    assert diag["pattern_hint"] in ["CupHandleLike", "PennantLike", "FlagLike", "None"]
-    assert "scores" in diag
+    assert diag["pattern_group"] == "StressGroup"
+    assert diag["pattern_hint"] in ["BreakdownLike", "ExhaustionLike", "StressConsolidationLike"]

@@ -29,11 +29,12 @@ namespace AILLE {
 // VERSION TAG & CONSTANTS
 // ============================================================================
 
-constexpr const char* CHART_INTELLIGENCE_VERSION = "CHART_INTELLIGENCE_V1";
+constexpr const char* CHART_INTELLIGENCE_VERSION = "15.0.0";
 constexpr std::size_t MAX_INDICATORS = 16;
+constexpr std::size_t MAX_RING_BUFFER_CAPACITY = 32;
 
 // ============================================================================
-// ENUMS FOR INDICATOR TYPES & STATES
+// ENUMS FOR INDICATOR TYPES, STATES, REGIMES & PATTERN GROUPS
 // ============================================================================
 
 enum class ChartIndicatorType : std::uint8_t {
@@ -41,7 +42,12 @@ enum class ChartIndicatorType : std::uint8_t {
     LiquidityDisplacementZones = 1,
     CorrelationDivergenceIndex = 2,
     BaselineStrengthMeter = 3,
-    PatternEnvironmentScore = 4
+    PatternEnvironmentScore = 4,
+    VolatilityInstability = 5,
+    LiquidityErosion = 6,
+    CorrelationBreakdown = 7,
+    BaselineDeterioration = 8,
+    StructuralFatigue = 9
 };
 
 enum class ChartConditionState : std::uint8_t {
@@ -56,14 +62,54 @@ enum class ChartConditionState : std::uint8_t {
     Stressed = 8,
     Weak = 9,
     Average = 10,
-    Strong = 11
+    Strong = 11,
+    // Stress State Band (V15 Grouped Expansion)
+    StateStable = 12,
+    StateUnstable = 13,
+    StateChaotic = 14,
+    StatePreserved = 15,
+    StateEroding = 16,
+    StateDepleted = 17,
+    StateWeakening = 18,
+    StateDeteriorating = 19,
+    StateLowFatigue = 20,
+    StateMediumFatigue = 21,
+    StateHighFatigue = 22
+};
+
+enum class PatternHintGroup : std::uint8_t {
+    ExpansionGroup = 0,
+    StressGroup = 1
 };
 
 enum class PatternHint : std::uint8_t {
     None = 0,
+    // Expansion Group
     CupHandleLike = 1,
     PennantLike = 2,
-    FlagLike = 3
+    FlagLike = 3,
+    // Stress Group (V15 Expansion)
+    BreakdownLike = 4,
+    ExhaustionLike = 5,
+    StressConsolidationLike = 6
+};
+
+enum class VolatilityRegime : std::uint8_t {
+    Low = 0,
+    Medium = 1,
+    High = 2
+};
+
+enum class LiquidityRegime : std::uint8_t {
+    Thin = 0,
+    Normal = 1,
+    Deep = 2
+};
+
+enum class CorrelationRegime : std::uint8_t {
+    Stable = 0,
+    Transitional = 1,
+    Unstable = 2
 };
 
 // ============================================================================
@@ -140,17 +186,117 @@ struct alignas(64) PatternConditionPayload final {
     float support_strength_score;    ///< Support metric
     float symmetry_score;            ///< Symmetry metric
     std::uint8_t pattern_hint;       ///< PatternHint enum value
-    std::uint8_t _padding[35];
+    std::uint8_t pattern_group;      ///< PatternHintGroup enum value
+    std::uint8_t _padding[34];
 
     constexpr PatternConditionPayload()
         : timestamp_ns(0), prior_expansion_score(0.0f), consolidation_score(0.0f),
           support_strength_score(0.0f), symmetry_score(0.0f),
           pattern_hint(static_cast<std::uint8_t>(PatternHint::None)),
+          pattern_group(static_cast<std::uint8_t>(PatternHintGroup::ExpansionGroup)),
           _padding{} {}
 };
 static_assert(sizeof(PatternConditionPayload) == 64, "PatternConditionPayload must be exactly 64 bytes");
 static_assert(alignof(PatternConditionPayload) == 64, "PatternConditionPayload must be alignas(64)");
 static_assert(std::is_trivially_copyable_v<PatternConditionPayload>, "PatternConditionPayload must be trivially copyable");
+
+// ============================================================================
+// REGIME DIAGNOSTICS & STRESS REGIME PAYLOAD (V15 EXPANSION)
+// ============================================================================
+
+struct RegimeModifier final {
+    float volatility_regime_factor;   ///< Multiplier for volatility thresholds [0.8, 1.5]
+    float liquidity_regime_factor;    ///< Multiplier for liquidity erosion thresholds [0.8, 1.5]
+    float correlation_regime_factor;  ///< Multiplier for correlation breakdown thresholds [0.8, 1.5]
+    std::uint8_t volatility_regime;   ///< VolatilityRegime enum code
+    std::uint8_t liquidity_regime;    ///< LiquidityRegime enum code
+    std::uint8_t correlation_regime;  ///< CorrelationRegime enum code
+    std::uint8_t _padding[1];
+
+    constexpr RegimeModifier()
+        : volatility_regime_factor(1.0f),
+          liquidity_regime_factor(1.0f),
+          correlation_regime_factor(1.0f),
+          volatility_regime(static_cast<std::uint8_t>(VolatilityRegime::Medium)),
+          liquidity_regime(static_cast<std::uint8_t>(LiquidityRegime::Normal)),
+          correlation_regime(static_cast<std::uint8_t>(CorrelationRegime::Stable)),
+          _padding{} {}
+};
+
+struct alignas(32) StressRegimePayload final {
+    std::uint8_t volatility_regime;   ///< VolatilityRegime enum code
+    std::uint8_t liquidity_regime;    ///< LiquidityRegime enum code
+    std::uint8_t correlation_regime;  ///< CorrelationRegime enum code
+    std::uint8_t reserved_flags;      ///< Future-proof reserved flags / options
+    float stress_score;               ///< Unified structural stress score [0.0, 100.0]
+    float deterioration_score;        ///< Baseline deterioration score [0.0, 100.0]
+    float instability_score;          ///< Volatility instability score [0.0, 100.0]
+    float regime_confidence;          ///< Regime confidence factor [0.0, 1.0]
+    std::uint8_t _pad[4];             ///< Explicit 4-byte padding to align timestamp_ns on 8-byte offset
+    std::uint64_t timestamp_ns;       ///< Nanosecond evaluation timestamp
+
+    constexpr StressRegimePayload()
+        : volatility_regime(static_cast<std::uint8_t>(VolatilityRegime::Low)),
+          liquidity_regime(static_cast<std::uint8_t>(LiquidityRegime::Normal)),
+          correlation_regime(static_cast<std::uint8_t>(CorrelationRegime::Stable)),
+          reserved_flags(0),
+          stress_score(0.0f),
+          deterioration_score(0.0f),
+          instability_score(0.0f),
+          regime_confidence(1.0f),
+          _pad{},
+          timestamp_ns(0) {}
+};
+static_assert(sizeof(StressRegimePayload) == 32, "StressRegimePayload must be exactly 32 bytes");
+static_assert(alignof(StressRegimePayload) == 32, "StressRegimePayload must be alignas(32)");
+static_assert(std::is_trivially_copyable_v<StressRegimePayload>, "StressRegimePayload must be trivially copyable");
+
+struct alignas(64) SharedRegimeRingBuffer final {
+    float values[MAX_RING_BUFFER_CAPACITY];
+    std::size_t head;
+    std::size_t size;
+    std::size_t active_window_size;  ///< Dynamically scaled by volatility regime
+    std::uint8_t _padding[32];
+
+    constexpr SharedRegimeRingBuffer()
+        : values{}, head(0), size(0), active_window_size(16), _padding{} {}
+
+    void push(float val, std::size_t target_window) noexcept {
+        target_window = std::clamp(target_window, std::size_t{4}, MAX_RING_BUFFER_CAPACITY);
+        active_window_size = target_window;
+        values[head] = val;
+        head = (head + 1) % MAX_RING_BUFFER_CAPACITY;
+        if (size < MAX_RING_BUFFER_CAPACITY) {
+            size++;
+        }
+    }
+
+    [[nodiscard]] float mean() const noexcept {
+        if (size == 0 || active_window_size == 0) return 0.0f;
+        std::size_t count = std::min(size, active_window_size);
+        float sum = 0.0f;
+        for (std::size_t i = 0; i < count; ++i) {
+            std::size_t idx = (head + MAX_RING_BUFFER_CAPACITY - 1 - i) % MAX_RING_BUFFER_CAPACITY;
+            sum += values[idx];
+        }
+        return sum / static_cast<float>(count);
+    }
+
+    [[nodiscard]] float variance() const noexcept {
+        if (size == 0 || active_window_size == 0) return 0.0f;
+        std::size_t count = std::min(size, active_window_size);
+        if (count < 2) return 0.0f;
+        float avg = mean();
+        float sum_sq = 0.0f;
+        for (std::size_t i = 0; i < count; ++i) {
+            std::size_t idx = (head + MAX_RING_BUFFER_CAPACITY - 1 - i) % MAX_RING_BUFFER_CAPACITY;
+            float diff = values[idx] - avg;
+            sum_sq += diff * diff;
+        }
+        return sum_sq / static_cast<float>(count);
+    }
+};
+static_assert(sizeof(SharedRegimeRingBuffer) == 192, "SharedRegimeRingBuffer size check");
 
 // ============================================================================
 // ALLOCATOR-FREE REGISTRY DISPATCH FUNCTION POINTERS
@@ -231,6 +377,64 @@ struct ChartIndicatorRegistry final {
 ) noexcept;
 
 // ============================================================================
+// REGIME DIAGNOSTICS & STRUCTURAL-STRESS INDICATORS (V15 EXPANSION)
+// ============================================================================
+
+[[nodiscard]] RegimeModifier compute_regime_modifier(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier* prev_modifier = nullptr
+) noexcept;
+
+[[nodiscard]] ChartConditionPayload evaluate_volatility_instability(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+[[nodiscard]] ChartConditionPayload evaluate_liquidity_erosion(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+[[nodiscard]] ChartConditionPayload evaluate_correlation_breakdown(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+[[nodiscard]] ChartConditionPayload evaluate_baseline_deterioration(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+[[nodiscard]] ChartConditionPayload evaluate_structural_fatigue(
+    const ChartConditionPayload& vol_instability,
+    const ChartConditionPayload& liq_erosion,
+    const ChartConditionPayload& base_deterioration,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+[[nodiscard]] StressRegimePayload evaluate_stress_regime_payload(
+    const ChartConditionPayload* payloads,
+    std::size_t payload_count,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+// ============================================================================
 // PATTERN DIAGNOSTIC ENGINE
 // ============================================================================
 
@@ -251,9 +455,19 @@ struct ChartIndicatorRegistry final {
 [[nodiscard]] const char* chart_condition_state_code_to_string(std::uint8_t state_code) noexcept;
 [[nodiscard]] const char* pattern_hint_to_string(PatternHint hint) noexcept;
 [[nodiscard]] const char* pattern_hint_code_to_string(std::uint8_t hint_code) noexcept;
+[[nodiscard]] const char* pattern_hint_group_to_string(PatternHintGroup group) noexcept;
+[[nodiscard]] const char* volatility_regime_to_string(VolatilityRegime regime) noexcept;
+[[nodiscard]] const char* liquidity_regime_to_string(LiquidityRegime regime) noexcept;
+[[nodiscard]] const char* correlation_regime_to_string(CorrelationRegime regime) noexcept;
 
 std::size_t serialize_chart_payload_json(
     const ChartConditionPayload& payload,
+    char* buffer,
+    std::size_t buffer_size
+) noexcept;
+
+std::size_t serialize_stress_regime_payload_json(
+    const StressRegimePayload& payload,
     char* buffer,
     std::size_t buffer_size
 ) noexcept;

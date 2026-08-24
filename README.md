@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-14.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-15.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -27,6 +27,7 @@
 - [Proven Performance](#proven-performance)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
 - [v13.0.0: Real-Time Market Condition Intelligence & Anomaly Detection (Layer 16)](#v1300-real-time-market-condition-intelligence--anomaly-detection-layer-16)
+- [v15.0.0: Structural-Stress Indicators, Regime Diagnostics & StressRegimePayload](#v1500-structural-stress-indicators-regime-diagnostics-and-stressregimepayload)
 - [v14.0.0: Real-Time Chart Intelligence & Environment Diagnostics Subsystem (Layer 17)](#v1400-real-time-chart-intelligence--environment-diagnostics-subsystem-layer-17)
 - [v12.0.0: Optional Autonomous Trade Execution Plugin & Governance](#v1200--optional-autonomous-trade-execution-plugin--governance)
 - [v11.0.0: Deterministic Governance Stack (Layers 8–16)](#v1100--deterministic-governance-stack-layers-816)
@@ -262,6 +263,19 @@ Every decision is logged with:
 - Cryptographic hash (blockchain-style integrity)
 
 **Full regulatory compliance and accountability.**
+
+---
+
+## v15.0.0: Structural-Stress Indicators, Regime Diagnostics and StressRegimePayload
+
+AILEE Version 15.0.0 introduces the **Version 15 Expansion** of the AILEE Finance Unified Runtime, introducing allocator-free structural-stress indicators, regime-aware diagnostic modifiers, a 32-byte `StressRegimePayload`, and weakening-environment pattern diagnostic resemblance.
+
+### Core Highlights
+- **5 Allocator-Free Structural-Stress Indicators**: `VolatilityInstability`, `LiquidityErosion`, `CorrelationBreakdown`, `BaselineDeterioration`, `StructuralFatigue`.
+- **Regime-Aware Diagnostics**: Centralized `RegimeModifier` computing Volatility (Low/Medium/High), Liquidity (Thin/Normal/Deep), and Correlation (Stable/Transitional/Unstable) regimes once per cycle to dynamically scale evaluation thresholds.
+- **32-Byte `StressRegimePayload`**: Cache-aligned `alignas(32)` payload bridging stress indicator scores and regime codes with future-proof reserved fields.
+- **Weakening Pattern Diagnostic Engine Expansion**: Evaluates `BreakdownLike`, `ExhaustionLike`, and `StressConsolidationLike` structural pattern hints under `PatternHintGroup::StressGroup`.
+- **Shared Regime Ring Buffer**: Shared regime-adaptive ring buffers maintaining ring buffer stability across correlated assets without dynamic memory allocation.
 
 ---
 
@@ -771,7 +785,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `14.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `15.0.0`).
 
 ### For Quantitative Researchers
 

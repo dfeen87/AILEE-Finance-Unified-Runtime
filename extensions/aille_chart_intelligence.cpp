@@ -39,6 +39,11 @@ const char* chart_indicator_type_to_string(ChartIndicatorType type) noexcept {
         case ChartIndicatorType::CorrelationDivergenceIndex: return "CorrelationDivergenceIndex";
         case ChartIndicatorType::BaselineStrengthMeter: return "BaselineStrengthMeter";
         case ChartIndicatorType::PatternEnvironmentScore: return "PatternEnvironmentScore";
+        case ChartIndicatorType::VolatilityInstability: return "VolatilityInstability";
+        case ChartIndicatorType::LiquidityErosion: return "LiquidityErosion";
+        case ChartIndicatorType::CorrelationBreakdown: return "CorrelationBreakdown";
+        case ChartIndicatorType::BaselineDeterioration: return "BaselineDeterioration";
+        case ChartIndicatorType::StructuralFatigue: return "StructuralFatigue";
         default: return "Unknown";
     }
 }
@@ -61,6 +66,17 @@ const char* chart_condition_state_to_string(ChartConditionState state) noexcept 
         case ChartConditionState::Weak: return "Weak";
         case ChartConditionState::Average: return "Average";
         case ChartConditionState::Strong: return "Strong";
+        case ChartConditionState::StateStable: return "StateStable";
+        case ChartConditionState::StateUnstable: return "StateUnstable";
+        case ChartConditionState::StateChaotic: return "StateChaotic";
+        case ChartConditionState::StatePreserved: return "StatePreserved";
+        case ChartConditionState::StateEroding: return "StateEroding";
+        case ChartConditionState::StateDepleted: return "StateDepleted";
+        case ChartConditionState::StateWeakening: return "StateWeakening";
+        case ChartConditionState::StateDeteriorating: return "StateDeteriorating";
+        case ChartConditionState::StateLowFatigue: return "StateLowFatigue";
+        case ChartConditionState::StateMediumFatigue: return "StateMediumFatigue";
+        case ChartConditionState::StateHighFatigue: return "StateHighFatigue";
         default: return "Unknown";
     }
 }
@@ -75,12 +91,50 @@ const char* pattern_hint_to_string(PatternHint hint) noexcept {
         case PatternHint::CupHandleLike: return "CupHandleLike";
         case PatternHint::PennantLike: return "PennantLike";
         case PatternHint::FlagLike: return "FlagLike";
+        case PatternHint::BreakdownLike: return "BreakdownLike";
+        case PatternHint::ExhaustionLike: return "ExhaustionLike";
+        case PatternHint::StressConsolidationLike: return "StressConsolidationLike";
         default: return "None";
     }
 }
 
 const char* pattern_hint_code_to_string(std::uint8_t hint_code) noexcept {
     return pattern_hint_to_string(static_cast<PatternHint>(hint_code));
+}
+
+const char* pattern_hint_group_to_string(PatternHintGroup group) noexcept {
+    switch (group) {
+        case PatternHintGroup::ExpansionGroup: return "ExpansionGroup";
+        case PatternHintGroup::StressGroup: return "StressGroup";
+        default: return "ExpansionGroup";
+    }
+}
+
+const char* volatility_regime_to_string(VolatilityRegime regime) noexcept {
+    switch (regime) {
+        case VolatilityRegime::Low: return "Low";
+        case VolatilityRegime::Medium: return "Medium";
+        case VolatilityRegime::High: return "High";
+        default: return "Medium";
+    }
+}
+
+const char* liquidity_regime_to_string(LiquidityRegime regime) noexcept {
+    switch (regime) {
+        case LiquidityRegime::Thin: return "Thin";
+        case LiquidityRegime::Normal: return "Normal";
+        case LiquidityRegime::Deep: return "Deep";
+        default: return "Normal";
+    }
+}
+
+const char* correlation_regime_to_string(CorrelationRegime regime) noexcept {
+    switch (regime) {
+        case CorrelationRegime::Stable: return "Stable";
+        case CorrelationRegime::Transitional: return "Transitional";
+        case CorrelationRegime::Unstable: return "Unstable";
+        default: return "Stable";
+    }
 }
 
 // ============================================================================
@@ -301,6 +355,394 @@ ChartConditionPayload evaluate_baseline_strength_meter(
 }
 
 // ============================================================================
+// REGIME DIAGNOSTICS & STRUCTURAL-STRESS EVALUATIONS (V15 EXPANSION)
+// ============================================================================
+
+RegimeModifier compute_regime_modifier(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier* prev_modifier
+) noexcept {
+    (void)volume;
+    RegimeModifier modifier{};
+
+    // 1. Volatility Regime with Hysteresis
+    float ewma_vol = sanitize_float(anomaly.ewma_volatility, 0.0f);
+    float base_vol = sanitize_float(baseline.vol_30d > 1e-6f ? baseline.vol_30d : anomaly.baseline_volatility, 1e-6f);
+    float vol_ratio = (base_vol > 1e-6f) ? (ewma_vol / base_vol) : 1.0f;
+
+    VolatilityRegime prev_v = prev_modifier ? static_cast<VolatilityRegime>(prev_modifier->volatility_regime) : VolatilityRegime::Medium;
+
+    if (prev_v == VolatilityRegime::Low) {
+        if (vol_ratio >= 0.75f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(vol_ratio >= 1.85f ? VolatilityRegime::High : VolatilityRegime::Medium);
+        } else {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Low);
+        }
+    } else if (prev_v == VolatilityRegime::High) {
+        if (vol_ratio <= 1.70f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(vol_ratio <= 0.65f ? VolatilityRegime::Low : VolatilityRegime::Medium);
+        } else {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::High);
+        }
+    } else { // Medium
+        if (vol_ratio >= 1.85f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::High);
+        } else if (vol_ratio <= 0.65f) {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Low);
+        } else {
+            modifier.volatility_regime = static_cast<std::uint8_t>(VolatilityRegime::Medium);
+        }
+    }
+
+    auto v_enum = static_cast<VolatilityRegime>(modifier.volatility_regime);
+    modifier.volatility_regime_factor = (v_enum == VolatilityRegime::High) ? 1.30f : ((v_enum == VolatilityRegime::Low) ? 0.85f : 1.00f);
+
+    // 2. Liquidity Regime with Hysteresis
+    float bid_sz = sanitize_float(anomaly.bid_size, 0.0f);
+    float ask_sz = sanitize_float(anomaly.ask_size, 0.0f);
+    float curr_depth = bid_sz + ask_sz;
+    float base_depth = sanitize_float(baseline.liq_30d > 1e-6f ? baseline.liq_30d : anomaly.baseline_depth, 1000.0f);
+    float depth_ratio = (base_depth > 1e-6f) ? (curr_depth / base_depth) : 1.0f;
+
+    LiquidityRegime prev_l = prev_modifier ? static_cast<LiquidityRegime>(prev_modifier->liquidity_regime) : LiquidityRegime::Normal;
+
+    if (prev_l == LiquidityRegime::Thin) {
+        if (depth_ratio >= 0.55f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(depth_ratio >= 1.55f ? LiquidityRegime::Deep : LiquidityRegime::Normal);
+        } else {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Thin);
+        }
+    } else if (prev_l == LiquidityRegime::Deep) {
+        if (depth_ratio <= 1.40f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(depth_ratio <= 0.45f ? LiquidityRegime::Thin : LiquidityRegime::Normal);
+        } else {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Deep);
+        }
+    } else { // Normal
+        if (depth_ratio <= 0.45f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Thin);
+        } else if (depth_ratio >= 1.55f) {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Deep);
+        } else {
+            modifier.liquidity_regime = static_cast<std::uint8_t>(LiquidityRegime::Normal);
+        }
+    }
+
+    auto l_enum = static_cast<LiquidityRegime>(modifier.liquidity_regime);
+    modifier.liquidity_regime_factor = (l_enum == LiquidityRegime::Thin) ? 1.25f : ((l_enum == LiquidityRegime::Deep) ? 0.85f : 1.00f);
+
+    // 3. Correlation Regime with Hysteresis
+    float roll_corr = std::clamp(sanitize_float(anomaly.rolling_correlation, 1.0f), -1.0f, 1.0f);
+    float exp_corr = std::clamp(sanitize_float(baseline.vol_corr_30d < 1.0f ? baseline.vol_corr_30d : anomaly.expected_correlation, 1.0f), -1.0f, 1.0f);
+    float corr_drop = std::max(0.0f, exp_corr - roll_corr);
+
+    CorrelationRegime prev_c = prev_modifier ? static_cast<CorrelationRegime>(prev_modifier->correlation_regime) : CorrelationRegime::Stable;
+
+    if (prev_c == CorrelationRegime::Stable) {
+        if (corr_drop >= 0.28f || roll_corr <= 0.0f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>((corr_drop >= 0.53f || roll_corr <= 0.0f) ? CorrelationRegime::Unstable : CorrelationRegime::Transitional);
+        } else {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Stable);
+        }
+    } else if (prev_c == CorrelationRegime::Unstable) {
+        if (corr_drop <= 0.47f && roll_corr > 0.0f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>(corr_drop <= 0.22f ? CorrelationRegime::Stable : CorrelationRegime::Transitional);
+        } else {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Unstable);
+        }
+    } else { // Transitional
+        if (corr_drop >= 0.53f || roll_corr <= 0.0f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Unstable);
+        } else if (corr_drop <= 0.22f) {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Stable);
+        } else {
+            modifier.correlation_regime = static_cast<std::uint8_t>(CorrelationRegime::Transitional);
+        }
+    }
+
+    auto c_enum = static_cast<CorrelationRegime>(modifier.correlation_regime);
+    modifier.correlation_regime_factor = (c_enum == CorrelationRegime::Unstable) ? 1.30f : ((c_enum == CorrelationRegime::Transitional) ? 1.15f : 1.00f);
+
+    return modifier;
+}
+
+ChartConditionPayload evaluate_volatility_instability(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns
+) noexcept {
+    (void)volume;
+    ChartConditionPayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.symbol_id = anomaly.symbol_id;
+    payload.indicator_type = static_cast<std::uint8_t>(ChartIndicatorType::VolatilityInstability);
+
+    float ewma_vol = sanitize_float(anomaly.ewma_volatility, 0.0f);
+    float base_vol = sanitize_float(baseline.vol_30d > 1e-6f ? baseline.vol_30d : anomaly.baseline_volatility, 1e-6f);
+    float vol_spike = std::abs(ewma_vol - base_vol);
+
+    float raw_instability = (base_vol > 1e-6f) ? (vol_spike / base_vol) : 0.0f;
+    raw_instability = std::clamp(raw_instability, 0.0f, 10.0f); // Spike clamping
+
+    payload.raw_metric_0 = ewma_vol;
+    payload.raw_metric_1 = base_vol;
+    payload.raw_metric_2 = raw_instability;
+
+    float score = raw_instability * 40.0f * modifier.volatility_regime_factor;
+    if (score > 100.0f) {
+        score = 100.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    if (score < 0.0f) {
+        score = 0.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    payload.normalized_score = score;
+
+    if (score >= 70.0f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateChaotic);
+    } else if (score >= 35.0f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateUnstable);
+    } else {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateStable);
+    }
+
+    return payload;
+}
+
+ChartConditionPayload evaluate_liquidity_erosion(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns
+) noexcept {
+    ChartConditionPayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.symbol_id = anomaly.symbol_id;
+    payload.indicator_type = static_cast<std::uint8_t>(ChartIndicatorType::LiquidityErosion);
+
+    float bid_sz = sanitize_float(anomaly.bid_size, 0.0f);
+    float ask_sz = sanitize_float(anomaly.ask_size, 0.0f);
+    float curr_depth = std::max(0.001f, bid_sz + ask_sz); // Depth floor hardening
+    float base_depth = std::max(0.001f, sanitize_float(baseline.liq_30d > 1e-6f ? baseline.liq_30d : anomaly.baseline_depth, 1000.0f));
+
+    float thinning_rate = 0.0f;
+    if (curr_depth < base_depth) {
+        thinning_rate = (base_depth - curr_depth) / base_depth;
+    }
+    thinning_rate = std::clamp(thinning_rate, 0.0f, 1.0f);
+
+    float vol_anomaly = sanitize_float(volume.volume_anomaly_ratio, 1.0f);
+    vol_anomaly = std::clamp(vol_anomaly, 0.1f, 20.0f); // Vacuum detection ceiling clamp
+
+    payload.raw_metric_0 = thinning_rate;
+    payload.raw_metric_1 = curr_depth;
+    payload.raw_metric_2 = vol_anomaly;
+
+    float score = thinning_rate * 80.0f * modifier.liquidity_regime_factor;
+    if (score > 100.0f) {
+        score = 100.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    if (score < 0.0f) {
+        score = 0.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    payload.normalized_score = score;
+
+    if (score >= 60.0f || thinning_rate >= 0.60f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateDepleted);
+    } else if (score >= 30.0f || thinning_rate >= 0.25f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateEroding);
+    } else {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StatePreserved);
+    }
+
+    return payload;
+}
+
+ChartConditionPayload evaluate_correlation_breakdown(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns
+) noexcept {
+    (void)volume;
+    ChartConditionPayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.symbol_id = anomaly.symbol_id;
+    payload.indicator_type = static_cast<std::uint8_t>(ChartIndicatorType::CorrelationBreakdown);
+
+    float roll_corr = std::clamp(sanitize_float(anomaly.rolling_correlation, 1.0f), -1.0f, 1.0f);
+    float exp_corr = std::clamp(sanitize_float(baseline.vol_corr_30d < 1.0f ? baseline.vol_corr_30d : anomaly.expected_correlation, 1.0f), -1.0f, 1.0f);
+    float corr_drop = std::max(0.0f, exp_corr - roll_corr);
+
+    payload.raw_metric_0 = roll_corr;
+    payload.raw_metric_1 = exp_corr;
+    payload.raw_metric_2 = corr_drop;
+
+    float score = corr_drop * 60.0f * modifier.correlation_regime_factor;
+    if (score > 100.0f) {
+        score = 100.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    if (score < 0.0f) {
+        score = 0.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    payload.normalized_score = score;
+
+    if (score >= 65.0f || corr_drop >= 0.60f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateDeteriorating);
+    } else if (score >= 30.0f || corr_drop >= 0.25f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateWeakening);
+    } else {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateStable);
+    }
+
+    return payload;
+}
+
+ChartConditionPayload evaluate_baseline_deterioration(
+    const AnomalyState& anomaly,
+    const VolumeState& volume,
+    const BaselineState& baseline,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns
+) noexcept {
+    (void)anomaly;
+    (void)volume;
+    ChartConditionPayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.symbol_id = anomaly.symbol_id;
+    payload.indicator_type = static_cast<std::uint8_t>(ChartIndicatorType::BaselineDeterioration);
+
+    float vol_5m = std::clamp(sanitize_float(baseline.vol_5m, 0.0f), 0.0f, 100.0f);
+    float vol_1h = std::clamp(sanitize_float(baseline.vol_1h, 0.0f), 0.0f, 100.0f);
+    float vol_30d = std::clamp(sanitize_float(baseline.vol_30d, 1e-6f), 1e-6f, 100.0f);
+
+    float drift_short = std::abs(vol_5m - vol_30d) / vol_30d;
+    float drift_med = std::abs(vol_1h - vol_30d) / vol_30d;
+
+    payload.raw_metric_0 = drift_short;
+    payload.raw_metric_1 = drift_med;
+    payload.raw_metric_2 = vol_30d;
+
+    float score = (drift_short * 40.0f + drift_med * 30.0f) * modifier.volatility_regime_factor;
+    if (score > 100.0f) {
+        score = 100.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    if (score < 0.0f) {
+        score = 0.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    payload.normalized_score = score;
+
+    if (score >= 60.0f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateDeteriorating);
+    } else if (score >= 30.0f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateWeakening);
+    } else {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::Strong);
+    }
+
+    return payload;
+}
+
+ChartConditionPayload evaluate_structural_fatigue(
+    const ChartConditionPayload& vol_instability,
+    const ChartConditionPayload& liq_erosion,
+    const ChartConditionPayload& base_deterioration,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns
+) noexcept {
+    ChartConditionPayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.symbol_id = vol_instability.symbol_id;
+    payload.indicator_type = static_cast<std::uint8_t>(ChartIndicatorType::StructuralFatigue);
+
+    float s_vol = sanitize_float(vol_instability.normalized_score, 0.0f);
+    float s_liq = sanitize_float(liq_erosion.normalized_score, 0.0f);
+    float s_base = sanitize_float(base_deterioration.normalized_score, 0.0f);
+
+    payload.raw_metric_0 = s_vol;
+    payload.raw_metric_1 = s_liq;
+    payload.raw_metric_2 = s_base;
+
+    float combined_score = (s_vol * 0.35f + s_liq * 0.40f + s_base * 0.25f) * modifier.volatility_regime_factor;
+    if (combined_score > 100.0f) {
+        combined_score = 100.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    if (combined_score < 0.0f) {
+        combined_score = 0.0f;
+        payload.clamped_flags |= CLAMP_FLAG_SCORE;
+    }
+    payload.normalized_score = combined_score;
+
+    if (combined_score >= 65.0f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateHighFatigue);
+    } else if (combined_score >= 35.0f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateMediumFatigue);
+    } else {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateLowFatigue);
+    }
+
+    return payload;
+}
+
+StressRegimePayload evaluate_stress_regime_payload(
+    const ChartConditionPayload* payloads,
+    std::size_t payload_count,
+    const RegimeModifier& modifier,
+    std::uint64_t timestamp_ns
+) noexcept {
+    StressRegimePayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.volatility_regime = modifier.volatility_regime;
+    payload.liquidity_regime = modifier.liquidity_regime;
+    payload.correlation_regime = modifier.correlation_regime;
+    payload.regime_confidence = 1.0f;
+
+    if (payloads == nullptr || payload_count == 0) {
+        return payload;
+    }
+
+    float vol_instability = 0.0f;
+    float liq_erosion = 0.0f;
+    float base_deterioration = 0.0f;
+    float struct_fatigue = 0.0f;
+
+    for (std::size_t i = 0; i < payload_count; ++i) {
+        const auto& p = payloads[i];
+        if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::VolatilityInstability)) {
+            vol_instability = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::LiquidityErosion)) {
+            liq_erosion = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::BaselineDeterioration)) {
+            base_deterioration = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::StructuralFatigue)) {
+            struct_fatigue = p.normalized_score;
+        }
+    }
+
+    payload.instability_score = std::clamp(vol_instability, 0.0f, 100.0f);
+    payload.deterioration_score = std::clamp(base_deterioration, 0.0f, 100.0f);
+
+    float unified_stress = std::max({vol_instability, liq_erosion, base_deterioration, struct_fatigue});
+    payload.stress_score = std::clamp(unified_stress, 0.0f, 100.0f);
+
+    return payload;
+}
+
+// ============================================================================
 // PATTERN DIAGNOSTIC ENGINE
 // ============================================================================
 
@@ -353,27 +795,65 @@ PatternConditionPayload evaluate_pattern_diagnostics(
     float sym = 100.0f - (std::abs(vol_expansion - 1.0f) * 30.0f + liq_thinning * 40.0f);
     pattern.symmetry_score = std::clamp(sym, 0.0f, 100.0f);
 
-    // Evaluate Pattern Diagnostic Resemblance
-    // Cup & Handle: Strong baseline support, rounded low-vol consolidation, preserved liquidity
-    if (pattern.support_strength_score >= 65.0f &&
-        pattern.consolidation_score >= 50.0f &&
-        liq_thinning < 0.30f) {
-        pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::CupHandleLike);
+    // Also check structural-stress indicators if present
+    float vol_instability = 0.0f;
+    float liq_erosion = 0.0f;
+    float base_deterioration = 0.0f;
+    float struct_fatigue = 0.0f;
+
+    for (std::size_t i = 0; i < payload_count; ++i) {
+        const auto& p = payloads[i];
+        if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::VolatilityInstability)) {
+            vol_instability = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::LiquidityErosion)) {
+            liq_erosion = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::BaselineDeterioration)) {
+            base_deterioration = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::StructuralFatigue)) {
+            struct_fatigue = p.normalized_score;
+        }
     }
-    // Pennant: Strong prior expansion followed by tight compression and high symmetry
+
+    // Evaluate Pattern Diagnostic Resemblance (Expansion Group vs Stress Group)
+    // 1. BreakdownLike: correlation collapse + liquidity erosion + volatility instability
+    if (corr_divergence >= 0.50f && liq_erosion >= 40.0f && vol_instability >= 40.0f) {
+        pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::BreakdownLike);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::StressGroup);
+    }
+    // 2. ExhaustionLike: baseline deterioration + structural fatigue + instability spikes
+    else if (base_deterioration >= 50.0f && struct_fatigue >= 50.0f) {
+        pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::ExhaustionLike);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::StressGroup);
+    }
+    // 3. StressConsolidationLike: tight compression under weakening support + depth erosion
+    else if (pattern.consolidation_score >= 45.0f && baseline_strength <= 45.0f && liq_thinning >= 0.30f) {
+        pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::StressConsolidationLike);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::StressGroup);
+    }
+    // 4. Cup & Handle: Strong baseline support, rounded low-vol consolidation, preserved liquidity
+    else if (pattern.support_strength_score >= 65.0f &&
+             pattern.consolidation_score >= 50.0f &&
+             liq_thinning < 0.30f) {
+        pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::CupHandleLike);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::ExpansionGroup);
+    }
+    // 5. Pennant: Strong prior expansion followed by tight compression and high symmetry
     else if (pattern.prior_expansion_score >= 40.0f &&
              pattern.consolidation_score >= 60.0f &&
              pattern.symmetry_score >= 60.0f) {
         pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::PennantLike);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::ExpansionGroup);
     }
-    // Flag: Prior expansion with sideways consolidation and preserved depth
+    // 6. Flag: Prior expansion with sideways consolidation and preserved depth
     else if (pattern.prior_expansion_score >= 35.0f &&
              pattern.consolidation_score >= 40.0f &&
              pattern.support_strength_score >= 45.0f) {
         pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::FlagLike);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::ExpansionGroup);
     }
     else {
         pattern.pattern_hint = static_cast<std::uint8_t>(PatternHint::None);
+        pattern.pattern_group = static_cast<std::uint8_t>(PatternHintGroup::ExpansionGroup);
     }
 
     (void)baseline;
@@ -430,12 +910,14 @@ std::size_t serialize_pattern_payload_json(
     if (buffer == nullptr || buffer_size == 0) return 0;
 
     const char* pattern_str = pattern_hint_code_to_string(payload.pattern_hint);
+    const char* group_str = pattern_hint_group_to_string(static_cast<PatternHintGroup>(payload.pattern_group));
 
     int written = std::snprintf(
         buffer,
         buffer_size,
         "{"
         "\"pattern_hint\":\"%s\","
+        "\"pattern_group\":\"%s\","
         "\"scores\":{"
         "\"prior_expansion\":%.2f,"
         "\"consolidation\":%.2f,"
@@ -445,10 +927,54 @@ std::size_t serialize_pattern_payload_json(
         "\"timestamp_ns\":%llu"
         "}",
         pattern_str,
+        group_str,
         static_cast<double>(payload.prior_expansion_score),
         static_cast<double>(payload.consolidation_score),
         static_cast<double>(payload.support_strength_score),
         static_cast<double>(payload.symmetry_score),
+        static_cast<unsigned long long>(payload.timestamp_ns)
+    );
+
+    if (written < 0 || static_cast<std::size_t>(written) >= buffer_size) {
+        buffer[0] = '\0';
+        return 0;
+    }
+    return static_cast<std::size_t>(written);
+}
+
+std::size_t serialize_stress_regime_payload_json(
+    const StressRegimePayload& payload,
+    char* buffer,
+    std::size_t buffer_size
+) noexcept {
+    if (buffer == nullptr || buffer_size == 0) return 0;
+
+    const char* vol_regime_str = volatility_regime_to_string(static_cast<VolatilityRegime>(payload.volatility_regime));
+    const char* liq_regime_str = liquidity_regime_to_string(static_cast<LiquidityRegime>(payload.liquidity_regime));
+    const char* corr_regime_str = correlation_regime_to_string(static_cast<CorrelationRegime>(payload.correlation_regime));
+
+    int written = std::snprintf(
+        buffer,
+        buffer_size,
+        "{"
+        "\"volatility_regime\":\"%s\","
+        "\"liquidity_regime\":\"%s\","
+        "\"correlation_regime\":\"%s\","
+        "\"stress_score\":%.2f,"
+        "\"deterioration_score\":%.2f,"
+        "\"instability_score\":%.2f,"
+        "\"regime_confidence\":%.2f,"
+        "\"reserved_flags\":%u,"
+        "\"timestamp_ns\":%llu"
+        "}",
+        vol_regime_str,
+        liq_regime_str,
+        corr_regime_str,
+        static_cast<double>(payload.stress_score),
+        static_cast<double>(payload.deterioration_score),
+        static_cast<double>(payload.instability_score),
+        static_cast<double>(payload.regime_confidence),
+        payload.reserved_flags,
         static_cast<unsigned long long>(payload.timestamp_ns)
     );
 

@@ -5,6 +5,17 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [15.0.0] - 2026-11-01
+### Added
+- **Version 15 Expansion**: Structural-Stress Indicators, Regime Diagnostics & StressRegimePayload.
+- 5 allocator-free structural-stress indicators: `VolatilityInstability`, `LiquidityErosion`, `CorrelationBreakdown`, `BaselineDeterioration`, `StructuralFatigue`.
+- Grouped stress condition state band inside `ChartConditionState` (`StateStable`, `StateUnstable`, `StateChaotic`, `StatePreserved`, `StateEroding`, `StateDepleted`, `StateWeakening`, `StateDeteriorating`, `StateLowFatigue`, `StateMediumFatigue`, `StateHighFatigue`).
+- Centralized `RegimeModifier` computing Volatility, Liquidity, and Correlation regimes once per cycle and scaling indicator evaluation thresholds dynamically.
+- 32-byte cache-aligned (`alignas(32)`) `StressRegimePayload` bridging stress indicator scores and regime codes with future-proof reserved fields.
+- Expanded pattern diagnostic engine with `PatternHintGroup` (`ExpansionGroup`, `StressGroup`) and weakening environment hints (`BreakdownLike`, `ExhaustionLike`, `StressConsolidationLike`).
+- `SharedRegimeRingBuffer` maintaining regime-adaptive ring buffer stability without dynamic memory allocations.
+- Comprehensive unit test suites in C++ (`tests/unit_tests.cpp`) and Python (`tests/test_finance_kernel_chart_intelligence.py`).
+
 ## [14.0.0] - 2026-10-01
 ### Added
 - Real-Time Chart Intelligence & Environment Diagnostics Subsystem (Layer 17) under version tag `CHART_INTELLIGENCE_V1`.
