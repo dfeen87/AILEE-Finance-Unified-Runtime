@@ -15,6 +15,7 @@ external/
 demo_audit.csv
 rest_api_audit.csv
 *.csv
+*.log
 
 # Python cache
 __pycache__/
@@ -36,6 +37,8 @@ pilgrimage_demo
 wnfs_demo
 websocket_server
 dashboard_server
+unified_runtime_demo
+test_enclave.cpp
 release/demo
 release/rest_api_server
 release/websocket_server
