@@ -49,7 +49,8 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_membrane.cpp \
            extensions/aille_anomaly.cpp \
            extensions/aille_chart_intelligence.cpp \
-           extensions/aille_wnfs.cpp
+           extensions/aille_wnfs.cpp \
+           extensions/aille_unified_runtime.cpp
 
 PYTHON_FLAGS = $(shell python3-config --cflags --embed --ldflags 2>/dev/null || python3-config --cflags --ldflags 2>/dev/null || echo "")
 
@@ -89,7 +90,7 @@ check_deps:
 	@printf "$(COLOR_GREEN)✓ Dependencies verified.$(COLOR_RESET)\n"
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o demo; then \
@@ -106,7 +107,7 @@ debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@echo ""
 
 rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp aille.hpp $(EXT_SRCS)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp $(EXT_SRCS) -o rest_api_server; then \
@@ -185,8 +186,14 @@ wnfs_demo: examples/wnfs_demo.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@echo "✓ WNFS Demo compiled successfully!"
 	@echo ""
 
+unified_runtime_demo: examples/unified_runtime_demo.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
+	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) examples/unified_runtime_demo.cpp $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o unified_runtime_demo
+	@echo ""
+	@echo "✓ Unified Runtime Demo compiled successfully!"
+	@echo ""
+
 test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(UNIT_TESTS_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o test_suite; then \
@@ -197,7 +204,7 @@ test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	fi
 
 benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(BENCHMARK_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o benchmark; then \
@@ -208,7 +215,7 @@ benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	fi
 
 dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/LiveAdvisoryObserver.cpp $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o dashboard_server; then \
@@ -219,7 +226,7 @@ dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/
 	fi
 
 websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/websocket_server.cpp extensions/aille_websocket.cpp $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o websocket_server; then \
@@ -230,7 +237,7 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 	fi
 
 release:
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v16.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory demo
@@ -258,9 +265,9 @@ release:
 			exit 1; \
 		fi; \
 	done
-	@echo "16.0.0" > release/VERSION
-	@printf "$(COLOR_GREEN)✓ Stamped Version: 16.0.0$(COLOR_RESET)\n"
-	@printf "$(COLOR_GREEN)AILEE CORE v16.0.0 Release Package Ready.$(COLOR_RESET)\n"
+	@echo "17.0.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 17.0.0$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v17.0.0 Release Package Ready.$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:

@@ -1,6 +1,6 @@
 {
-  "version": "16.0.0",
+  "version": "17.0.0",
   "name": "aille",
   "update_channel": "production",
-  "fallback_payload_url": "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v16.0.0/aille_runtime_v16.0.0.tar.gz"
+  "fallback_payload_url": "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v17.0.0/aille_runtime_v17.0.0.tar.gz"
 }

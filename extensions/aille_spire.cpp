@@ -13,6 +13,9 @@ namespace {
     AILLE::WNFSFrame static_wnfs_frame;
     AILLE::WNFSState static_wnfs_state;
     AILLE::WNFSConfig static_wnfs_config;
+    AILLE::UnifiedRuntimeState static_unified_state;
+    AILLE::UnifiedRuntimeMetrics static_unified_metrics;
+    AILLE::UnifiedRuntimeConfig static_unified_config;
 }
 
 namespace aillee_spire {
@@ -88,6 +91,21 @@ namespace aillee_spire {
         obs.ingestion_confidence = (obs.stream_degraded != 0) ? 0.0f : 1.0f;
         obs.wave_energy_factor = static_wnfs_state.wave_amplitude;
         return obs;
+    }
+
+    AILLE::UnifiedRuntimeAdvisory get_unified_runtime_advisory() noexcept {
+        AILLE::UnifiedRuntimeState state = static_unified_state;
+        AILLE::UnifiedRuntimeMetrics metrics = static_unified_metrics;
+        AILLE::WNFSState wnfs_state = static_wnfs_state;
+        AILLE::WNFSAdvisory wnfs_adv = AILLE::evaluate_wnfs_advisory(static_wnfs_frame, wnfs_state, static_wnfs_config);
+        AILLE::AnomalyAdvisory anomaly_adv = AILLE::evaluate_anomaly_advisory(static_anomaly_state, static_anomaly_config);
+        return AILLE::evaluate_unified_runtime(
+            state, metrics, &wnfs_adv, &anomaly_adv, nullptr, nullptr, nullptr, static_unified_config
+        );
+    }
+
+    AILLE::UnifiedRuntimeMetrics get_unified_runtime_metrics() noexcept {
+        return static_unified_metrics;
     }
 
 } // namespace aillee_spire

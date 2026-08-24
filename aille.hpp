@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "16.0.0";
-constexpr int AILLE_VERSION_MAJOR = 16;
+constexpr const char* AILLE_VERSION = "17.0.0";
+constexpr int AILLE_VERSION_MAJOR = 17;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -84,6 +84,11 @@ struct WNFSAdvisory;
 struct WNFSObservabilityMetrics;
 struct WNFSTraceStep;
 struct WNFSConfig;
+struct UnifiedRuntimeState;
+struct UnifiedRuntimeMetrics;
+struct UnifiedRuntimeTraceStep;
+struct UnifiedRuntimeAdvisory;
+struct UnifiedRuntimeConfig;
 
 // ============================================================================
 // LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS
@@ -691,10 +696,16 @@ private:
     WNFSAdvisory* wnfs_advisory_ = nullptr;
     const WNFSConfig* wnfs_config_ = nullptr;
 
+    UnifiedRuntimeState* unified_state_ = nullptr;
+    UnifiedRuntimeMetrics* unified_metrics_ = nullptr;
+    UnifiedRuntimeAdvisory* unified_advisory_ = nullptr;
+    const UnifiedRuntimeConfig* unified_config_ = nullptr;
+
     const StressOverrideRules* stress_rules_ = nullptr;
     const StressPortfolioState* stress_state_ = nullptr;
     const SafeBaselineContainer* stress_baselines_ = nullptr;
     StressTraceSteps* stress_trace_ = nullptr;
+    const MetaGovernanceState* meta_state_ = nullptr;
     bool normal_safety_failed_ = false;
 
 public:
@@ -752,6 +763,13 @@ public:
     void set_wnfs_config(const WNFSConfig* cfg) { wnfs_config_ = cfg; }
     void evaluate_wnfs_advisory();
 
+    void set_unified_runtime_state(UnifiedRuntimeState* state) { unified_state_ = state; }
+    void set_unified_runtime_metrics(UnifiedRuntimeMetrics* metrics) { unified_metrics_ = metrics; }
+    void set_unified_runtime_advisory(UnifiedRuntimeAdvisory* advisory) { unified_advisory_ = advisory; }
+    void set_unified_runtime_config(const UnifiedRuntimeConfig* cfg) { unified_config_ = cfg; }
+    void set_meta_governance_state(const MetaGovernanceState* state) { meta_state_ = state; }
+    void evaluate_unified_runtime();
+
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
     void evaluate_macro_advisory() noexcept;
@@ -781,6 +799,7 @@ public:
         evaluate_wnfs_advisory();
         evaluate_macro_advisory();
         evaluate_stabilizer_advisory();
+        evaluate_unified_runtime();
 
         std::lock_guard<std::mutex> lock(engine_mtx_);
 

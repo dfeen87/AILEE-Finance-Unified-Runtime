@@ -9,6 +9,7 @@
 #include "aille_anomaly.hpp"
 #include "aille_chart_intelligence.hpp"
 #include "aille_wnfs.hpp"
+#include "aille_unified_runtime.hpp"
 
 namespace aillee_spire {
 
@@ -60,6 +61,12 @@ namespace aillee_spire {
 
     // Returns Layer 18 WNFS Observability Metrics (non-hot-path read-only view)
     AILLE::WNFSObservabilityMetrics get_wnfs_observability() noexcept;
+
+    // Returns Layer 19 Unified Runtime Master Advisory
+    AILLE::UnifiedRuntimeAdvisory get_unified_runtime_advisory() noexcept;
+
+    // Returns Layer 19 Unified Runtime Metrics
+    AILLE::UnifiedRuntimeMetrics get_unified_runtime_metrics() noexcept;
 
 } // namespace aillee_spire
 

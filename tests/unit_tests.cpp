@@ -2170,6 +2170,52 @@ TEST(TestV15RegimeHysteresisAndRingBufferAdaptivity) {
     ASSERT_EQ(mod4.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::High));
 }
 
+TEST(TestUnifiedRuntimeOrchestrationAndEscalation) {
+    ASSERT_EQ(sizeof(AILLE::UnifiedRuntimeState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::UnifiedRuntimeMetrics), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::UnifiedRuntimeTraceStep), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::UnifiedRuntimeAdvisory), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::UnifiedRuntimeConfig), 64ULL);
+
+    AILLE::UnifiedRuntimeState state;
+    AILLE::UnifiedRuntimeMetrics metrics;
+    AILLE::UnifiedRuntimeConfig config;
+
+    // Nominal conditions
+    AILLE::UnifiedRuntimeAdvisory adv_nominal = AILLE::evaluate_unified_runtime(
+        state, metrics, nullptr, nullptr, nullptr, nullptr, nullptr, config
+    );
+    ASSERT_EQ(adv_nominal.system_status, static_cast<std::uint8_t>(AILLE::UNIFIED_STATUS_NOMINAL));
+    ASSERT_EQ(adv_nominal.execution_permitted, 1);
+    ASSERT_EQ(adv_nominal.hft_freeze_active, 0);
+
+    // Stream degraded test
+    AILLE::WNFSAdvisory wnfs_degraded;
+    wnfs_degraded.stream_degraded = 1;
+    wnfs_degraded.trigger_stress_escalation = 1;
+
+    AILLE::UnifiedRuntimeAdvisory adv_stream = AILLE::evaluate_unified_runtime(
+        state, metrics, &wnfs_degraded, nullptr, nullptr, nullptr, nullptr, config
+    );
+    ASSERT_EQ(adv_stream.system_status, static_cast<std::uint8_t>(AILLE::UNIFIED_STATUS_STRESS_OVERRIDE));
+    ASSERT_EQ(adv_stream.hft_freeze_active, 1);
+    ASSERT_FLOAT_EQ(adv_stream.recommended_execution_scale, 0.0f);
+
+    // Meta-Governance lock test
+    AILLE::MetaGovernanceState meta_locked;
+    meta_locked.execution_ready = 0;
+
+    AILLE::UnifiedRuntimeAdvisory adv_meta = AILLE::evaluate_unified_runtime(
+        state, metrics, nullptr, nullptr, nullptr, nullptr, &meta_locked, config
+    );
+    ASSERT_EQ(adv_meta.system_status, static_cast<std::uint8_t>(AILLE::UNIFIED_STATUS_META_LOCKED));
+    ASSERT_EQ(adv_meta.execution_permitted, 0);
+
+    // Spire integration test
+    AILLE::UnifiedRuntimeAdvisory spire_adv = aillee_spire::get_unified_runtime_advisory();
+    ASSERT_EQ(spire_adv.system_status, static_cast<std::uint8_t>(AILLE::UNIFIED_STATUS_NOMINAL));
+}
+
 TEST(TestWNFSIngestionAndEscalation) {
     ASSERT_EQ(sizeof(AILLE::WNFSFrame), 64ULL);
     ASSERT_EQ(sizeof(AILLE::WNFSState), 64ULL);
@@ -2560,6 +2606,7 @@ int main() {
     RUN_TEST(TestHFTBiasPrePhysicsAndPostDeltaVScaling);
     RUN_TEST(TestHFTBiasSellCeilingAndLevel3Override);
     RUN_TEST(TestWNFSIngestionAndEscalation);
+    RUN_TEST(TestUnifiedRuntimeOrchestrationAndEscalation);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 
