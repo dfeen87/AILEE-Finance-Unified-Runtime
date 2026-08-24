@@ -47,6 +47,7 @@
 #include "../extensions/aille_membrane.hpp"
 #include "../extensions/aille_anomaly.hpp"
 #include "../extensions/aille_chart_intelligence.hpp"
+#include "../extensions/aille_wnfs.hpp"
 #include "../ailee_plugins/ITradingAlertAdapter.hpp"
 #include "../ailee_plugins/PluginRegistry.hpp"
 #include "../ailee_plugins/plugins/alerts/robinhood/RobinhoodAlertAdapter.cpp"
@@ -2169,6 +2170,70 @@ TEST(TestV15RegimeHysteresisAndRingBufferAdaptivity) {
     ASSERT_EQ(mod4.volatility_regime, static_cast<std::uint8_t>(AILLE::VolatilityRegime::High));
 }
 
+TEST(TestWNFSIngestionAndEscalation) {
+    ASSERT_EQ(sizeof(AILLE::WNFSFrame), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::WNFSState), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::WNFSAdvisory), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::WNFSObservabilityMetrics), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::WNFSTraceStep), 64ULL);
+    ASSERT_EQ(sizeof(AILLE::WNFSConfig), 64ULL);
+
+    AILLE::WNFSChannel channel;
+    AILLE::WNFSFrame f1;
+    f1.sequence_id = 1;
+    f1.symbol_id = 10;
+    f1.wave_channel_id = 1;
+
+    ASSERT_TRUE(channel.push_frame(f1));
+    ASSERT_EQ(channel.size(), 1ULL);
+
+    AILLE::WNFSFrame popped;
+    ASSERT_TRUE(channel.pop_frame(popped));
+    ASSERT_EQ(popped.sequence_id, 1ULL);
+    ASSERT_EQ(channel.size(), 0ULL);
+
+    AILLE::WNFSState state;
+    AILLE::WNFSConfig config;
+    AILLE::WNFSAdvisory adv = AILLE::evaluate_wnfs_advisory(f1, state, config);
+
+    ASSERT_FLOAT_EQ(adv.ingestion_confidence, 1.0f);
+    ASSERT_EQ(adv.stream_degraded, 0);
+
+    // Multi-Clone Consensus Bitmask Risk-Off Test
+    AILLE::WNFSState clone_state = state;
+    clone_state.clone_status_mask = 0x02; // Clone 1 degraded
+    clone_state.degraded_clone_count = 1;
+    AILLE::WNFSAdvisory clone_adv = AILLE::evaluate_wnfs_advisory(f1, clone_state, config);
+    ASSERT_FLOAT_EQ(clone_adv.ingestion_confidence, 0.0f);
+    ASSERT_EQ(clone_adv.stream_degraded, 1);
+    ASSERT_EQ(clone_adv.hft_freeze_required, 1);
+    ASSERT_EQ(clone_adv.trigger_stress_escalation, 1);
+
+    // Out of Order Tick Rejection Test
+    AILLE::WNFSFrame ooo_frame;
+    ooo_frame.sequence_id = 1; // Expected is 2
+    AILLE::WNFSAdvisory ooo_adv = AILLE::evaluate_wnfs_advisory(ooo_frame, state, config);
+    ASSERT_EQ(ooo_adv.stream_degraded, 1);
+    ASSERT_FLOAT_EQ(ooo_adv.ingestion_confidence, 0.0f);
+
+    // Sequence Gap Test
+    AILLE::WNFSFrame gap_frame;
+    gap_frame.sequence_id = 10;
+    gap_frame.wave_channel_id = 1;
+
+    AILLE::WNFSAdvisory gap_adv = AILLE::evaluate_wnfs_advisory(gap_frame, state, config);
+    ASSERT_EQ(gap_adv.stream_degraded, 1);
+    ASSERT_EQ(gap_adv.hft_freeze_required, 1);
+
+    // Chart Indicator & Spire Observability Dispatch Test
+    AILLE::ChartConditionPayload chart_payload = AILLE::evaluate_wnfs_stream_indicator(gap_adv, 100);
+    ASSERT_EQ(chart_payload.indicator_type, static_cast<std::uint8_t>(AILLE::ChartIndicatorType::WaveNativeFinanceStream));
+    ASSERT_EQ(chart_payload.condition_state, static_cast<std::uint8_t>(AILLE::ChartConditionState::StateChaotic));
+
+    AILLE::WNFSObservabilityMetrics obs = aillee_spire::get_wnfs_observability();
+    ASSERT_EQ(obs.channel_status, static_cast<std::uint8_t>(AILLE::WNFS_STATUS_HEALTHY));
+}
+
 TEST(TestChartIndicatorRegistryDispatch) {
     AILLE::ChartIndicatorRegistry registry;
     registry.register_indicator(0, AILLE::evaluate_volatility_expansion_bands, true);
@@ -2494,6 +2559,7 @@ int main() {
     RUN_TEST(TestHFTBiasGatingLogic);
     RUN_TEST(TestHFTBiasPrePhysicsAndPostDeltaVScaling);
     RUN_TEST(TestHFTBiasSellCeilingAndLevel3Override);
+    RUN_TEST(TestWNFSIngestionAndEscalation);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

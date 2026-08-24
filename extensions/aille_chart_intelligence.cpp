@@ -44,6 +44,7 @@ const char* chart_indicator_type_to_string(ChartIndicatorType type) noexcept {
         case ChartIndicatorType::CorrelationBreakdown: return "CorrelationBreakdown";
         case ChartIndicatorType::BaselineDeterioration: return "BaselineDeterioration";
         case ChartIndicatorType::StructuralFatigue: return "StructuralFatigue";
+        case ChartIndicatorType::WaveNativeFinanceStream: return "WaveNativeFinanceStream";
         default: return "Unknown";
     }
 }
@@ -140,6 +141,37 @@ const char* correlation_regime_to_string(CorrelationRegime regime) noexcept {
 // ============================================================================
 // STRUCTURAL INDICATOR EVALUATIONS
 // ============================================================================
+
+ChartConditionPayload evaluate_wnfs_stream_indicator(
+    const WNFSAdvisory& wnfs_advisory,
+    std::uint64_t timestamp_ns
+) noexcept {
+    ChartConditionPayload payload{};
+    payload.timestamp_ns = timestamp_ns;
+    payload.symbol_id = wnfs_advisory.channel_id;
+    payload.indicator_type = static_cast<std::uint8_t>(ChartIndicatorType::WaveNativeFinanceStream);
+
+    float energy = std::clamp(wnfs_advisory.wave_energy_factor, 0.0f, 10.0f);
+    float accel = std::clamp(wnfs_advisory.tick_acceleration, -1.0f, 1.0f);
+    float conf = std::clamp(wnfs_advisory.ingestion_confidence, 0.0f, 1.0f);
+
+    payload.raw_metric_0 = energy;
+    payload.raw_metric_1 = accel;
+    payload.raw_metric_2 = conf;
+
+    float score = conf * 100.0f;
+    payload.normalized_score = score;
+
+    if (wnfs_advisory.stream_degraded || wnfs_advisory.hft_freeze_required) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateChaotic);
+    } else if (energy > 1.5f) {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::Expansion);
+    } else {
+        payload.condition_state = static_cast<std::uint8_t>(ChartConditionState::StateStable);
+    }
+
+    return payload;
+}
 
 ChartConditionPayload evaluate_volatility_expansion_bands(
     const AnomalyState& anomaly,
@@ -730,6 +762,10 @@ StressRegimePayload evaluate_stress_regime_payload(
             base_deterioration = p.normalized_score;
         } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::StructuralFatigue)) {
             struct_fatigue = p.normalized_score;
+        } else if (p.indicator_type == static_cast<std::uint8_t>(ChartIndicatorType::WaveNativeFinanceStream)) {
+            if (p.condition_state == static_cast<std::uint8_t>(ChartConditionState::StateChaotic)) {
+                vol_instability = std::max(vol_instability, 85.0f);
+            }
         }
     }
 

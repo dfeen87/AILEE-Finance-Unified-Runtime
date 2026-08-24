@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "15.0.0";
-constexpr int AILLE_VERSION_MAJOR = 15;
+constexpr const char* AILLE_VERSION = "16.0.0";
+constexpr int AILLE_VERSION_MAJOR = 16;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -78,6 +78,12 @@ struct BaselineState;
 struct ChartConditionPayload;
 struct PatternEnvironmentState;
 struct PatternConditionPayload;
+struct WNFSFrame;
+struct WNFSState;
+struct WNFSAdvisory;
+struct WNFSObservabilityMetrics;
+struct WNFSTraceStep;
+struct WNFSConfig;
 
 // ============================================================================
 // LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS
@@ -681,6 +687,10 @@ private:
     AnomalyAdvisory* anomaly_advisory_ = nullptr;
     const AnomalyConfig* anomaly_config_ = nullptr;
 
+    const WNFSState* wnfs_state_ = nullptr;
+    WNFSAdvisory* wnfs_advisory_ = nullptr;
+    const WNFSConfig* wnfs_config_ = nullptr;
+
     const StressOverrideRules* stress_rules_ = nullptr;
     const StressPortfolioState* stress_state_ = nullptr;
     const SafeBaselineContainer* stress_baselines_ = nullptr;
@@ -737,6 +747,11 @@ public:
     void set_anomaly_config(const AnomalyConfig* cfg) { anomaly_config_ = cfg; }
     void evaluate_anomaly_advisory();
 
+    void set_wnfs_state(const WNFSState* state) { wnfs_state_ = state; }
+    void set_wnfs_advisory(WNFSAdvisory* advisory) { wnfs_advisory_ = advisory; }
+    void set_wnfs_config(const WNFSConfig* cfg) { wnfs_config_ = cfg; }
+    void evaluate_wnfs_advisory();
+
     void set_macro_state(const MacroSignalState* s) noexcept { macro_state_ = s; }
     void set_macro_advisory(MacroSignalAdvisory* a) noexcept { macro_advisory_ = a; }
     void evaluate_macro_advisory() noexcept;
@@ -763,6 +778,7 @@ public:
         evaluate_forex_usd_advisory();
         evaluate_volume_advisory();
         evaluate_anomaly_advisory();
+        evaluate_wnfs_advisory();
         evaluate_macro_advisory();
         evaluate_stabilizer_advisory();
 

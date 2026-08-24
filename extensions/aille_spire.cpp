@@ -10,6 +10,9 @@ namespace {
     AILLE::EchoDampener static_dampener;
     AILLE::AnomalyState static_anomaly_state;
     AILLE::AnomalyConfig static_anomaly_config;
+    AILLE::WNFSFrame static_wnfs_frame;
+    AILLE::WNFSState static_wnfs_state;
+    AILLE::WNFSConfig static_wnfs_config;
 }
 
 namespace aillee_spire {
@@ -67,6 +70,24 @@ namespace aillee_spire {
         outputs[2] = AILLE::evaluate_correlation_divergence_index(anomaly, volume, baseline);
         outputs[3] = AILLE::evaluate_baseline_strength_meter(anomaly, volume, baseline);
         return 4;
+    }
+
+    AILLE::WNFSAdvisory get_wnfs_advisory() noexcept {
+        AILLE::WNFSState local_state = static_wnfs_state;
+        return AILLE::evaluate_wnfs_advisory(static_wnfs_frame, local_state, static_wnfs_config);
+    }
+
+    AILLE::WNFSObservabilityMetrics get_wnfs_observability() noexcept {
+        AILLE::WNFSObservabilityMetrics obs;
+        obs.processed_frames = static_wnfs_state.processed_frames;
+        obs.gap_count = static_wnfs_state.gap_count;
+        obs.clone_status_mask = static_wnfs_state.clone_status_mask;
+        obs.degraded_clone_count = static_wnfs_state.degraded_clone_count;
+        obs.channel_status = static_wnfs_state.channel_status;
+        obs.stream_degraded = (static_wnfs_state.channel_status != AILLE::WNFS_STATUS_HEALTHY) ? 1 : 0;
+        obs.ingestion_confidence = (obs.stream_degraded != 0) ? 0.0f : 1.0f;
+        obs.wave_energy_factor = static_wnfs_state.wave_amplitude;
+        return obs;
     }
 
 } // namespace aillee_spire

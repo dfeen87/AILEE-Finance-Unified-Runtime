@@ -1,3 +1,4 @@
+version: "16.0.0"
 hft_bias:
   enabled: true
   bullish_multiplier_price: 1.05

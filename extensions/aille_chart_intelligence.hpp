@@ -22,6 +22,7 @@
 #include "../aille.hpp"
 #include "aille_anomaly.hpp"
 #include "aille_volume_advisory.hpp"
+#include "aille_wnfs.hpp"
 
 namespace AILLE {
 
@@ -29,7 +30,7 @@ namespace AILLE {
 // VERSION TAG & CONSTANTS
 // ============================================================================
 
-constexpr const char* CHART_INTELLIGENCE_VERSION = "15.0.0";
+constexpr const char* CHART_INTELLIGENCE_VERSION = "16.0.0";
 constexpr std::size_t MAX_INDICATORS = 16;
 constexpr std::size_t MAX_RING_BUFFER_CAPACITY = 32;
 
@@ -47,7 +48,8 @@ enum class ChartIndicatorType : std::uint8_t {
     LiquidityErosion = 6,
     CorrelationBreakdown = 7,
     BaselineDeterioration = 8,
-    StructuralFatigue = 9
+    StructuralFatigue = 9,
+    WaveNativeFinanceStream = 10
 };
 
 enum class ChartConditionState : std::uint8_t {
@@ -352,6 +354,11 @@ struct ChartIndicatorRegistry final {
     const AnomalyState& anomaly,
     const VolumeState& volume,
     const BaselineState& baseline,
+    std::uint64_t timestamp_ns = 0
+) noexcept;
+
+[[nodiscard]] ChartConditionPayload evaluate_wnfs_stream_indicator(
+    const WNFSAdvisory& wnfs_advisory,
     std::uint64_t timestamp_ns = 0
 ) noexcept;
 
