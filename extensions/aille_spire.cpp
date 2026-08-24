@@ -10,6 +10,9 @@ namespace {
     AILLE::EchoDampener static_dampener;
     AILLE::AnomalyState static_anomaly_state;
     AILLE::AnomalyConfig static_anomaly_config;
+    AILLE::WNFSFrame static_wnfs_frame;
+    AILLE::WNFSState static_wnfs_state;
+    AILLE::WNFSConfig static_wnfs_config;
 }
 
 namespace aillee_spire {
@@ -67,6 +70,11 @@ namespace aillee_spire {
         outputs[2] = AILLE::evaluate_correlation_divergence_index(anomaly, volume, baseline);
         outputs[3] = AILLE::evaluate_baseline_strength_meter(anomaly, volume, baseline);
         return 4;
+    }
+
+    AILLE::WNFSAdvisory get_wnfs_advisory() noexcept {
+        AILLE::WNFSState local_state = static_wnfs_state;
+        return AILLE::evaluate_wnfs_advisory(static_wnfs_frame, local_state, static_wnfs_config);
     }
 
 } // namespace aillee_spire

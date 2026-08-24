@@ -8,6 +8,7 @@
 #include "aille_pilgrimage.hpp"
 #include "aille_anomaly.hpp"
 #include "aille_chart_intelligence.hpp"
+#include "aille_wnfs.hpp"
 
 namespace aillee_spire {
 
@@ -53,6 +54,9 @@ namespace aillee_spire {
         AILLE::ChartConditionPayload* outputs,
         std::size_t max_outputs
     ) noexcept;
+
+    // Returns Layer 18 WNFS Advisory report
+    AILLE::WNFSAdvisory get_wnfs_advisory() noexcept;
 
 } // namespace aillee_spire
 

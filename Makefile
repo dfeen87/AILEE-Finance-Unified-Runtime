@@ -48,7 +48,8 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_meta_governance.cpp \
            extensions/aille_membrane.cpp \
            extensions/aille_anomaly.cpp \
-           extensions/aille_chart_intelligence.cpp
+           extensions/aille_chart_intelligence.cpp \
+           extensions/aille_wnfs.cpp
 
 PYTHON_FLAGS = $(shell python3-config --cflags --embed --ldflags 2>/dev/null || python3-config --cflags --ldflags 2>/dev/null || echo "")
 
@@ -62,7 +63,7 @@ UNIT_TESTS_SRC   = tests/unit_tests.cpp
 SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
 
 .PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \
-        spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo install uninstall help \
+        spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo wnfs_demo install uninstall help \
         check_deps release
 
 all: demo
@@ -176,6 +177,12 @@ pilgrimage_demo: examples/v7_8_pilgrimage_demo.cpp \
 		-o pilgrimage_demo
 	@echo ""
 	@echo "✓ Pilgrimage Demo compiled successfully!"
+	@echo ""
+
+wnfs_demo: examples/wnfs_demo.cpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
+	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) examples/wnfs_demo.cpp $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o wnfs_demo
+	@echo ""
+	@echo "✓ WNFS Demo compiled successfully!"
 	@echo ""
 
 test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)

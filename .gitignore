@@ -33,6 +33,7 @@ lantern_demo
 crown_walk_demo
 weathering_demo
 pilgrimage_demo
+wnfs_demo
 websocket_server
 dashboard_server
 release/demo
