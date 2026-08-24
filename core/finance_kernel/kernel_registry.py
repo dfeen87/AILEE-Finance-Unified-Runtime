@@ -353,6 +353,7 @@ def create_default_registry() -> KernelRegistry:
     """Factory function to build a default registry loaded with core operators."""
     from core.finance_kernel.volume_advisory import IntradayVolumeAdvisory
     from core.finance_kernel.wnfs import WNFSOperator
+    from core.finance_kernel.unified_runtime import UnifiedRuntimeOperator
     reg = KernelRegistry()
     reg.register_operator("risk_operator", RiskOperator)
     reg.register_operator("governor_operator", GovernorOperator)
@@ -360,4 +361,5 @@ def create_default_registry() -> KernelRegistry:
     reg.register_operator("ledger_operator", LedgerOperator)
     reg.register_operator("volume_operator", IntradayVolumeAdvisory, role="governor")
     reg.register_operator("wnfs_operator", WNFSOperator, role="governor")
+    reg.register_operator("unified_runtime_operator", UnifiedRuntimeOperator, role="governor")
     return reg

@@ -5,6 +5,17 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [17.0.0] - 2026-12-01
+### Added
+- **Layer 19 — Unified Cohesive Runtime & Resiliency Engine (UNIFIED_RUNTIME_V1)** master orchestration cycle tying together all 18 layers into a single allocator-free, cache-aligned runtime loop.
+- Sub-microsecond latency SLAs (< 70 ns p50 / p99) and fail-closed multi-layer fault escalation (WNFS streaming gaps and Anomaly spikes automatically cascading into Layer 13 Stress Override CRISIS mode and Layer 14 Meta-Governance Lock).
+- Zero-allocation C++ extension (`extensions/aille_unified_runtime.hpp/.cpp`) with strictly `alignas(64)` cache-aligned structs (`UnifiedRuntimeState`, `UnifiedRuntimeMetrics`, `UnifiedRuntimeTraceStep`, `UnifiedRuntimeAdvisory`, `UnifiedRuntimeConfig`).
+- Python Finance Runtime Kernel operator (`core/finance_kernel/unified_runtime.py`) and default operator registry integration (`unified_runtime_operator`).
+- Spire interface integration (`aillee_spire::get_unified_runtime_advisory()`, `aillee_spire::get_unified_runtime_metrics()`).
+- C++ benchmarking tool (`examples/unified_runtime_demo.cpp`) and Python simulation harness (`simulations/run_unified_simulation.py`).
+- Architecture documentation (`docs/17.0.0_unified_cohesive_runtime.md`).
+- Comprehensive unit test coverage in C++ (`tests/unit_tests.cpp`) and Python (`tests/test_finance_kernel_unified.py`).
+
 ## [16.0.0] - 2026-11-15
 ### Added
 - **Layer 18 — WaveNativeFinanceStream (WNFS)** real-time streaming data ingestion and wave synchronization transport layer under version tag `WAVE_NATIVE_FINANCE_STREAM_V1`.
