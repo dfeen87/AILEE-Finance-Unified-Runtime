@@ -2216,6 +2216,52 @@ TEST(TestUnifiedRuntimeOrchestrationAndEscalation) {
     ASSERT_EQ(spire_adv.system_status, static_cast<std::uint8_t>(AILLE::UNIFIED_STATUS_NOMINAL));
 }
 
+TEST(TestUnifiedRuntimeSequenceViolationHardening) {
+    AILLE::UnifiedRuntimeState state;
+    AILLE::UnifiedRuntimeMetrics metrics;
+    AILLE::UnifiedRuntimeConfig config;
+
+    // Run cycle 1 and cycle 2 normally
+    state.cycle_sequence_id = 0;
+    (void)AILLE::evaluate_unified_runtime(state, metrics, nullptr, nullptr, nullptr, nullptr, nullptr, config);
+    (void)AILLE::evaluate_unified_runtime(state, metrics, nullptr, nullptr, nullptr, nullptr, nullptr, config);
+
+    // Force sequence violation: set cycle_sequence_id backwards to 0 (replayed)
+    state.cycle_sequence_id = 0;
+    AILLE::UnifiedRuntimeAdvisory adv = AILLE::evaluate_unified_runtime(
+        state, metrics, nullptr, nullptr, nullptr, nullptr, nullptr, config
+    );
+
+    ASSERT_EQ(adv.system_status, static_cast<std::uint8_t>(AILLE::UNIFIED_STATUS_META_LOCKED));
+    ASSERT_EQ(adv.execution_permitted, 0);
+    ASSERT_FLOAT_EQ(adv.recommended_execution_scale, 0.0f);
+}
+
+TEST(TestUnifiedRuntimePriorLayerBypassPrevention) {
+    AILLE::UnifiedRuntimeState state;
+    AILLE::UnifiedRuntimeMetrics metrics;
+    AILLE::UnifiedRuntimeConfig config;
+
+    AILLE::WNFSAdvisory wnfs_adv;
+    wnfs_adv.trigger_stress_escalation = 1;
+
+    AILLE::AnomalyAdvisory anomaly_adv;
+    anomaly_adv.advisory_active = 1;
+    anomaly_adv.anomaly_severity = 90.0f; // High anomaly
+
+    AILLE::MetaGovernanceState meta_state;
+    meta_state.execution_ready = 0;
+
+    AILLE::UnifiedRuntimeAdvisory adv = AILLE::evaluate_unified_runtime(
+        state, metrics, &wnfs_adv, &anomaly_adv, nullptr, nullptr, &meta_state, config
+    );
+
+    // Must be locked, fail-closed, zero scale, execution prohibited
+    ASSERT_EQ(adv.execution_permitted, 0);
+    ASSERT_FLOAT_EQ(adv.recommended_execution_scale, 0.0f);
+    ASSERT_EQ(adv.hft_freeze_active, 1);
+}
+
 TEST(TestWNFSIngestionAndEscalation) {
     ASSERT_EQ(sizeof(AILLE::WNFSFrame), 64ULL);
     ASSERT_EQ(sizeof(AILLE::WNFSState), 64ULL);
@@ -2607,6 +2653,8 @@ int main() {
     RUN_TEST(TestHFTBiasSellCeilingAndLevel3Override);
     RUN_TEST(TestWNFSIngestionAndEscalation);
     RUN_TEST(TestUnifiedRuntimeOrchestrationAndEscalation);
+    RUN_TEST(TestUnifiedRuntimeSequenceViolationHardening);
+    RUN_TEST(TestUnifiedRuntimePriorLayerBypassPrevention);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

@@ -31,13 +31,20 @@ namespace AILLE {
     const SafetyState* safety
 ) noexcept {
     UnifiedRuntimeAdvisory advisory;
-    state.cycle_sequence_id++;
+
+    // 0. Strict Monotonic Sequence & Order Validation
+    bool sequence_violation = false;
+    if (metrics.total_cycles_processed > 0 && state.cycle_sequence_id < metrics.total_cycles_processed) {
+        sequence_violation = true;
+    }
+    std::uint64_t next_sequence = std::max(state.cycle_sequence_id + 1, metrics.total_cycles_processed + 1);
+    state.cycle_sequence_id = next_sequence;
     state.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::high_resolution_clock::now().time_since_epoch()
     ).count();
 
-    // 1. Hardware / Safety State check
-    if (safety && (safety->kill_switch || safety->hardware_fault)) {
+    // 1. Hardware / Safety State Check
+    if ((safety && (safety->kill_switch || safety->hardware_fault)) || sequence_violation) {
         state.system_status = UNIFIED_STATUS_META_LOCKED;
         state.resiliency_mode = UNIFIED_RESILIENCY_FAIL_CLOSED;
         state.execution_ready = 0;
@@ -56,7 +63,7 @@ namespace AILLE {
         return advisory;
     }
 
-    // 2. Evaluate streaming transport integrity (Layer 18 - WNFS)
+    // 2. Evaluate Streaming Transport Integrity (Layer 18 - WNFS)
     bool wnfs_fault = false;
     if (wnfs_adv) {
         if (wnfs_adv->stream_degraded) {
@@ -66,12 +73,13 @@ namespace AILLE {
             advisory.system_confidence *= 0.5f;
             advisory.recommended_execution_scale *= 0.5f;
         }
-        if (wnfs_adv->trigger_stress_escalation) {
+        if (wnfs_adv->trigger_stress_escalation || wnfs_adv->hft_freeze_required) {
             wnfs_fault = true;
+            advisory.hft_freeze_active = 1;
         }
     }
 
-    // 3. Evaluate anomaly detection (Layer 16)
+    // 3. Evaluate Anomaly Detection (Layer 16)
     bool anomaly_fault = false;
     if (anomaly_adv) {
         if (anomaly_adv->advisory_active) {
@@ -85,7 +93,7 @@ namespace AILLE {
         }
     }
 
-    // 4. Evaluate MSGAM market stabilizer (Layer 7.9)
+    // 4. Evaluate MSGAM Market Stabilizer (Layer 7.9)
     if (MSGAM_adv) {
         if (MSGAM_adv->risk_elevated || MSGAM_adv->governor_active) {
             advisory.recommended_execution_scale *= MSGAM_adv->stabilization_factor;
@@ -126,13 +134,14 @@ namespace AILLE {
             advisory.execution_permitted = 0;
             advisory.recommended_execution_scale = 0.0f;
             advisory.system_confidence = 0.0f;
+            advisory.hft_freeze_active = 1;
         } else {
             state.execution_ready = meta_state->execution_ready;
             metrics.meta_lock_active = 0;
         }
     }
 
-    // Calculate system stability and aggregate risk
+    // Calculate System Stability and Aggregate Risk
     state.aggregate_risk_score = 1.0f - std::clamp(advisory.system_confidence, 0.0f, 1.0f);
     state.systemic_stability_index = std::clamp(advisory.recommended_execution_scale, 0.0f, 1.0f);
 
@@ -141,7 +150,7 @@ namespace AILLE {
     }
 
     advisory.system_status = state.system_status;
-    advisory.execution_permitted = (state.execution_ready && state.system_status != UNIFIED_STATUS_META_LOCKED) ? 1 : 0;
+    advisory.execution_permitted = (state.execution_ready && state.system_status != UNIFIED_STATUS_META_LOCKED && advisory.recommended_execution_scale > 0.0f) ? 1 : 0;
     advisory.resilience_factor = (state.system_status == UNIFIED_STATUS_NOMINAL) ? 1.0f : 0.5f;
 
     metrics.total_cycles_processed++;

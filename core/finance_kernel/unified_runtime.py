@@ -118,13 +118,15 @@ class UnifiedRuntimeOperator(BaseOperator):
 
         advisory = UnifiedRuntimeAdvisory()
         cycle_seq = input_data["cycle_sequence_id"] + 1
+        sequence_violation = (input_data["cycle_sequence_id"] > 0 and cycle_seq <= input_data["cycle_sequence_id"])
+
         system_status = UNIFIED_STATUS_NOMINAL
         resiliency_mode = UNIFIED_RESILIENCY_STANDARD
         execution_ready = 1
         fault_escalated = 0
 
-        # 1. Hardware / Safety State check
-        if kill_switch or hardware_fault:
+        # 1. Hardware / Safety State / Sequence Violation Check
+        if kill_switch or hardware_fault or sequence_violation:
             system_status = UNIFIED_STATUS_META_LOCKED
             resiliency_mode = UNIFIED_RESILIENCY_FAIL_CLOSED
             execution_ready = 0
@@ -136,7 +138,7 @@ class UnifiedRuntimeOperator(BaseOperator):
             advisory.system_status = UNIFIED_STATUS_META_LOCKED
             advisory.execution_permitted = False
             advisory.hft_freeze_active = True
-            advisory.messages.append("Master Runtime: System locked due to hardware fault or kill switch.")
+            advisory.messages.append("Master Runtime: System locked due to hardware fault, kill switch, or sequence violation.")
 
             return {
                 "cycle_sequence_id": cycle_seq,
@@ -167,10 +169,10 @@ class UnifiedRuntimeOperator(BaseOperator):
         anomaly_fault = False
         if input_data["anomaly_active"]:
             system_status = UNIFIED_STATUS_DEGRADED
-            penalty = min(0.8, max(0.0, input_data["anomaly_severity"]))
+            penalty = min(0.8, max(0.0, input_data["anomaly_severity"] / 100.0 if input_data["anomaly_severity"] > 1.0 else input_data["anomaly_severity"]))
             advisory.system_confidence *= (1.0 - penalty)
             advisory.recommended_execution_scale *= (1.0 - penalty)
-            if input_data["anomaly_severity"] > 0.80:
+            if input_data["anomaly_severity"] > 0.80 or input_data["anomaly_severity"] > 80.0:
                 anomaly_fault = True
                 advisory.messages.append("Master Runtime: High anomaly severity detected.")
 
@@ -183,13 +185,8 @@ class UnifiedRuntimeOperator(BaseOperator):
 
         # 5. Evaluate Stress Regime Override (Layer 13)
         stress_lvl = input_data["stress_level"]
-        if stress_lvl == 1: # STRESS
-            system_status = UNIFIED_STATUS_STRESS_OVERRIDE
-            resiliency_mode = UNIFIED_RESILIENCY_HIGH_STRESS
-            advisory.recommended_execution_scale *= 0.30
-            advisory.hft_freeze_active = True
-            advisory.messages.append("Master Runtime: Stress mode active - hard de-risking applied.")
-        elif stress_lvl == 2 or (input_data["auto_escalate_faults"] and (wnfs_fault or anomaly_fault)): # CRISIS
+        crisis_escalation = (input_data["auto_escalate_faults"] and (wnfs_fault or anomaly_fault)) or (stress_lvl == 2)
+        if crisis_escalation:
             system_status = UNIFIED_STATUS_STRESS_OVERRIDE
             resiliency_mode = UNIFIED_RESILIENCY_FAIL_CLOSED
             fault_escalated = 1
@@ -197,6 +194,12 @@ class UnifiedRuntimeOperator(BaseOperator):
             advisory.system_confidence = 0.0
             advisory.hft_freeze_active = True
             advisory.messages.append("Master Runtime: CRISIS mode active / escalated fault. Exposure frozen.")
+        elif stress_lvl == 1: # STRESS
+            system_status = UNIFIED_STATUS_STRESS_OVERRIDE
+            resiliency_mode = UNIFIED_RESILIENCY_HIGH_STRESS
+            advisory.recommended_execution_scale *= 0.30
+            advisory.hft_freeze_active = True
+            advisory.messages.append("Master Runtime: Stress mode active - hard de-risking applied.")
 
         # 6. Evaluate Meta-Governance Lock (Layer 14)
         if not input_data["meta_execution_ready"] and input_data["enforce_strict_lock"]:
@@ -205,6 +208,7 @@ class UnifiedRuntimeOperator(BaseOperator):
             advisory.execution_permitted = False
             advisory.recommended_execution_scale = 0.0
             advisory.system_confidence = 0.0
+            advisory.hft_freeze_active = True
             advisory.messages.append("Master Runtime: Meta-Governance lock active. Execution restricted.")
         else:
             execution_ready = 1 if input_data["meta_execution_ready"] else 0
@@ -218,7 +222,7 @@ class UnifiedRuntimeOperator(BaseOperator):
             advisory.messages.append("Master Runtime: Aggregate risk exceeded threshold - applying risk clamp.")
 
         advisory.system_status = system_status
-        advisory.execution_permitted = (execution_ready == 1 and system_status != UNIFIED_STATUS_META_LOCKED)
+        advisory.execution_permitted = (execution_ready == 1 and system_status != UNIFIED_STATUS_META_LOCKED and advisory.recommended_execution_scale > 0.0)
         advisory.resilience_factor = 1.0 if system_status == UNIFIED_STATUS_NOMINAL else 0.5
 
         return {
