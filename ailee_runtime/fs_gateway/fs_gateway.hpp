@@ -33,7 +33,7 @@ namespace websocketpp {
 
 namespace AILEE {
 
-constexpr const char* FS_GATEWAY_VERSION = "19.0.0";
+constexpr const char* FS_GATEWAY_VERSION = "20.0.0";
 constexpr const char* FS_GATEWAY_DEFAULT_PATH = "/ailee/finance/runtime";
 constexpr int FS_GATEWAY_DEFAULT_PORT = 9002;
 
@@ -46,6 +46,12 @@ struct TradingDeskState {
     uint32_t active_orders;
     uint32_t risk_level;
     const char* execution_readiness;
+    const char* order_intent;
+    const char* desk_state;
+    float recon_threshold;
+    float liquidity_depth_m;
+    float volatility_pressure;
+    bool anomaly_detected;
 };
 
 class FsGateway {

@@ -5,6 +5,12 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [20.0.0] - 2026-12-20
+### Added
+- FS-Gateway networking subsystem hardening with expanded trading desk stream segments (order intent, desk state, reconciliation threshold, liquidity depth, volatility pressure, anomaly detection) and RFC3339 UTC timestamping.
+- UI-level Bullishness Mode Selector (`Standard`, `Conservative Bullishness`, `Hyper Bullish Mode`) operating with zero runtime mutation and localStorage persistence.
+- Dedicated Makefile testing targets (`make fs_gateway_test`, `make test_v20`) and complete Python V20 test suite (`test_fs_gateway_schema.py`, `test_desk_stream_correctness.py`, `test_bullishness_mode_weighting.py`, `test_connection_resilience.py`).
+
 ## [19.0.0] - 2026-12-15
 ### Added
 - **AILEE Finance Unified WebSocket Runtime Stream (AF-WSX)** and **FS-Gateway Networking Subsystem** (`ailee_runtime/fs_gateway/`).

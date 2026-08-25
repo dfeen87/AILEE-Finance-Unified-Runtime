@@ -3,7 +3,7 @@ from setuptools import setup, Extension
 
 setup(
     name="aille",
-    version="19.0.0",
+    version="20.0.0",
     description="AILLE: AI-Load Integrity and Layered Evaluation",
     author="Don Michael Feeney Jr",
     author_email="dfeen87@gmail.com",

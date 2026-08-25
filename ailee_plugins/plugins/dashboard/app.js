@@ -345,14 +345,17 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
             const intensityPct = ((d.displayIntensity !== undefined ? d.displayIntensity : d.decision_intensity) * 100).toFixed(1);
             const customStyle = d.deskGlowStyle || '';
 
+            const intentStr = d.order_intent ? `<br><span style="font-size:7.5px; color:var(--text-muted);">${d.order_intent}</span>` : '';
+            const depthStr = d.liquidity_depth_m ? `$${d.liquidity_depth_m.toFixed(1)}M` : `${d.active_orders} orders`;
+
             return `
                 <tr style="${customStyle}">
-                    <td class="sym-col">${d.desk_id}</td>
+                    <td class="sym-col">${d.desk_id}${intentStr}</td>
                     <td class="class-col">${d.asset_class}</td>
                     <td style="color:var(--accent-green); font-weight:700;">${buyPct}%</td>
                     <td style="color:var(--accent-crimson);">${(d.sell_pressure * 100).toFixed(1)}%</td>
                     <td style="font-weight:700;">${intensityPct}%</td>
-                    <td>${d.active_orders}</td>
+                    <td>${depthStr}</td>
                     <td><span class="badge ${riskBadge}">LEVEL ${d.risk_level}</span></td>
                     <td><span class="badge ${readinessBadge}">${d.execution_readiness}</span></td>
                 </tr>
