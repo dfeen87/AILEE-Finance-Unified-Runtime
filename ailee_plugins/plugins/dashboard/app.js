@@ -1,5 +1,5 @@
 /**
- * AILEE FINANCE V17 — UNIFIED RUNTIME INSTITUTIONAL TERMINAL LOGIC
+ * AILEE FINANCE V18 — UNIFIED RUNTIME INSTITUTIONAL TERMINAL LOGIC
  * Core Application Logic & Cross-Evaluation Engine
  */
 
@@ -672,7 +672,7 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
     function init() {
         setInterval(updateClock, 200);
         setupEventListeners();
-        logTrace('AILEE Finance Unified Runtime V17 Initialized', 'success');
+        logTrace('AILEE Finance Unified Runtime V18 Initialized', 'success');
         logTrace('Loaded 19-Layer Governance Engine Specs & ABI Alignments', 'info');
         stepExecutionCycle();
     }

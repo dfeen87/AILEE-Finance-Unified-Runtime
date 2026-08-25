@@ -1,5 +1,5 @@
 /**
- * AILEE FINANCE V17 — REAL-TIME CANVAS VISUALIZATION ENGINE
+ * AILEE FINANCE V18 — REAL-TIME CANVAS VISUALIZATION ENGINE
  * 60 FPS HTML5 Canvas Renderers for Latency, Throughput, Anomaly Radar, Recon & Membrane
  */
 
