@@ -13,7 +13,7 @@
         <!-- TOP-LEVEL UNIFIED RUNTIME DASHBOARD / HEADER -->
         <header class="terminal-header">
             <div class="header-brand">
-                <div class="brand-title">AILEE FINANCE <span class="v-tag">V18.0.0</span></div>
+                <div class="brand-title">AILEE FINANCE <span class="v-tag">V19.0.0</span></div>
                 <div class="brand-subtitle">UNIFIED RUNTIME • 19-LAYER DETERMINISTIC GOVERNANCE ENGINE</div>
             </div>
 
@@ -274,6 +274,36 @@ static_assert(sizeof(UnifiedRuntimeState) == 64, "UnifiedRuntimeState must be ex
                     </div>
                 </div>
 
+                <!-- PANEL: LIVE TRADING DESK EXECUTION SURFACE -->
+                <div class="panel trading-desk-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="icon">⚡</span> LIVE TRADING DESKS & EXECUTION SURFACE
+                        </div>
+                        <span class="accent-label" id="deskActiveCount">6 DESKS ACTIVE</span>
+                    </div>
+
+                    <div class="panel-body table-container">
+                        <table class="data-table desk-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th>DESK ID</th>
+                                    <th>ASSET CLASS</th>
+                                    <th>BUY PRESSURE</th>
+                                    <th>SELL PRESSURE</th>
+                                    <th>DECISION INTENSITY</th>
+                                    <th>ACTIVE ORDERS</th>
+                                    <th>RISK LEVEL</th>
+                                    <th>EXECUTION READINESS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deskMatrixBody">
+                                <!-- Populated dynamically by app.js from AF-WSX stream -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- PANEL: SUBSYSTEM HEALTH & INGESTION STATUS -->
                 <div class="panel health-summary-panel">
                     <div class="panel-header">
@@ -331,6 +361,7 @@ static_assert(sizeof(UnifiedRuntimeState) == 64, "UnifiedRuntimeState must be ex
 
     <!-- Scripts -->
     <script src="webgl_renderer.js"></script>
+    <script src="js/wsx_client.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

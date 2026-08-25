@@ -54,7 +54,7 @@ EXT_SRCS = extensions/aille_btc.cpp \
 
 PYTHON_FLAGS = $(shell python3-config --cflags --embed --ldflags 2>/dev/null || python3-config --cflags --ldflags 2>/dev/null || echo "")
 
-EXT_SRCS_WITH_AUDIT = $(EXT_SRCS) aille_audit.cpp ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp src/ailee_finance_governor.cpp
+EXT_SRCS_WITH_AUDIT = $(EXT_SRCS) aille_audit.cpp ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp src/ailee_finance_governor.cpp ailee_runtime/fs_gateway/fs_gateway.cpp
 
 EXAMPLE_SRC      = examples/example.cpp
 BENCHMARK_SRC    = benchmarks/benchmark.cpp
@@ -90,7 +90,7 @@ check_deps:
 	@printf "$(COLOR_GREEN)✓ Dependencies verified.$(COLOR_RESET)\n"
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v18.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v19.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o demo; then \
@@ -193,10 +193,10 @@ unified_runtime_demo: examples/unified_runtime_demo.cpp aille.hpp $(EXT_SRCS_WIT
 	@echo ""
 
 test_suite: $(UNIT_TESTS_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v19.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
-	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(UNIT_TESTS_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o test_suite; then \
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) $(UNIT_TESTS_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o test_suite; then \
 		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
 	else \
 		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
@@ -226,7 +226,7 @@ dashboard_server: examples/dashboard_server.cpp ailee_plugins/plugins/dashboard/
 	fi
 
 websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp extensions/aille_websocket.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v19.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) examples/websocket_server.cpp extensions/aille_websocket.cpp $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o websocket_server; then \
@@ -236,11 +236,24 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 		exit 1; \
 	fi
 
+fs_gateway: ailee_runtime/fs_gateway/main.cpp ailee_runtime/fs_gateway/fs_gateway.cpp ailee_runtime/fs_gateway/fs_gateway.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v19.0.0 — FS-Gateway Networking Module ===$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory check_deps
+	@printf "$(COLOR_YELLOW)Compiling FS-Gateway server...$(COLOR_RESET)\n"
+	@mkdir -p bin
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) ailee_runtime/fs_gateway/main.cpp $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o bin/ailee_fs_gateway; then \
+		printf "$(COLOR_GREEN)✓ FS-Gateway binary built successfully → bin/ailee_fs_gateway.$(COLOR_RESET)\n\n"; \
+	else \
+		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
+		exit 1; \
+	fi
+
 release:
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v19.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory demo
+	@$(MAKE) --no-print-directory fs_gateway
 	@$(MAKE) --no-print-directory rest_api_server
 	@$(MAKE) --no-print-directory websocket_server
 	@$(MAKE) --no-print-directory dashboard_server
@@ -256,18 +269,18 @@ release:
 	fi
 	@printf "$(COLOR_YELLOW)Creating release package...$(COLOR_RESET)\n"
 	@mkdir -p release
-	@for binary in demo rest_api_server websocket_server dashboard_server benchmark test_suite; do \
+	@for binary in demo rest_api_server websocket_server dashboard_server benchmark test_suite bin/ailee_fs_gateway; do \
 		if cp $$binary release/ 2>/dev/null; then \
-			printf "$(COLOR_GREEN)✓ Copying $$binary → release/$$binary$(COLOR_RESET)\n"; \
+			printf "$(COLOR_GREEN)✓ Copying $$binary → release/$(COLOR_RESET)\n"; \
 		else \
-			printf "$(COLOR_RED)✗ Copying $$binary → release/$$binary$(COLOR_RESET)\n"; \
+			printf "$(COLOR_RED)✗ Copying $$binary → release/$(COLOR_RESET)\n"; \
 			printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 			exit 1; \
 		fi; \
 	done
-	@echo "18.0.0" > release/VERSION
-	@printf "$(COLOR_GREEN)✓ Stamped Version: 18.0.0$(COLOR_RESET)\n"
-	@printf "$(COLOR_GREEN)AILEE CORE v18.0.0 Release Package Ready.$(COLOR_RESET)\n"
+	@echo "19.0.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 19.0.0$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v19.0.0 Release Package Ready.$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:

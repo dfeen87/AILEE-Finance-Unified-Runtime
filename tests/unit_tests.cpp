@@ -54,6 +54,7 @@
 #include "../ailee_plugins/plugins/alerts/news/BreakingNewsAlertAdapter.cpp"
 #include "../ailee_plugins/plugins/execution/alpaca/AlpacaExecution.hpp"
 #include "ailee_finance_governor.hpp"
+#include "../ailee_runtime/fs_gateway/fs_gateway.hpp"
 
 // Simple Test Framework
 int tests_run = 0;
@@ -2237,6 +2238,36 @@ TEST(TestUnifiedRuntimeSequenceViolationHardening) {
     ASSERT_FLOAT_EQ(adv.recommended_execution_scale, 0.0f);
 }
 
+TEST(TestFSGatewayUnitValidation) {
+    AILEE::FsGateway gateway(9009, "/ailee/finance/runtime");
+    ASSERT_EQ(gateway.getPort(), 9009);
+    ASSERT_TRUE(gateway.getPath() == "/ailee/finance/runtime");
+    ASSERT_FALSE(gateway.isRunning());
+
+    ASSERT_TRUE(gateway.startAsync());
+    ASSERT_TRUE(gateway.isRunning());
+
+    gateway.broadcastCycleFrames();
+
+    gateway.stop();
+    gateway.join();
+    ASSERT_FALSE(gateway.isRunning());
+}
+
+TEST(TestFSGatewayResilienceAndDeskSchema) {
+    AILEE::FsGateway gateway(9010, "/ailee/finance/runtime");
+    ASSERT_TRUE(gateway.startAsync());
+    ASSERT_TRUE(gateway.isRunning());
+
+    for (int i = 0; i < 5; ++i) {
+        gateway.broadcastCycleFrames();
+    }
+
+    gateway.stop();
+    gateway.join();
+    ASSERT_FALSE(gateway.isRunning());
+}
+
 TEST(TestUnifiedRuntimePriorLayerBypassPrevention) {
     AILLE::UnifiedRuntimeState state;
     AILLE::UnifiedRuntimeMetrics metrics;
@@ -2655,6 +2686,8 @@ int main() {
     RUN_TEST(TestUnifiedRuntimeOrchestrationAndEscalation);
     RUN_TEST(TestUnifiedRuntimeSequenceViolationHardening);
     RUN_TEST(TestUnifiedRuntimePriorLayerBypassPrevention);
+    RUN_TEST(TestFSGatewayUnitValidation);
+    RUN_TEST(TestFSGatewayResilienceAndDeskSchema);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

@@ -1,5 +1,5 @@
 /**
- * AILEE FINANCE V18 — UNIFIED RUNTIME INSTITUTIONAL TERMINAL LOGIC
+ * AILEE FINANCE V19 — UNIFIED RUNTIME INSTITUTIONAL TERMINAL LOGIC
  * Core Application Logic & Cross-Evaluation Engine
  */
 
@@ -215,6 +215,9 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
         visTabButtons: document.querySelectorAll('.panel-tabs .tab-btn[data-vistab]'),
         visCanvases: document.querySelectorAll('.vis-canvas'),
 
+        // Trading Desks
+        deskMatrixBody: document.getElementById('deskMatrixBody'),
+
         // Layer Grid & Health
         layerStackGrid: document.getElementById('layerStackGrid'),
         layerActiveCount: document.getElementById('layerActiveCount'),
@@ -312,6 +315,27 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
         if (window.AILEEV17_WebGL && window.AILEEV17_WebGL.updateData) {
             window.AILEEV17_WebGL.updateData(state);
         }
+    }
+
+    // RENDER TRADING DESK EXECUTION MATRIX
+    function renderTradingDesks(desks) {
+        if (!dom.deskMatrixBody || !desks) return;
+        dom.deskMatrixBody.innerHTML = desks.map(d => {
+            let readinessBadge = d.execution_readiness === 'EXECUTION_READY' ? 'badge-ok' : 'badge-stress';
+            let riskBadge = d.risk_level === 0 ? 'badge-ok' : (d.risk_level === 1 ? 'badge-advisory' : 'badge-stress');
+            return `
+                <tr>
+                    <td class="sym-col">${d.desk_id}</td>
+                    <td class="class-col">${d.asset_class}</td>
+                    <td style="color:var(--color-ok);">${(d.buy_pressure * 100).toFixed(1)}%</td>
+                    <td style="color:var(--color-stress);">${(d.sell_pressure * 100).toFixed(1)}%</td>
+                    <td>${(d.decision_intensity * 100).toFixed(1)}%</td>
+                    <td>${d.active_orders}</td>
+                    <td><span class="badge ${riskBadge}">LEVEL ${d.risk_level}</span></td>
+                    <td><span class="badge ${readinessBadge}">${d.execution_readiness}</span></td>
+                </tr>
+            `;
+        }).join('');
     }
 
     // RENDER HEADER
@@ -672,9 +696,82 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
     function init() {
         setInterval(updateClock, 200);
         setupEventListeners();
-        logTrace('AILEE Finance Unified Runtime V18 Initialized', 'success');
+        logTrace('AILEE Finance Unified Runtime V19 Initialized', 'success');
         logTrace('Loaded 19-Layer Governance Engine Specs & ABI Alignments', 'info');
         stepExecutionCycle();
+
+        // Initialize AF-WSX WebSocket Client Integration
+        if (window.AFWSXClient) {
+            const client = new window.AFWSXClient({ port: 9002, path: '/ailee/finance/runtime' });
+
+            client.onStatusChange((isConnected, url) => {
+                state.wsConnected = isConnected;
+                if (dom.wsServerStatus) {
+                    dom.wsServerStatus.textContent = isConnected ? `CONNECTED (${url})` : `DISCONNECTED (${url})`;
+                    dom.wsServerStatus.style.color = isConnected ? 'var(--color-ok)' : 'var(--color-stress)';
+                }
+                if (dom.streamToggleBtn) {
+                    dom.streamToggleBtn.textContent = isConnected ? 'STREAM: AF-WSX LIVE' : 'STREAM: OFFLINE';
+                    dom.streamToggleBtn.className = isConnected ? 'btn btn-success btn-sm' : 'btn btn-secondary btn-sm';
+                }
+                logTrace(isConnected ? `AF-WSX Live Stream Connected to ${url}` : `AF-WSX Live Stream Disconnected from ${url}`, isConnected ? 'success' : 'warn');
+            });
+
+            client.onMessage((msg) => {
+                if (!msg || !msg.module) return;
+
+                if (msg.flags) {
+                    if (msg.flags.meta_locked) {
+                        state.runtimeMode = 'META_LOCKED';
+                        state.metaGovernanceLocked = 1;
+                        state.allocationScale = 0.00;
+                    } else if (msg.flags.stress_override) {
+                        state.runtimeMode = 'STRESS_OVERRIDE';
+                        state.allocationScale = 0.10;
+                    } else {
+                        state.runtimeMode = 'NOMINAL_EXECUTION';
+                        state.metaGovernanceLocked = 0;
+                        state.allocationScale = 1.00;
+                    }
+                }
+
+                if (msg.module === 'runtime' && msg.state) {
+                    if (msg.state.cycle_sequence_id) state.cycleSequenceId = msg.state.cycle_sequence_id;
+                } else if (msg.module === 'pipeline' && msg.metrics) {
+                    if (msg.metrics.p50_latency_ns) state.p50LatencyNs = msg.metrics.p50_latency_ns;
+                    if (msg.metrics.p99_latency_ns) state.p99LatencyNs = msg.metrics.p99_latency_ns;
+                    if (msg.metrics.p99_9_latency_ns) state.p999LatencyNs = msg.metrics.p99_9_latency_ns;
+                    if (msg.metrics.throughput_ops_sec) state.throughputOpsSec = msg.metrics.throughput_ops_sec;
+                } else if (msg.module === 'asset' && msg.state && msg.state.evaluations) {
+                    msg.state.evaluations.forEach(ev => {
+                        let existing = state.assets.find(a => a.symbol === ev.symbol);
+                        if (existing) {
+                            existing.price = ev.price;
+                            existing.vol = ev.volatility;
+                            existing.depth = ev.liquidity_depth_m;
+                            existing.trust = ev.trust_gating;
+                            existing.residual = ev.recon_residual;
+                            existing.trigger = ev.trigger;
+                        }
+                    });
+                } else if (msg.module === 'wnfs' && msg.state) {
+                    state.faults.wnfsGap = msg.state.sequence_gaps > 0;
+                } else if (msg.module === 'desk' && msg.state && msg.state.desks) {
+                    renderTradingDesks(msg.state.desks);
+                }
+
+                renderHeader();
+                renderAssetMatrix();
+                renderLayerStack();
+                renderSubsystemHealth();
+                renderRuntimeCallPreview();
+                renderTicker();
+
+                if (window.AILEEV17_WebGL && window.AILEEV17_WebGL.updateData) {
+                    window.AILEEV17_WebGL.updateData(state);
+                }
+            });
+        }
     }
 
     window.addEventListener('DOMContentLoaded', init);
