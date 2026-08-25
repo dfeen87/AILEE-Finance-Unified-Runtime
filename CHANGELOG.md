@@ -5,6 +5,14 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [21.0.0] - 2026-12-21
+### Added
+- **Global Bullish/Contrarian Mode Architecture Hardening**: Standardized `STANDARD`, `CONSERVATIVE`, `HYPER`, and `CONTRARIAN` modes as first-class runtime and configuration concepts across C++, Python, FS-Gateway, and Dashboard UI.
+- **Backend Contrarian Analytics Modulation**: Scale VAM oversold weights (1.20x–1.30x), lowered oversold buy thresholds (0.65), increased HF-AT impulse scaling (1.25x), raised dynamic SELL ceilings (0.85–0.90), and enabled secondary `CONTRARIAN_BUY_ZONE` pattern advisories.
+- **FS-Gateway AF-WSX Telemetry Expansion**: Extended `buildRuntimeJSON` and `buildDeskJSON` with active `bullishness_mode` and `contrarian_analytics` segments.
+- **Dashboard Terminal UI Hardening**: Integrated deep emerald/gold contrarian corridors, glowing governance layers, and active mode indicators badge.
+- **Validation Target**: Added `make test_v21` aggregate test target.
+
 ## [20.0.0] - 2026-12-20
 ### Added
 - FS-Gateway networking subsystem hardening with expanded trading desk stream segments (order intent, desk state, reconciliation threshold, liquidity depth, volatility pressure, anomaly detection) and RFC3339 UTC timestamping.
