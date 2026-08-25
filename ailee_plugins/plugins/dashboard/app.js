@@ -1,5 +1,5 @@
 /**
- * AILEE FINANCE V18 — UNIFIED RUNTIME INSTITUTIONAL TERMINAL LOGIC
+ * AILEE FINANCE V19 — UNIFIED RUNTIME INSTITUTIONAL TERMINAL LOGIC
  * Core Application Logic & Cross-Evaluation Engine
  */
 
@@ -215,6 +215,9 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
         visTabButtons: document.querySelectorAll('.panel-tabs .tab-btn[data-vistab]'),
         visCanvases: document.querySelectorAll('.vis-canvas'),
 
+        // Trading Desks
+        deskMatrixBody: document.getElementById('deskMatrixBody'),
+
         // Layer Grid & Health
         layerStackGrid: document.getElementById('layerStackGrid'),
         layerActiveCount: document.getElementById('layerActiveCount'),
@@ -312,6 +315,27 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
         if (window.AILEEV17_WebGL && window.AILEEV17_WebGL.updateData) {
             window.AILEEV17_WebGL.updateData(state);
         }
+    }
+
+    // RENDER TRADING DESK EXECUTION MATRIX
+    function renderTradingDesks(desks) {
+        if (!dom.deskMatrixBody || !desks) return;
+        dom.deskMatrixBody.innerHTML = desks.map(d => {
+            let readinessBadge = d.execution_readiness === 'EXECUTION_READY' ? 'badge-ok' : 'badge-stress';
+            let riskBadge = d.risk_level === 0 ? 'badge-ok' : (d.risk_level === 1 ? 'badge-advisory' : 'badge-stress');
+            return `
+                <tr>
+                    <td class="sym-col">${d.desk_id}</td>
+                    <td class="class-col">${d.asset_class}</td>
+                    <td style="color:var(--color-ok);">${(d.buy_pressure * 100).toFixed(1)}%</td>
+                    <td style="color:var(--color-stress);">${(d.sell_pressure * 100).toFixed(1)}%</td>
+                    <td>${(d.decision_intensity * 100).toFixed(1)}%</td>
+                    <td>${d.active_orders}</td>
+                    <td><span class="badge ${riskBadge}">LEVEL ${d.risk_level}</span></td>
+                    <td><span class="badge ${readinessBadge}">${d.execution_readiness}</span></td>
+                </tr>
+            `;
+        }).join('');
     }
 
     // RENDER HEADER
@@ -672,7 +696,7 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
     function init() {
         setInterval(updateClock, 200);
         setupEventListeners();
-        logTrace('AILEE Finance Unified Runtime V18 Initialized', 'success');
+        logTrace('AILEE Finance Unified Runtime V19 Initialized', 'success');
         logTrace('Loaded 19-Layer Governance Engine Specs & ABI Alignments', 'info');
         stepExecutionCycle();
 
@@ -695,10 +719,6 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
 
             client.onMessage((msg) => {
                 if (!msg || !msg.module) return;
-
-                if (msg.timestamp) {
-                    // Update header/clock if available
-                }
 
                 if (msg.flags) {
                     if (msg.flags.meta_locked) {
@@ -736,6 +756,8 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
                     });
                 } else if (msg.module === 'wnfs' && msg.state) {
                     state.faults.wnfsGap = msg.state.sequence_gaps > 0;
+                } else if (msg.module === 'desk' && msg.state && msg.state.desks) {
+                    renderTradingDesks(msg.state.desks);
                 }
 
                 renderHeader();

@@ -2254,6 +2254,20 @@ TEST(TestFSGatewayUnitValidation) {
     ASSERT_FALSE(gateway.isRunning());
 }
 
+TEST(TestFSGatewayResilienceAndDeskSchema) {
+    AILEE::FsGateway gateway(9010, "/ailee/finance/runtime");
+    ASSERT_TRUE(gateway.startAsync());
+    ASSERT_TRUE(gateway.isRunning());
+
+    for (int i = 0; i < 5; ++i) {
+        gateway.broadcastCycleFrames();
+    }
+
+    gateway.stop();
+    gateway.join();
+    ASSERT_FALSE(gateway.isRunning());
+}
+
 TEST(TestUnifiedRuntimePriorLayerBypassPrevention) {
     AILLE::UnifiedRuntimeState state;
     AILLE::UnifiedRuntimeMetrics metrics;
@@ -2673,6 +2687,7 @@ int main() {
     RUN_TEST(TestUnifiedRuntimeSequenceViolationHardening);
     RUN_TEST(TestUnifiedRuntimePriorLayerBypassPrevention);
     RUN_TEST(TestFSGatewayUnitValidation);
+    RUN_TEST(TestFSGatewayResilienceAndDeskSchema);
 
     std::cout << "\nRunning BTC Module Tests...\n";
 

@@ -10,13 +10,13 @@ import sys
 import json
 import urllib.request
 
-VERSION = "18.0.0"
-FALLBACK_URL = "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v18.0.0/aille_runtime_v18.0.0.tar.gz"
+VERSION = "19.0.0"
+FALLBACK_URL = "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v19.0.0/aille_runtime_v19.0.0.tar.gz"
 
 def main():
     print(f"--- AILLE Framework Update Service v{VERSION} ---")
     print(f"Fallback Payload URL: {FALLBACK_URL}")
-    print("Checking update registry... Registry matches target version 18.0.0.")
+    print("Checking update registry... Registry matches target version 19.0.0.")
     print("No further updates required.")
 
 if __name__ == "__main__":

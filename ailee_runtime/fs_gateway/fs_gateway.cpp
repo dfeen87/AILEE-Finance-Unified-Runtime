@@ -1,6 +1,6 @@
 /*
  * AILEE Framework - FS-Gateway Networking Module Implementation
- * AILEE Finance Unified Runtime Version 18.0.0
+ * AILEE Finance Unified Runtime Version 19.0.0
  *
  * Copyright (c) Don Michael Feeney Jr.
  * Licensed under the MIT License.
@@ -62,7 +62,8 @@ FsGateway::FsGateway(int port, const std::string& path)
             buildGovernanceJSON(cyc, ts),
             buildPipelineJSON(cyc, ts),
             buildAssetJSON(cyc, ts),
-            buildWNFSJSON(cyc, ts)
+            buildWNFSJSON(cyc, ts),
+            buildDeskJSON(cyc, ts)
         };
 
         for (const auto& msg : msgs) {
@@ -172,7 +173,8 @@ void FsGateway::broadcastCycleFrames() {
         buildGovernanceJSON(cyc, ts),
         buildPipelineJSON(cyc, ts),
         buildAssetJSON(cyc, ts),
-        buildWNFSJSON(cyc, ts)
+        buildWNFSJSON(cyc, ts),
+        buildDeskJSON(cyc, ts)
     };
 
     std::lock_guard<std::mutex> lock(impl->mtx);
@@ -355,6 +357,40 @@ std::string FsGateway::buildWNFSJSON(std::uint64_t cycle_id, std::uint64_t times
     json << "    \"degraded_clone_count\": 0\n";
     json << "  },\n";
     json << "  \"events\": [\"WNFS_CHANNEL_SYNCHRONIZED\"],\n";
+    json << "  \"flags\": {\n";
+    json << "    \"stress_override\": " << (stress_override ? "true" : "false") << ",\n";
+    json << "    \"meta_locked\": " << (meta_locked ? "true" : "false") << "\n";
+    json << "  }\n";
+    json << "}";
+    return json.str();
+}
+
+std::string FsGateway::buildDeskJSON(std::uint64_t cycle_id, std::uint64_t timestamp_ns) const {
+    auto anomaly = aillee_spire::get_anomaly_advisory();
+    bool stress_override = anomaly.advisory_active && anomaly.anomaly_severity >= 2;
+    bool meta_locked = anomaly.anomaly_severity >= 3;
+
+    std::ostringstream json;
+    json << "{\n";
+    json << "  \"timestamp\": \"" << formatRFC3339(timestamp_ns) << "\",\n";
+    json << "  \"module\": \"desk\",\n";
+    json << "  \"state\": {\n";
+    json << "    \"cycle_sequence_id\": " << cycle_id << ",\n";
+    json << "    \"desks\": [\n";
+    json << "      { \"desk_id\": \"DESK_EQUITIES\", \"asset_class\": \"EQUITIES\", \"buy_pressure\": 0.65, \"sell_pressure\": 0.35, \"decision_intensity\": 0.82, \"active_orders\": 142, \"risk_level\": " << (meta_locked ? 3 : (stress_override ? 2 : 0)) << ", \"execution_readiness\": \"" << (meta_locked ? "META_LOCKED" : "EXECUTION_READY") << "\" },\n";
+    json << "      { \"desk_id\": \"DESK_FX\", \"asset_class\": \"FX\", \"buy_pressure\": 0.52, \"sell_pressure\": 0.48, \"decision_intensity\": 0.91, \"active_orders\": 98, \"risk_level\": " << (meta_locked ? 3 : (stress_override ? 2 : 0)) << ", \"execution_readiness\": \"" << (meta_locked ? "META_LOCKED" : "EXECUTION_READY") << "\" },\n";
+    json << "      { \"desk_id\": \"DESK_CRYPTO\", \"asset_class\": \"CRYPTO\", \"buy_pressure\": 0.78, \"sell_pressure\": 0.22, \"decision_intensity\": 0.95, \"active_orders\": 215, \"risk_level\": " << (meta_locked ? 3 : (stress_override ? 2 : 1)) << ", \"execution_readiness\": \"" << (meta_locked ? "META_LOCKED" : "EXECUTION_READY") << "\" },\n";
+    json << "      { \"desk_id\": \"DESK_COMMODITIES\", \"asset_class\": \"COMMODITIES\", \"buy_pressure\": 0.45, \"sell_pressure\": 0.55, \"decision_intensity\": 0.74, \"active_orders\": 64, \"risk_level\": " << (meta_locked ? 3 : (stress_override ? 2 : 0)) << ", \"execution_readiness\": \"" << (meta_locked ? "META_LOCKED" : "EXECUTION_READY") << "\" },\n";
+    json << "      { \"desk_id\": \"DESK_DERIVATIVES\", \"asset_class\": \"DERIVATIVES\", \"buy_pressure\": 0.60, \"sell_pressure\": 0.40, \"decision_intensity\": 0.88, \"active_orders\": 110, \"risk_level\": " << (meta_locked ? 3 : (stress_override ? 2 : 0)) << ", \"execution_readiness\": \"" << (meta_locked ? "META_LOCKED" : "EXECUTION_READY") << "\" },\n";
+    json << "      { \"desk_id\": \"DESK_SYNTHETICS\", \"asset_class\": \"SYNTHETICS\", \"buy_pressure\": 0.58, \"sell_pressure\": 0.42, \"decision_intensity\": 0.79, \"active_orders\": 45, \"risk_level\": " << (meta_locked ? 3 : (stress_override ? 2 : 0)) << ", \"execution_readiness\": \"" << (meta_locked ? "META_LOCKED" : "EXECUTION_READY") << "\" }\n";
+    json << "    ]\n";
+    json << "  },\n";
+    json << "  \"metrics\": {\n";
+    json << "    \"total_active_desks\": 6,\n";
+    json << "    \"aggregate_buy_pressure\": 0.597,\n";
+    json << "    \"total_open_orders\": 674\n";
+    json << "  },\n";
+    json << "  \"events\": [\"TRADING_DESK_STREAM_DISPATCHED\"],\n";
     json << "  \"flags\": {\n";
     json << "    \"stress_override\": " << (stress_override ? "true" : "false") << ",\n";
     json << "    \"meta_locked\": " << (meta_locked ? "true" : "false") << "\n";

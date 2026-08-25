@@ -5,6 +5,14 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [19.0.0] - 2026-12-15
+### Added
+- **AILEE Finance Unified WebSocket Runtime Stream (AF-WSX)** and **FS-Gateway Networking Subsystem** (`ailee_runtime/fs_gateway/`).
+- Real-time trading desk buy/sell execution surface stream integration across Equities, FX, Crypto, Commodities, Derivatives, and Synthetics.
+- Live AF-WSX WebSocket client (`wsx_client.js`) driving 60fps WebGL visualizers, dynamic trading desk panels, and cross-asset execution matrix.
+- Standalone C++ gateway daemon `bin/ailee_fs_gateway` listening on port 9002 (`ws://<host>:9002/ailee/finance/runtime`).
+- Schema validation, strict sequence ordering, and connection resilience test coverage.
+
 ## [18.0.0] - 2026-12-01
 ### Added
 - Institutional-grade UI/UX Terminal Dashboard (`ailee_plugins/plugins/dashboard/`) featuring Bloomberg-style multi-panel layout, Cross-Asset Evaluation Matrix (Equities, FX, Crypto, Commodities, Derivatives, Synthetics), 19-layer governance stack monitoring, 60 FPS real-time Canvas visualizers, and Developer Integration Lab.

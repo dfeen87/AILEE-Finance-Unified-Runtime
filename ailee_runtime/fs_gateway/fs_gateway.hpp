@@ -1,10 +1,10 @@
 /*
  * AILEE Framework - FS-Gateway Networking Module (Layer 18 Live Data Layer)
- * AILEE Finance Unified Runtime Version 18.0.0
+ * AILEE Finance Unified Runtime Version 19.0.0
  *
  * Exposes WebSocket endpoint: ws://<host>:9002/ailee/finance/runtime
  * Streams deterministic AF-WSX JSON messages for runtime, governance,
- * pipeline, asset, and wnfs modules.
+ * pipeline, asset, wnfs, and trading desk modules.
  *
  * Copyright (c) Don Michael Feeney Jr.
  * Licensed under the MIT License.
@@ -33,9 +33,20 @@ namespace websocketpp {
 
 namespace AILEE {
 
-constexpr const char* FS_GATEWAY_VERSION = "18.0.0";
+constexpr const char* FS_GATEWAY_VERSION = "19.0.0";
 constexpr const char* FS_GATEWAY_DEFAULT_PATH = "/ailee/finance/runtime";
 constexpr int FS_GATEWAY_DEFAULT_PORT = 9002;
+
+struct TradingDeskState {
+    const char* desk_id;
+    const char* asset_class;
+    float buy_pressure;
+    float sell_pressure;
+    float decision_intensity;
+    uint32_t active_orders;
+    uint32_t risk_level;
+    const char* execution_readiness;
+};
 
 class FsGateway {
 public:
@@ -70,6 +81,7 @@ private:
     std::string buildPipelineJSON(std::uint64_t cycle_id, std::uint64_t timestamp_ns) const;
     std::string buildAssetJSON(std::uint64_t cycle_id, std::uint64_t timestamp_ns) const;
     std::string buildWNFSJSON(std::uint64_t cycle_id, std::uint64_t timestamp_ns) const;
+    std::string buildDeskJSON(std::uint64_t cycle_id, std::uint64_t timestamp_ns) const;
 
     int port_;
     std::string path_;
