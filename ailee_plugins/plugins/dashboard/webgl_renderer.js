@@ -63,10 +63,21 @@
             ctx.stroke();
         }
 
+        const cfg = window.bullishnessSelector ? window.bullishnessSelector.getVisualConfig() : { mode: 'STANDARD', fastPathWindowColor: 'rgba(0, 229, 255, 0.15)', accentColor: '#00e5ff' };
         const maxLatency = 2000.0; // ns
-        const drawLine = (data, color, label) => {
+
+        // Highlight fast-path bullish windows (< 100 ns p50 latency)
+        for (let i = 0; i < history.latencyP50.length; i++) {
+            if (history.latencyP50[i] < 100.0) {
+                const x = (i / (history.latencyP50.length - 1)) * w;
+                ctx.fillStyle = cfg.fastPathWindowColor;
+                ctx.fillRect(x - 2, 0, 4, h);
+            }
+        }
+
+        const drawLine = (data, color, label, lineWidth = 2) => {
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = lineWidth;
             ctx.beginPath();
             for (let i = 0; i < data.length; i++) {
                 const x = (i / (data.length - 1)) * w;
@@ -80,11 +91,13 @@
 
         drawLine(history.latencyP999, '#ef4444', 'p99.9');
         drawLine(history.latencyP99, '#f59e0b', 'p99');
-        drawLine(history.latencyP50, '#00e5ff', 'p50');
+        const p50Color = cfg.accentColor || '#00e5ff';
+        const p50Width = cfg.mode === 'HYPER' ? 3 : 2;
+        drawLine(history.latencyP50, p50Color, 'p50', p50Width);
 
         // Legend overlay
         ctx.font = '10px "SF Mono", monospace';
-        ctx.fillStyle = '#00e5ff';
+        ctx.fillStyle = p50Color;
         ctx.fillText(`p50: ${history.latencyP50[history.latencyP50.length - 1].toFixed(1)} ns`, 10, 16);
         ctx.fillStyle = '#f59e0b';
         ctx.fillText(`p99: ${history.latencyP99[history.latencyP99.length - 1].toFixed(0)} ns`, 110, 16);
@@ -103,13 +116,17 @@
         ctx.fillStyle = '#020610';
         ctx.fillRect(0, 0, w, h);
 
+        const cfg = window.bullishnessSelector ? window.bullishnessSelector.getVisualConfig() : { mode: 'STANDARD', accentColor: '#10b981' };
         const data = history.throughput;
         const minVal = 800000;
         const maxVal = 2000000;
 
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2;
+        const strokeColor = cfg.mode === 'HYPER' ? '#00ff88' : (cfg.mode === 'CONSERVATIVE' ? '#10b981' : '#10b981');
+        const fillColor = cfg.mode === 'HYPER' ? 'rgba(0, 255, 136, 0.25)' : 'rgba(16, 185, 129, 0.15)';
+
+        ctx.fillStyle = fillColor;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = cfg.mode === 'HYPER' ? 3 : 2;
 
         ctx.beginPath();
         ctx.moveTo(0, h);

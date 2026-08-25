@@ -215,6 +215,10 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
         visTabButtons: document.querySelectorAll('.panel-tabs .tab-btn[data-vistab]'),
         visCanvases: document.querySelectorAll('.vis-canvas'),
 
+        // Bullishness Selector UI
+        bullishnessModeSelect: document.getElementById('bullishnessModeSelect'),
+        bullishnessModeBadge: document.getElementById('bullishnessModeBadge'),
+
         // Trading Desks
         deskMatrixBody: document.getElementById('deskMatrixBody'),
 
@@ -317,19 +321,37 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
         }
     }
 
+    // UPDATE BULLISHNESS SELECTOR BADGE
+    function updateBullishnessBadge() {
+        if (!window.bullishnessSelector) return;
+        const cfg = window.bullishnessSelector.getVisualConfig();
+        if (dom.bullishnessModeBadge) {
+            dom.bullishnessModeBadge.className = `badge ${cfg.badgeClass}`;
+            dom.bullishnessModeBadge.textContent = cfg.badgeText;
+        }
+        if (dom.bullishnessModeSelect) {
+            dom.bullishnessModeSelect.value = cfg.mode;
+        }
+    }
+
     // RENDER TRADING DESK EXECUTION MATRIX
     function renderTradingDesks(desks) {
         if (!dom.deskMatrixBody || !desks) return;
-        dom.deskMatrixBody.innerHTML = desks.map(d => {
+        dom.deskMatrixBody.innerHTML = desks.map(rawDesk => {
+            const d = window.bullishnessSelector ? window.bullishnessSelector.transformDeskForDisplay(rawDesk) : rawDesk;
             let readinessBadge = d.execution_readiness === 'EXECUTION_READY' ? 'badge-ok' : 'badge-stress';
             let riskBadge = d.risk_level === 0 ? 'badge-ok' : (d.risk_level === 1 ? 'badge-advisory' : 'badge-stress');
+            const buyPct = ((d.displayBuyPressure !== undefined ? d.displayBuyPressure : d.buy_pressure) * 100).toFixed(1);
+            const intensityPct = ((d.displayIntensity !== undefined ? d.displayIntensity : d.decision_intensity) * 100).toFixed(1);
+            const customStyle = d.deskGlowStyle || '';
+
             return `
-                <tr>
+                <tr style="${customStyle}">
                     <td class="sym-col">${d.desk_id}</td>
                     <td class="class-col">${d.asset_class}</td>
-                    <td style="color:var(--color-ok);">${(d.buy_pressure * 100).toFixed(1)}%</td>
-                    <td style="color:var(--color-stress);">${(d.sell_pressure * 100).toFixed(1)}%</td>
-                    <td>${(d.decision_intensity * 100).toFixed(1)}%</td>
+                    <td style="color:var(--accent-green); font-weight:700;">${buyPct}%</td>
+                    <td style="color:var(--accent-crimson);">${(d.sell_pressure * 100).toFixed(1)}%</td>
+                    <td style="font-weight:700;">${intensityPct}%</td>
                     <td>${d.active_orders}</td>
                     <td><span class="badge ${riskBadge}">LEVEL ${d.risk_level}</span></td>
                     <td><span class="badge ${readinessBadge}">${d.execution_readiness}</span></td>
@@ -388,18 +410,22 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
             return true;
         });
 
-        dom.assetMatrixBody.innerHTML = filtered.map(a => {
+        dom.assetMatrixBody.innerHTML = filtered.map(rawAsset => {
+            const a = window.bullishnessSelector ? window.bullishnessSelector.transformAssetForDisplay(rawAsset) : rawAsset;
             let triggerBadge = 'badge-nominal';
             if (a.trigger === 'ADVISORY') triggerBadge = 'badge-advisory';
             if (a.trigger === 'STRESS') triggerBadge = 'badge-stress';
+            const rowClass = a.rowClass || '';
+            const volVal = a.displayVol !== undefined ? a.displayVol : a.vol;
+            const depthVal = a.displayDepth !== undefined ? a.displayDepth : a.depth;
 
             return `
-                <tr>
+                <tr class="${rowClass}">
                     <td class="sym-col">${a.symbol}</td>
                     <td class="class-col">${a.class}</td>
                     <td>$${a.price.toFixed(a.price < 10 ? 4 : 2)}</td>
-                    <td>${a.vol.toFixed(1)}%</td>
-                    <td>$${a.depth.toFixed(1)}M</td>
+                    <td>${volVal.toFixed(1)}%</td>
+                    <td>$${depthVal.toFixed(1)}M</td>
                     <td><span class="badge badge-ok" style="font-size:8px;">${a.trust}</span></td>
                     <td>${a.residual.toFixed(3)}</td>
                     <td><span class="badge ${triggerBadge}">${a.trigger}</span></td>
@@ -428,6 +454,8 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
     function renderLayerStack() {
         if (!dom.layerStackGrid) return;
 
+        const cfg = window.bullishnessSelector ? window.bullishnessSelector.getVisualConfig() : { mode: 'STANDARD', upwardMomentumLayers: [] };
+
         dom.layerStackGrid.innerHTML = state.layers.map(l => {
             let cardClass = 'layer-card active';
             let dotClass = 'layer-status-dot';
@@ -444,6 +472,15 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
                     cardClass = 'layer-card meta-locked';
                     dotClass = 'layer-status-dot locked';
                     statusText = 'META_LOCKED';
+                }
+            }
+
+            // Apply Bullishness Layer Visual Emphasis
+            if (cfg.upwardMomentumLayers && cfg.upwardMomentumLayers.includes(l.num)) {
+                if (cfg.mode === 'CONSERVATIVE') {
+                    cardClass += ' upward-momentum-conservative';
+                } else if (cfg.mode === 'HYPER') {
+                    cardClass += ' upward-momentum-hyper';
                 }
             }
 
@@ -546,6 +583,25 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
 
     // SETUP EVENT LISTENERS
     function setupEventListeners() {
+        // Bullishness Selector Mode Switcher
+        if (dom.bullishnessModeSelect) {
+            dom.bullishnessModeSelect.addEventListener('change', (e) => {
+                if (window.bullishnessSelector) {
+                    window.bullishnessSelector.setMode(e.target.value);
+                    logTrace(`Bullishness Analysis Lens switched to ${e.target.value}`, 'info');
+                }
+            });
+        }
+
+        if (window.bullishnessSelector) {
+            window.bullishnessSelector.onModeChange((mode) => {
+                updateBullishnessBadge();
+                renderAssetMatrix();
+                renderLayerStack();
+                renderSubsystemHealth();
+            });
+        }
+
         // Asset Filters
         dom.assetClassFilterGroup.addEventListener('click', (e) => {
             if (e.target.classList.contains('filter-btn')) {
@@ -696,6 +752,7 @@ static_assert(sizeof(StressOverrideRules) == 64, "StressOverrideRules must be ex
     function init() {
         setInterval(updateClock, 200);
         setupEventListeners();
+        updateBullishnessBadge();
         logTrace('AILEE Finance Unified Runtime V19 Initialized', 'success');
         logTrace('Loaded 19-Layer Governance Engine Specs & ABI Alignments', 'info');
         stepExecutionCycle();

@@ -45,6 +45,16 @@
             </div>
 
             <div class="header-controls">
+                <div class="bullishness-selector-container">
+                    <span class="bullishness-label">ANALYSIS LENS:</span>
+                    <select id="bullishnessModeSelect" class="bullishness-select">
+                        <option value="STANDARD">Standard</option>
+                        <option value="CONSERVATIVE">Conservative</option>
+                        <option value="HYPER">Hyper</option>
+                    </select>
+                    <span id="bullishnessModeBadge" class="badge badge-bullish-standard">STANDARD LENS</span>
+                </div>
+
                 <button id="streamToggleBtn" class="btn btn-primary btn-sm">STREAM: LIVE WS</button>
 
                 <button id="sandboxTriggerBtn" class="btn btn-warning btn-sm">DEV LAB</button>
@@ -360,6 +370,7 @@ static_assert(sizeof(UnifiedRuntimeState) == 64, "UnifiedRuntimeState must be ex
     </div>
 
     <!-- Scripts -->
+    <script src="js/components/bullishness_selector.js"></script>
     <script src="webgl_renderer.js"></script>
     <script src="js/wsx_client.js"></script>
     <script src="app.js"></script>
