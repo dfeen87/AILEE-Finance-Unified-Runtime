@@ -210,7 +210,11 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
     decision.bullish_sell_ceiling_factor = cfg.bullish_sell_ceiling_factor;
 
     if (bullish_active && decision.level != 3) {
-        raw_allowed *= cfg.bullish_sell_ceiling_factor;
+        float factor = cfg.bullish_sell_ceiling_factor;
+        if (cfg.bullishness_mode == "CONTRARIAN" || cfg.bullishness_mode == "HYPER") {
+            factor = cfg.contrarian_sell_ceiling_factor;
+        }
+        raw_allowed *= factor;
     }
 
     // Grace Layer Volatility Adjustment
