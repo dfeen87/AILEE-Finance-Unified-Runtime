@@ -245,6 +245,120 @@ html, body {
     box-shadow: var(--glow-green);
 }
 
+/* BULLISHNESS SELECTOR HEADER CONTROLS & BADGES */
+.bullishness-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(4, 9, 20, 0.9);
+    border: 1px solid var(--border-bright);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.bullishness-label {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.bullishness-select {
+    background: var(--bg-input);
+    border: 1px solid var(--border-bright);
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.bullishness-select:hover {
+    border-color: var(--accent-cyan);
+}
+
+.badge-bullish-standard {
+    background: rgba(0, 229, 255, 0.12);
+    color: var(--accent-cyan);
+    border: 1px solid var(--accent-cyan);
+}
+
+.badge-bullish-conservative {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.badge-bullish-hyper {
+    background: rgba(0, 255, 136, 0.25);
+    color: #00ff88;
+    border: 1px solid #00ff88;
+    box-shadow: 0 0 14px rgba(0, 255, 136, 0.65);
+    animation: hyperBadgePulse 1.8s infinite alternate;
+}
+
+@keyframes hyperBadgePulse {
+    0% { box-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
+    100% { box-shadow: 0 0 18px rgba(0, 255, 136, 0.9); }
+}
+
+/* CROSS-ASSET MATRIX VISUAL OVERLAYS */
+.data-table tbody tr.row-bullish-conservative {
+    background: rgba(16, 185, 129, 0.08);
+    border-left: 3px solid #10b981;
+}
+
+.data-table tbody tr.row-bullish-hyper {
+    background: rgba(0, 255, 136, 0.14);
+    border-left: 4px solid #00ff88;
+    box-shadow: inset 0 0 10px rgba(0, 255, 136, 0.15);
+}
+
+.data-table tbody tr.momentum-corridor {
+    position: relative;
+    animation: momentumGlow 2s infinite alternate;
+}
+
+@keyframes momentumGlow {
+    0% { background: rgba(0, 255, 136, 0.10); }
+    100% { background: rgba(0, 255, 136, 0.22); }
+}
+
+.data-table tbody tr.row-softened-bearish {
+    opacity: 0.65;
+    filter: saturate(0.5);
+}
+
+/* GOVERNANCE STACK UPWARD MOMENTUM HIGHLIGHTS */
+.layer-card.upward-momentum-conservative {
+    border-color: #10b981 !important;
+    background: rgba(16, 185, 129, 0.12) !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+.layer-card.upward-momentum-hyper {
+    border-color: #00ff88 !important;
+    background: rgba(0, 255, 136, 0.22) !important;
+    box-shadow: 0 0 16px rgba(0, 255, 136, 0.6);
+    animation: layerHyperPulse 1.5s infinite alternate;
+}
+
+@keyframes layerHyperPulse {
+    0% { box-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
+    100% { box-shadow: 0 0 20px rgba(0, 255, 136, 0.85); }
+}
+
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 10px rgba(0, 255, 136, 0.4); }
+    100% { box-shadow: 0 0 22px rgba(0, 255, 136, 0.85); }
+}
+
 .btn-xs {
     padding: 2px 6px;
     font-size: 9px;
