@@ -3,1174 +3,334 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AILLEE Finance Unified Runtime Dashboard</title>
-
-    <!-- Neon Quant Theme -->
-    <style>
-        :root {
-            --bg-main: #020617;
-            --bg-panel: #0b1120;
-            --bg-panel-soft: #020617;
-            --border-soft: #1f2937;
-            --accent-cyan: #22d3ee;
-            --accent-purple: #a855f7;
-            --accent-gold: #facc15;
-            --accent-red: #f97373;
-            --accent-green: #4ade80;
-            --text-main: #e5e7eb;
-            --text-muted: #9ca3af;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background: radial-gradient(circle at top, #0f172a 0, #020617 45%, #000000 100%);
-            color: var(--text-main);
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .dashboard-root {
-            display: grid;
-            grid-template-columns: 2.2fr 1.2fr;
-            grid-template-rows: auto 1fr auto;
-            grid-template-areas:
-                "header header"
-                "visual side"
-                "ticker side";
-            height: 100vh;
-            padding: 12px 16px;
-            gap: 10px;
-        }
-
-        /* Header */
-        header.top-overlay {
-            grid-area: header;
-            padding: 8px 12px;
-            background: linear-gradient(to right, rgba(15,23,42,0.9), rgba(24,24,27,0.9));
-            border-radius: 8px;
-            border: 1px solid rgba(148,163,184,0.35);
-            box-shadow: 0 0 24px rgba(56,189,248,0.25);
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        header.top-overlay h1 {
-            font-size: 1.1rem;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--accent-cyan);
-        }
-
-        header.top-overlay .subtitle {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        /* Visual Area */
-        .visual-area {
-            grid-area: visual;
-            position: relative;
-            background: radial-gradient(circle at center, #0f172a 0, #020617 55%, #000000 100%);
-            border-radius: 10px;
-            border: 1px solid rgba(31,41,55,0.9);
-            box-shadow: 0 0 40px rgba(59,130,246,0.35);
-            overflow: hidden;
-        }
-
-        #ailleCanvas {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at center, rgba(34,211,238,0.08), transparent 60%);
-        }
-
-        #textCanvas {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-        /* Side Panel */
-        .side-panel {
-            grid-area: side;
-            display: grid;
-            grid-template-rows: 1.2fr 1.2fr 1.4fr;
-            gap: 8px;
-        }
-
-        .panel {
-            background: var(--bg-panel);
-            border-radius: 8px;
-            border: 1px solid var(--border-soft);
-            padding: 8px 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            box-shadow: 0 0 18px rgba(15,23,42,0.8);
-        }
-
-        .panel-title {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: var(--text-muted);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .panel-title span.accent {
-            color: var(--accent-purple);
-        }
-
-        /* Asset Cards */
-        .asset-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-        }
-
-        .asset-card {
-            background: var(--bg-panel-soft);
-            border-radius: 6px;
-            border: 1px solid rgba(55,65,81,0.8);
-            padding: 6px;
-            font-size: 0.75rem;
-        }
-
-        .asset-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-
-        .asset-symbol {
-            font-weight: 600;
-            color: var(--accent-cyan);
-        }
-
-        .asset-status {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-        }
-
-        .status-ok { color: var(--accent-green); }
-        .status-warn { color: var(--accent-gold); }
-        .status-fault { color: var(--accent-red); }
-
-        .asset-metrics {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.7rem;
-            color: var(--text-muted);
-        }
-
-        /* Metrics Panel */
-        .metrics-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.75rem;
-        }
-
-        .metric-label {
-            color: var(--text-muted);
-        }
-
-        .metric-value {
-            color: var(--accent-cyan);
-        }
-
-        .metric-bar {
-            margin-top: 4px;
-            height: 4px;
-            border-radius: 999px;
-            background: #020617;
-            overflow: hidden;
-        }
-
-        .metric-bar-fill {
-            height: 100%;
-            border-radius: 999px;
-            background: linear-gradient(to right, var(--accent-purple), var(--accent-cyan));
-            width: 0%;
-            transition: width 0.25s ease-out;
-        }
-
-        /* System Health */
-        .health-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.75rem;
-        }
-
-        .health-label {
-            color: var(--text-muted);
-        }
-
-        .health-value {
-            color: var(--accent-gold);
-        }
-
-        .health-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: var(--accent-red);
-        }
-
-        .health-ok { background: var(--accent-green); }
-        .health-warn { background: var(--accent-gold); }
-        .health-fault { background: var(--accent-red); }
-
-        /* Terminal + Command Console */
-        #terminal {
-            flex: 1;
-            background: #020617;
-            border-radius: 6px;
-            border: 1px solid #1f2937;
-            padding: 6px;
-            font-family: monospace;
-            font-size: 11px;
-            color: #e5e7eb;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
-
-        .log-heartbeat { color: #7dd3fc; }
-        .log-decision  { color: #a3e635; }
-        .log-error     { color: #f87171; }
-        .log-info      { color: #facc15; }
-
-        .console-row {
-            display: flex;
-            gap: 6px;
-            margin-top: 6px;
-        }
-
-        #console-input {
-            flex: 1;
-            background: #020617;
-            border-radius: 4px;
-            border: 1px solid #374151;
-            padding: 4px 6px;
-            font-family: monospace;
-            font-size: 11px;
-            color: #e5e7eb;
-        }
-
-        #console-input:focus {
-            outline: none;
-            border-color: var(--accent-cyan);
-        }
-
-        .console-button {
-            padding: 4px 8px;
-            font-size: 11px;
-            border-radius: 4px;
-            border: 1px solid #4b5563;
-            background: #0f172a;
-            color: var(--accent-cyan);
-            cursor: pointer;
-        }
-
-        .console-button:hover {
-            border-color: var(--accent-cyan);
-            background: #020617;
-        }
-
-        /* Ticker */
-        footer.bottom-banner {
-            grid-area: ticker;
-            background: linear-gradient(to right, rgba(24,24,27,0.95), rgba(15,23,42,0.95));
-            border-radius: 8px;
-            border: 1px solid rgba(55,65,81,0.9);
-            padding: 6px 10px;
-            font-size: 0.8rem;
-            display: flex;
-            align-items: center;
-            overflow: hidden;
-        }
-
-        .ticker-strip {
-            display: inline-flex;
-            gap: 18px;
-            white-space: nowrap;
-            animation: ticker-scroll 40s linear infinite;
-        }
-
-        .ticker-item {
-            color: var(--text-muted);
-        }
-
-        .ticker-symbol {
-            color: var(--accent-cyan);
-            font-weight: 600;
-        }
-
-        .ticker-value {
-            color: var(--accent-gold);
-        }
-
-        .ticker-status-ok { color: var(--accent-green); }
-        .ticker-status-warn { color: var(--accent-gold); }
-        .ticker-status-fault { color: var(--accent-red); }
-
-        .gold-text {
-            color: var(--accent-gold);
-            font-weight: 600;
-        }
-
-        @keyframes ticker-scroll {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
-        }
-
-        /* Decision Graph */
-        #graphCanvas {
-            width: 100%;
-            height: 80px;
-            background: #020617;
-            border-radius: 6px;
-            border: 1px solid #1f2937;
-        }
-    </style>
+    <title>AILEE Finance Unified Runtime V17 — Institutional Terminal</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+<body class="theme-dark">
+    <!-- Main Institutional Layout Container -->
+    <div class="terminal-container">
 
-<body>
-<div class="dashboard-root">
-    <!-- Header -->
-    <header class="top-overlay">
-        <h1>AILLEE Finance Unified Runtime — Multi‑Asset Advisory Intelligence</h1>
-        <p class="subtitle">
-            Deterministic • Allocator‑Free • ABI‑Stable • Real‑Time Telemetry • REST + WebSocket • Metrics‑Driven
-        </p>
-    </header>
-
-    <!-- Visual Area -->
-    <section class="visual-area">
-        <canvas id="ailleCanvas"></canvas>
-        <canvas id="textCanvas"></canvas>
-    </section>
-
-    <!-- Side Panel -->
-    <aside class="side-panel">
-        <!-- Asset Cards -->
-        <div class="panel">
-            <div class="panel-title">
-                <span>Multi‑Asset Advisory Status</span>
-                <span class="accent">BTC • ETH • OIL • GOLD • SILVER • COPPER • NATGAS • PLATINUM • USD‑FOREX</span>
-            </div>
-            <div class="asset-grid" id="assetGrid">
-                <!-- Cards populated by JS -->
-            </div>
-        </div>
-
-        <!-- Metrics + Decision Graph -->
-        <div class="panel">
-            <div class="panel-title">
-                <span>Engine Metrics & Decision Flow</span>
-                <span class="accent">Consensus • Confidence • Fallback</span>
+        <!-- TOP-LEVEL UNIFIED RUNTIME DASHBOARD / HEADER -->
+        <header class="terminal-header">
+            <div class="header-brand">
+                <div class="brand-title">AILEE FINANCE <span class="v-tag">V17.0.0</span></div>
+                <div class="brand-subtitle">UNIFIED RUNTIME • 19-LAYER DETERMINISTIC GOVERNANCE ENGINE</div>
             </div>
 
-            <div class="metrics-row">
-                <span class="metric-label">Avg Confidence</span>
-                <span class="metric-value" id="metricConfidence">0.000</span>
-            </div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill" id="metricConfidenceBar"></div>
-            </div>
-
-            <div class="metrics-row">
-                <span class="metric-label">Consensus Strength</span>
-                <span class="metric-value" id="metricConsensus">0</span>
-            </div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill" id="metricConsensusBar"></div>
-            </div>
-
-            <div class="metrics-row">
-                <span class="metric-label">Fallback Rate</span>
-                <span class="metric-value" id="metricFallback">0%</span>
-            </div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill" id="metricFallbackBar"></div>
-            </div>
-
-            <canvas id="graphCanvas"></canvas>
-        </div>
-
-        <!-- Terminal + Command Console + Health -->
-        <div class="panel">
-            <div class="panel-title">
-                <span>Runtime Console & System Health</span>
-                <span class="accent">WebSocket • REST • Hotpath</span>
-            </div>
-
-            <div class="health-row">
-                <span class="health-label">WebSocket</span>
-                <span class="health-value" id="healthWsText">Disconnected</span>
-                <span class="health-indicator" id="healthWs"></span>
-            </div>
-            <div class="health-row">
-                <span class="health-label">Server</span>
-                <span class="health-value" id="healthServerText">Unknown</span>
-                <span class="health-indicator health-warn" id="healthServer"></span>
-            </div>
-            <div class="health-row">
-                <span class="health-label">Stabilizer Guard</span>
-                <span class="health-value" id="stabilizerStatusText">Inactive (1.00x)</span>
-                <span class="health-indicator health-ok" id="stabilizerStatus"></span>
-            </div>
-
-            <div id="terminal"></div>
-
-            <div class="console-row">
-                <input id="console-input" type="text" placeholder="Command (e.g. hotpath, ping, status)">
-                <button class="console-button" id="console-send">Send</button>
-                <button class="console-button" id="console-download">Logs</button>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Ticker -->
-    <footer class="bottom-banner">
-        <div class="ticker-strip" id="tickerStrip">
-            <!-- Populated by JS -->
-        </div>
-    </footer>
-</div>
-
-<script>
-    // ---------- MODE TOGGLE ----------
-    // true = mock data (for Render / demo)
-    // false = live WebSocket from unified server
-    let MOCK_MODE = true;
-
-    // ---------- Terminal Logging + Persistent Storage ----------
-    const LOG_STORAGE_KEY = "aille_dashboard_logs_v1";
-    let logs = [];
-
-    function loadStoredLogs() {
-        try {
-            const stored = localStorage.getItem(LOG_STORAGE_KEY);
-            if (stored) {
-                logs = JSON.parse(stored);
-                logs.forEach(entry => appendLog(entry.message, entry.type, false));
-            }
-        } catch {}
-    }
-
-    function storeLogs() {
-        try {
-            localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs.slice(-500)));
-        } catch {}
-    }
-
-    function appendLog(message, type = "info", store = true) {
-        const terminal = document.getElementById("terminal");
-        const entry = document.createElement("div");
-        entry.className = "log-" + type;
-        entry.textContent = message;
-        terminal.appendChild(entry);
-        terminal.scrollTop = terminal.scrollHeight;
-
-        if (store) {
-            logs.push({ message, type, ts: Date.now() });
-            storeLogs();
-        }
-    }
-
-    // ---------- Assets + State ----------
-    const assets = [
-        "BTC","ETH","OIL","GOLD","SILVER","COPPER","NATGAS","PLATINUM","USD‑FOREX"
-    ];
-
-    const assetState = {};
-    assets.forEach(sym => {
-        assetState[sym] = {
-            status: "OK",
-            confidence: 0.0,
-            lastValue: 0.0
-        };
-    });
-
-    // ---------- WebSocket with Auto-Reconnect ----------
-    let ws = null;
-    let wsConnected = false;
-    let reconnectDelay = 2000;
-
-    function setWsHealth(connected) {
-        const indicator = document.getElementById("healthWs");
-        const text = document.getElementById("healthWsText");
-        if (connected) {
-            indicator.className = "health-indicator health-ok";
-            text.textContent = "Connected";
-        } else {
-            indicator.className = "health-indicator health-fault";
-            text.textContent = "Disconnected";
-        }
-    }
-
-    function connectWebSocket() {
-        try {
-            ws = new WebSocket("ws://localhost:8081/stream");
-        } catch {
-            appendLog("WebSocket init failed", "error");
-            setWsHealth(false);
-            scheduleReconnect();
-            return;
-        }
-
-        ws.onopen = () => {
-            wsConnected = true;
-            reconnectDelay = 2000;
-            setWsHealth(true);
-            appendLog("Connected to AILLEE Unified Runtime WebSocket", "info");
-        };
-
-        ws.onmessage = (event) => {
-            handleWsMessage(event.data);
-        };
-
-        ws.onerror = () => {
-            appendLog("WebSocket error — check unified server", "error");
-        };
-
-        ws.onclose = () => {
-            wsConnected = false;
-            setWsHealth(false);
-            appendLog("WebSocket disconnected", "error");
-            scheduleReconnect();
-        };
-    }
-
-    function scheduleReconnect() {
-        if (MOCK_MODE) return; // in mock mode we don't reconnect
-        setTimeout(() => {
-            appendLog("Attempting WebSocket reconnect...", "info");
-            reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
-            connectWebSocket();
-        }, reconnectDelay);
-    }
-
-    // ---------- Decision Handling + Metrics + Graph ----------
-    const decisions = [];
-    let fallbackCount = 0;
-
-    function handleWsMessage(raw) {
-        try {
-            const data = JSON.parse(raw);
-            const decisionObj = data.decision || data;
-            const finalVal = decisionObj.final_value !== undefined ? decisionObj.final_value : (data.final_value || 0.0);
-            const confidenceVal = decisionObj.confidence !== undefined ? decisionObj.confidence : (data.confidence || 0.0);
-            const fallbackUsedVal = decisionObj.fallback_used !== undefined ? decisionObj.fallback_used : (data.fallback_used || false);
-
-            if (finalVal !== undefined) {
-                // Keep uniform format
-                const normalizedDecision = {
-                    status: decisionObj.status !== undefined ? decisionObj.status : 1,
-                    final_value: finalVal,
-                    confidence: confidenceVal,
-                    fallback_used: fallbackUsedVal,
-                    models_agreed: decisionObj.models_agreed !== undefined ? decisionObj.models_agreed : 2,
-                    num_contributing_models: decisionObj.num_contributing_models !== undefined ? decisionObj.num_contributing_models : 3,
-                    reasoning: decisionObj.reasoning || "Engine cycle update"
-                };
-
-                decisions.push(normalizedDecision);
-                if (decisions.length > 200) decisions.shift();
-
-                if (fallbackUsedVal) fallbackCount++;
-
-                appendLog(
-                    `Decision → value=${finalVal.toFixed(4)}, conf=${confidenceVal.toFixed(3)}, models_agreed=${normalizedDecision.models_agreed}`,
-                    "decision"
-                );
-
-                updateMetrics();
-                updateGraph();
-                updateAssetsFromDecision(data);
-            } else {
-                appendLog(raw, "info");
-            }
-        } catch {
-            appendLog(raw, "info");
-        }
-    }
-
-    function updateMetrics() {
-        if (decisions.length === 0) return;
-
-        let sumConf = 0;
-        let sumConsensus = 0;
-        decisions.forEach(d => {
-            sumConf += d.confidence || 0;
-            sumConsensus += d.models_agreed || 0;
-        });
-
-        const avgConf = sumConf / decisions.length;
-        const avgConsensus = sumConsensus / decisions.length;
-        const fallbackRate = (fallbackCount / decisions.length) * 100;
-
-        document.getElementById("metricConfidence").textContent = avgConf.toFixed(3);
-        document.getElementById("metricConsensus").textContent = avgConsensus.toFixed(1);
-        document.getElementById("metricFallback").textContent = `${fallbackRate.toFixed(1)}%`;
-
-        document.getElementById("metricConfidenceBar").style.width = `${Math.min(avgConf * 100, 100)}%`;
-        document.getElementById("metricConsensusBar").style.width = `${Math.min((avgConsensus / 8) * 100, 100)}%`;
-        document.getElementById("metricFallbackBar").style.width = `${Math.min(fallbackRate, 100)}%`;
-    }
-
-    function updateGraph() {
-        const canvas = document.getElementById("graphCanvas");
-        const ctx = canvas.getContext("2d");
-        const w = canvas.width = canvas.clientWidth;
-        const h = canvas.height = canvas.clientHeight;
-
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = "#020617";
-        ctx.fillRect(0, 0, w, h);
-
-        if (decisions.length < 2) return;
-
-        const maxAbs = Math.max(...decisions.map(d => Math.abs(d.final_value || 0)), 0.01);
-        ctx.strokeStyle = "#22d3ee";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-
-        decisions.forEach((d, i) => {
-            const x = (i / (decisions.length - 1)) * w;
-            const norm = (d.final_value || 0) / maxAbs;
-            const y = h / 2 - norm * (h / 2 - 4);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-
-        ctx.stroke();
-
-        ctx.strokeStyle = "rgba(148,163,184,0.4)";
-        ctx.beginPath();
-        ctx.moveTo(0, h / 2);
-        ctx.lineTo(w, h / 2);
-        ctx.stroke();
-    }
-
-    // ---------- Asset Cards + Ticker ----------
-    function initAssetCards() {
-        const grid = document.getElementById("assetGrid");
-        assets.forEach(sym => {
-            const card = document.createElement("div");
-            card.className = "asset-card";
-            card.id = `asset-${sym}`;
-
-            card.innerHTML = `
-                <div class="asset-header">
-                    <span class="asset-symbol">${sym}</span>
-                    <span class="asset-status status-ok" id="asset-status-${sym}">OK</span>
+            <div class="header-status-bar">
+                <div class="status-metric">
+                    <span class="metric-label">RUNTIME MODE</span>
+                    <span id="runtimeModeBadge" class="badge badge-nominal">NOMINAL_EXECUTION</span>
                 </div>
-                <div class="asset-metrics">
-                    <span>Conf: <span id="asset-conf-${sym}">0.000</span></span>
-                    <span>Val: <span id="asset-val-${sym}">0.0000</span></span>
+                <div class="status-metric">
+                    <span class="metric-label">FAIL-CLOSED GATE</span>
+                    <span id="failClosedBadge" class="badge badge-ok">FAIL_CLOSED_READY</span>
                 </div>
-            `;
-            grid.appendChild(card);
-        });
+                <div class="status-metric">
+                    <span class="metric-label">META-GOVERNANCE</span>
+                    <span id="metaGovBadge" class="badge badge-ok">EXECUTION_READY</span>
+                </div>
+                <div class="status-metric">
+                    <span class="metric-label">LATENCY (P50 / P99)</span>
+                    <span id="headerLatencyVal" class="metric-val">84.7 ns / 890 ns</span>
+                </div>
+                <div class="status-metric">
+                    <span class="metric-label">THROUGHPUT</span>
+                    <span id="headerThroughputVal" class="metric-val">1,592,400 ops/s</span>
+                </div>
+                <div class="status-metric">
+                    <span class="metric-label">ALLOCATION SCALE</span>
+                    <span id="headerAllocVal" class="metric-val">1.000x</span>
+                </div>
+            </div>
 
-        updateTicker();
-    }
+            <div class="header-controls">
+                <button id="streamToggleBtn" class="btn btn-primary btn-sm">STREAM: LIVE WS</button>
 
-    function updateAssetsFromDecision(d) {
-        const decisionObj = d.decision || d;
-        const advisoriesObj = d.advisories || {};
-        const fallbackUsed = decisionObj.fallback_used !== undefined ? decisionObj.fallback_used : (d.fallback_used || false);
+                <button id="sandboxTriggerBtn" class="btn btn-warning btn-sm">DEV LAB</button>
+                <div class="clock-display" id="systemClock">00:00:00.000 UTC</div>
+            </div>
+        </header>
 
-        assets.forEach(sym => {
-            const symKey = sym === "USD‑FOREX" ? "USD_FOREX" : sym;
-            const adv = advisoriesObj[symKey] || {};
+        <!-- MAIN TERMINAL CONTENT GRID -->
+        <main class="terminal-grid">
 
-            const conf = adv.recommended_weight !== undefined ? adv.recommended_weight : (decisionObj.confidence || 0);
-            const val = adv.risk_score !== undefined ? adv.risk_score : (decisionObj.final_value || 0);
-            const status = fallbackUsed ? "FALLBACK" : (adv.risk_score > 60 ? "WARN" : "OK");
+            <!-- LEFT COLUMN: CROSS-ASSET EVALUATION MODULE & DEVELOPER INTEGRATION LAB -->
+            <section class="grid-column col-left">
 
-            assetState[sym].confidence = conf;
-            assetState[sym].lastValue = val;
-            assetState[sym].status = status;
+                <!-- PANEL: CROSS-ASSET EVALUATION MATRIX -->
+                <div class="panel asset-eval-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="icon">❖</span> CROSS-ASSET EVALUATION MATRIX
+                        </div>
+                        <div class="panel-actions">
+                            <div class="filter-group" id="assetClassFilterGroup">
+                                <button class="filter-btn active" data-class="ALL">ALL</button>
+                                <button class="filter-btn" data-class="EQUITIES">EQUITIES</button>
+                                <button class="filter-btn" data-class="FX">FX</button>
+                                <button class="filter-btn" data-class="CRYPTO">CRYPTO</button>
+                                <button class="filter-btn" data-class="COMMODITIES">COMMODITIES</button>
+                                <button class="filter-btn" data-class="DERIVATIVES">DERIVATIVES</button>
+                                <button class="filter-btn" data-class="SYNTHETICS">SYNTHETICS</button>
+                            </div>
+                        </div>
+                    </div>
 
-            document.getElementById(`asset-conf-${sym}`).textContent = conf.toFixed(3);
-            document.getElementById(`asset-val-${sym}`).textContent = val.toFixed(1);
+                    <div class="panel-sub-bar">
+                        <div class="search-box">
+                            <input type="text" id="assetSearchInput" placeholder="Filter ticker or asset class...">
+                        </div>
+                        <div class="sub-filter">
+                            <label>Liquidity Tier:</label>
+                            <select id="liquidityTierFilter">
+                                <option value="ALL">All Tiers</option>
+                                <option value="TIER_1">Tier 1 (> $100M Depth)</option>
+                                <option value="TIER_2">Tier 2 ($10M - $100M)</option>
+                                <option value="TIER_3">Tier 3 (< $10M)</option>
+                            </select>
+                        </div>
+                        <div class="sub-filter">
+                            <label>Volatility Band:</label>
+                            <select id="volatilityBandFilter">
+                                <option value="ALL">All Bands</option>
+                                <option value="LOW">Low (< 15%)</option>
+                                <option value="MEDIUM">Medium (15% - 40%)</option>
+                                <option value="HIGH">High (> 40%)</option>
+                            </select>
+                        </div>
+                        <div class="sub-filter">
+                            <label>Governance Flag:</label>
+                            <select id="governanceFlagFilter">
+                                <option value="ALL">All States</option>
+                                <option value="NOMINAL">Nominal</option>
+                                <option value="ADVISORY">Advisory Trigger</option>
+                                <option value="STRESS">Stress Override</option>
+                            </select>
+                        </div>
+                    </div>
 
-            const statusEl = document.getElementById(`asset-status-${sym}`);
-            statusEl.textContent = status;
+                    <div class="panel-body table-container">
+                        <table class="data-table asset-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>CLASS</th>
+                                    <th>VALUATION</th>
+                                    <th>VOLATILITY</th>
+                                    <th>LIQUIDITY DEPTH</th>
+                                    <th>TRUST GATE</th>
+                                    <th>RECON RESIDUAL</th>
+                                    <th>GOVERNANCE TRIGGER</th>
+                                    <th>PARAMETER TUNING</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assetMatrixBody">
+                                <!-- Populated dynamically by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
-            if (status === "OK") {
-                statusEl.className = "asset-status status-ok";
-            } else if (status === "WARN") {
-                statusEl.className = "asset-status status-warn";
-            } else {
-                statusEl.className = "asset-status status-fault";
-            }
-        });
+                <!-- PANEL: DEVELOPER INTEGRATION LAB & CROSS-EVALUATION RUNNER -->
+                <div class="panel dev-lab-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="icon">⚛</span> DEVELOPER INTEGRATION LAB & CROSS-EVALUATION RUNNER
+                        </div>
+                        <div class="panel-tabs">
+                            <button class="tab-btn active" data-tab="sandbox">SIGNAL INJECTION SANDBOX</button>
+                            <button class="tab-btn" data-tab="abi">ABI & STRUCT LAYOUTS</button>
+                            <button class="tab-btn" data-tab="trace">DETERMINISTIC TRACE VIEWER</button>
+                        </div>
+                    </div>
 
-        // MarketStabilizer update on UI
-        const stabilizer = advisoriesObj["MarketStabilizer"] || {};
-        const stabIndicator = document.getElementById("stabilizerStatus");
-        const stabText = document.getElementById("stabilizerStatusText");
-        if (stabIndicator && stabText) {
-            const risk = stabilizer.risk_score || 0;
-            const factor = stabilizer.stabilization_factor !== undefined ? stabilizer.stabilization_factor : 1.0;
-            if (factor < 0.20) {
-                stabIndicator.className = "health-indicator health-fault";
-                stabText.textContent = `CRITICAL (${risk.toFixed(1)}%, Factor: ${factor.toFixed(2)}x)`;
-            } else if (factor < 1.0) {
-                stabIndicator.className = "health-indicator health-warn";
-                stabText.textContent = `ACTIVE (${risk.toFixed(1)}%, Factor: ${factor.toFixed(2)}x)`;
-            } else {
-                stabIndicator.className = "health-indicator health-ok";
-                stabText.textContent = `Inactive (1.00x)`;
-            }
-        }
+                    <div class="panel-body">
+                        <!-- TAB CONTENT: SANDBOX -->
+                        <div class="tab-content active" id="tab-sandbox">
+                            <div class="sandbox-grid">
+                                <div class="sandbox-controls">
+                                    <div class="control-section-title">FAULT & SHOCK INJECTION CONTROLS</div>
+                                    <div class="btn-grid">
+                                        <button class="btn btn-danger btn-sm" id="btnInjectSequenceGap">INJECT WNFS GAP</button>
+                                        <button class="btn btn-danger btn-sm" id="btnInjectStressOverride">INJECT CRISIS OVERRIDE</button>
+                                        <button class="btn btn-warning btn-sm" id="btnInjectPriceShockUp">PRICE SHOCK (+5%)</button>
+                                        <button class="btn btn-warning btn-sm" id="btnInjectPriceShockDown">PRICE SHOCK (-10%)</button>
+                                        <button class="btn btn-warning btn-sm" id="btnInjectLiquidityDrop">LIQUIDITY DEGRADATION</button>
+                                        <button class="btn btn-success btn-sm" id="btnResetNominal">RESET TO NOMINAL</button>
+                                    </div>
 
-        updateTicker();
-    }
+                                    <div class="control-section-title">CYCLE EXECUTION CONTROLS</div>
+                                    <div class="btn-group">
+                                        <button class="btn btn-primary btn-sm" id="btnRunSingleCycle">RUN 1 CYCLE</button>
+                                        <button class="btn btn-primary btn-sm" id="btnRunBatchCycles">RUN 100 CYCLES</button>
+                                        <button class="btn btn-secondary btn-sm" id="btnToggleLoop">AUTORUN (60 FPS)</button>
+                                    </div>
+                                </div>
 
-    function updateTicker() {
-        const strip = document.getElementById("tickerStrip");
-        strip.innerHTML = "";
-
-        assets.forEach(sym => {
-            const state = assetState[sym];
-            const item = document.createElement("span");
-            item.className = "ticker-item";
-            const statusClass =
-                state.status === "OK" ? "ticker-status-ok" :
-                state.status === "WARN" ? "ticker-status-warn" :
-                "ticker-status-fault";
-
-            item.innerHTML = `
-                <span class="ticker-symbol">${sym}</span>
-                <span class="ticker-value">${state.lastValue.toFixed(4)}</span>
-                <span class="${statusClass}">(${state.status})</span>
-            `;
-            strip.appendChild(item);
-        });
-
-        const macro = document.createElement("span");
-        macro.className = "ticker-item gold-text";
-        macro.textContent = "MacroSignal Governance • Engine Telemetry Online";
-        strip.appendChild(macro);
-    }
-
-    // ---------- MOCK DATA ENGINE ----------
-    function generateMockDecision() {
-        const factor = Math.random();
-        let stabFactor = 1.0;
-        let clampLimit = 1.0;
-        let riskScore = Math.random() * 30.0;
-        if (factor < 0.35) {
-            stabFactor = 0.15;
-            clampLimit = 0.20;
-            riskScore = 85.0;
-        } else if (factor < 0.75) {
-            stabFactor = 0.50;
-            clampLimit = 0.50;
-            riskScore = 55.0;
-        }
-
-        return {
-            decision: {
-                status: 1,
-                final_value: (Math.random() * 0.04 - 0.02),   // -0.02 to +0.02
-                confidence: Math.random() * 0.9 + 0.1,        // 0.1 to 1.0
-                fallback_used: Math.random() < 0.1,           // 10% fallback
-                num_contributing_models: Math.floor(Math.random() * 4) + 2,
-                models_agreed: Math.floor(Math.random() * 3) + 1,
-                reasoning: "Mock pipeline evaluation"
-            },
-            advisories: {
-                MarketStabilizer: {
-                    risk_score: riskScore,
-                    stabilization_factor: stabFactor,
-                    dynamic_clamp_limit: clampLimit
-                }
-            }
-        };
-    }
-
-    function generateMockAssets() {
-        const out = {};
-        assets.forEach(sym => {
-            out[sym] = {
-                value: (Math.random() * 100).toFixed(2),
-                confidence: (Math.random()).toFixed(3),
-                status: Math.random() < 0.85 ? "OK" : "WARN"
-            };
-        });
-        return out;
-    }
-
-    function startMockFeed() {
-        appendLog("MOCK MODE ENABLED — generating synthetic telemetry", "info");
-        setWsHealth(true);
-        document.getElementById("healthServerText").textContent = "Mock Runtime";
-        document.getElementById("healthServer").className = "health-indicator health-ok";
-
-        setInterval(() => {
-            const mockDecision = generateMockDecision();
-            handleWsMessage(JSON.stringify(mockDecision));
-
-            const mockAssets = generateMockAssets();
-            Object.keys(mockAssets).forEach(sym => {
-                assetState[sym].confidence = parseFloat(mockAssets[sym].confidence);
-                assetState[sym].lastValue = parseFloat(mockAssets[sym].value);
-                assetState[sym].status = mockAssets[sym].status;
-            });
-
-            updateTicker();
-        }, 1200);
-    }
-
-    // ---------- Command Console ----------
-    document.getElementById("console-send").addEventListener("click", () => {
-        const input = document.getElementById("console-input");
-        const cmd = input.value.trim();
-        if (!cmd) return;
-
-        appendLog(`> ${cmd}`, "info");
-
-        if (cmd.toLowerCase() === "hotpath") {
-            appendLog("Triggering hotpath demo (mock)", "info");
-        } else if (cmd.toLowerCase() === "ping") {
-            appendLog("Ping: dashboard online", "info");
-        } else if (cmd.toLowerCase() === "status") {
-            appendLog(`Decisions: ${decisions.length}, Fallbacks: ${fallbackCount}`, "info");
-        } else if (cmd.toLowerCase() === "mock off") {
-            MOCK_MODE = false;
-            appendLog("Switching to LIVE mode (WebSocket)", "info");
-            connectWebSocket();
-        } else {
-            appendLog("Unknown command", "error");
-        }
-
-        input.value = "";
-    });
-
-    document.getElementById("console-download").addEventListener("click", () => {
-        const blob = new Blob(
-            [logs.map(l => `[${l.type}] ${l.message}`).join("\n")],
-            { type: "text/plain" }
-        );
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "aille_dashboard_logs.txt";
-        a.click();
-        URL.revokeObjectURL(url);
-    });
-
-    // ---------- Heartbeat Simulation ----------
-    setInterval(() => {
-        appendLog("Heartbeat — AILLEE Runtime Active", "heartbeat");
-    }, 5000);
-
-    // ------------------------------------------------------------
-    // DYNAMIC SPIRAL VISUAL — ENGINE CORE ANIMATION
-    // ------------------------------------------------------------
-    function initVisual() {
-        const canvas = document.getElementById("ailleCanvas");
-        const ctx = canvas.getContext("2d");
-
-    function resize() {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-    }
-    window.addEventListener("resize", resize);
-    resize();
-
-    let t = 0;
-
-    function render() {
-        t += 0.008;
-
-        const w = canvas.width;
-        const h = canvas.height;
-        const cx = w / 2;
-        const cy = h / 2;
-
-        ctx.clearRect(0, 0, w, h);
-
-        // Pull dynamic values from latest decision
-        const latest = decisions[decisions.length - 1] || {
-            final_value: 0,
-            confidence: 0.0,
-            fallback_used: false
-        };
-
-        const conf = latest.confidence || 0.0;
-        const val = latest.final_value || 0.0;
-        const fallback = latest.fallback_used;
-
-        // Color logic
-        let baseColor = fallback
-            ? "rgba(249, 115, 115,"   // red
-            : conf > 0.6
-                ? "rgba(34, 211, 238," // cyan
-                : "rgba(168, 85, 247,"; // purple
-
-        // Spiral parameters
-        const layers = 120;
-        const maxRadius = Math.min(w, h) * 0.45;
-        const swirl = t * (1 + conf * 2);
-
-        for (let i = 0; i < layers; i++) {
-            const pct = i / layers;
-
-            const radius = pct * maxRadius * (1 + val * 3);
-            const angle = pct * 12 + swirl;
-
-            const x = cx + Math.cos(angle) * radius;
-            const y = cy + Math.sin(angle) * radius;
-
-            const alpha = 0.02 + pct * 0.015 + conf * 0.1;
-
-            ctx.fillStyle = `${baseColor}${alpha})`;
-            ctx.beginPath();
-            ctx.arc(x, y, 2 + conf * 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        requestAnimationFrame(render);
-    }
-
-    render();
+                                <div class="sandbox-preview">
+                                    <div class="preview-title">RUNTIME CALL IN/OUT PREVIEW</div>
+                                    <div class="code-preview" id="runtimeCallPreview">
+// Execution Step Input: Asset: SPY | Sequence: 0x0004f2c1
+{
+  "cycle_sequence_id": 324902,
+  "layer_mask": 0x7ffff,
+  "wnfs_stream": { "ticks_ingested": 154200, "gap_detected": false },
+  "anomaly": { "volatility_spike": false, "liquidity_break": false },
+  "governance": { "residual_sum": 0.012, "stress_level": "NOMINAL" }
 }
- // ------------------------------------------------------------
-// DYNAMIC ENGINE CORE VISUAL
-// Multi-layer rings + advisory arrows + volatility waves
-// + micro-telemetry particles + decision burst
-// ------------------------------------------------------------
-function initVisual() {
-    const canvas = document.getElementById("ailleCanvas");
-    const ctx = canvas.getContext("2d");
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-    function resize() {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-    }
-    window.addEventListener("resize", resize);
-    resize();
+                        <!-- TAB CONTENT: ABI STRUCT LAYOUTS -->
+                        <div class="tab-content" id="tab-abi">
+                            <div class="abi-inspector">
+                                <div class="abi-selector-bar">
+                                    <label>Select ABI Struct Layout:</label>
+                                    <select id="abiStructSelect">
+                                        <option value="UnifiedRuntimeState">UnifiedRuntimeState (64-byte Cache Aligned)</option>
+                                        <option value="MetaGovernanceState">MetaGovernanceState (64-byte Cache Aligned)</option>
+                                        <option value="WNFSFrame">WNFSFrame (64-byte Cache Aligned)</option>
+                                        <option value="VolumeState">VolumeState (64-byte Cache Aligned)</option>
+                                        <option value="StressOverrideRules">StressOverrideRules (64-byte Cache Aligned)</option>
+                                    </select>
+                                </div>
+                                <div class="code-preview" id="abiStructDefinition">
+// C++ Struct Definition (alignas(64))
+struct alignas(64) UnifiedRuntimeState {
+    uint64_t cycle_sequence_id;       // Offset 0x00 (8 bytes)
+    uint64_t timestamp_ns;           // Offset 0x08 (8 bytes)
+    uint32_t active_layer_mask;      // Offset 0x10 (4 bytes)
+    float    p50_latency_ns;          // Offset 0x14 (4 bytes)
+    float    p99_latency_ns;          // Offset 0x18 (4 bytes)
+    float    p99_9_latency_ns;        // Offset 0x1C (4 bytes)
+    float    allocation_scale;        // Offset 0x20 (4 bytes)
+    uint32_t fail_closed_status;     // Offset 0x24 (4 bytes)
+    uint32_t meta_governance_locked; // Offset 0x28 (4 bytes)
+    uint8_t  padding[20];            // Offset 0x2C (20 bytes padding to 64B)
+};
+static_assert(sizeof(UnifiedRuntimeState) == 64, "UnifiedRuntimeState must be exactly 64 bytes");
+                                </div>
+                            </div>
+                        </div>
 
-    let t = 0;
-    let burstTimer = 0;
+                        <!-- TAB CONTENT: DETERMINISTIC TRACE VIEWER -->
+                        <div class="tab-content" id="tab-trace">
+                            <div class="trace-viewer-container">
+                                <div class="trace-header-bar">
+                                    <span>EXACT DETERMINISTIC DECISION PATH TRACE</span>
+                                    <button class="btn btn-secondary btn-xs" id="btnClearTrace">CLEAR LOG</button>
+                                </div>
+                                <div class="trace-log" id="deterministicTraceLog">
+                                    <!-- Log messages appended here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    const particles = [];
-    const NUM_PARTICLES = 120;
+            </section>
 
-    for (let i = 0; i < NUM_PARTICLES; i++) {
-        particles.push({
-            angle: Math.random() * Math.PI * 2,
-            radius: Math.random() * 40,
-            speed: 0.2 + Math.random() * 0.6,
-            drift: (Math.random() - 0.5) * 0.02
-        });
-    }
+            <!-- RIGHT COLUMN: VISUALIZATIONS & 19-LAYER GOVERNANCE STATE PANELS -->
+            <section class="grid-column col-right">
 
-    function render() {
-        t += 0.01;
-        burstTimer = Math.max(0, burstTimer - 0.02);
+                <!-- PANEL: REAL-TIME DATA-DRIVEN VISUALIZATIONS -->
+                <div class="panel visual-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="icon">∿</span> REAL-TIME DATA-DRIVEN VISUALIZATIONS (60 FPS)
+                        </div>
+                        <div class="panel-tabs">
+                            <button class="tab-btn active" data-vistab="latency">LATENCY (P50/P99/P99.9)</button>
+                            <button class="tab-btn" data-vistab="throughput">THROUGHPUT</button>
+                            <button class="tab-btn" data-vistab="anomaly">ANOMALY & RADAR</button>
+                            <button class="tab-btn" data-vistab="recon">RECON BREACHES</button>
+                            <button class="tab-btn" data-vistab="membrane">MEMBRANE & TRANSITIONS</button>
+                        </div>
+                    </div>
 
-        const w = canvas.width;
-        const h = canvas.height;
-        const cx = w / 2;
-        const cy = h / 2;
+                    <div class="panel-body visual-canvas-container">
+                        <canvas id="visCanvasLatency" class="vis-canvas active"></canvas>
+                        <canvas id="visCanvasThroughput" class="vis-canvas"></canvas>
+                        <canvas id="visCanvasAnomaly" class="vis-canvas"></canvas>
+                        <canvas id="visCanvasRecon" class="vis-canvas"></canvas>
+                        <canvas id="visCanvasMembrane" class="vis-canvas"></canvas>
+                    </div>
+                </div>
 
-        ctx.clearRect(0, 0, w, h);
+                <!-- PANEL: 19-LAYER GOVERNANCE STATE MAP -->
+                <div class="panel layer-stack-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="icon">☰</span> 19-LAYER DETERMINISTIC GOVERNANCE STATE
+                        </div>
+                        <span class="accent-label" id="layerActiveCount">19 / 19 ACTIVE</span>
+                    </div>
 
-        // Latest decision drives behavior
-        const latest = decisions[decisions.length - 1] || {
-            final_value: 0,
-            confidence: 0.0,
-            fallback_used: false
-        };
+                    <div class="panel-body layer-stack-grid" id="layerStackGrid">
+                        <!-- Populated dynamically by app.js (Layers 1 to 19) -->
+                    </div>
+                </div>
 
-        const conf = latest.confidence || 0.0;
-        const val = latest.final_value || 0.0;
-        const fallback = latest.fallback_used;
+                <!-- PANEL: SUBSYSTEM HEALTH & INGESTION STATUS -->
+                <div class="panel health-summary-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span class="icon">🛡</span> SUBSYSTEM HEALTH & STREAM INTEGRITY
+                        </div>
+                    </div>
 
-        // Trigger burst when confidence spikes or fallback occurs
-        if (conf > 0.8 || fallback) {
-            burstTimer = 1.0;
-        }
+                    <div class="panel-body health-grid">
+                        <div class="health-card">
+                            <div class="card-label">WNFS INGESTION HEALTH</div>
+                            <div class="card-value" id="wnfsHealthVal">100.0% INTEGRITY</div>
+                            <div class="card-sub" id="wnfsHealthSub">0 Gap Drops • 0 Corrupt Frames</div>
+                        </div>
 
-        // Background glow
-        ctx.fillStyle = "rgba(2, 6, 23, 1)";
-        ctx.fillRect(0, 0, w, h);
+                        <div class="health-card">
+                            <div class="card-label">STRESS OVERRIDE STATE</div>
+                            <div class="card-value status-ok" id="stressStateVal">NOMINAL</div>
+                            <div class="card-sub" id="stressStateSub">Crash Dampening: 1.00x</div>
+                        </div>
 
-        // -----------------------------
-        // MULTI-LAYER RINGS
-        // -----------------------------
-        const baseRadius = Math.min(w, h) * 0.18;
-        const ringCount = 4;
+                        <div class="health-card">
+                            <div class="card-label">META-GOVERNANCE LOCK</div>
+                            <div class="card-value status-ok" id="metaLockVal">UNLOCKED (0.012 Sum)</div>
+                            <div class="card-sub" id="metaLockSub">Threshold Ceiling: 0.050</div>
+                        </div>
 
-        for (let i = 0; i < ringCount; i++) {
-            const pct = i / ringCount;
-            const radius = baseRadius + pct * baseRadius * 1.6 + val * 40;
-            const alpha = 0.15 + pct * 0.12 + conf * 0.2;
+                        <div class="health-card">
+                            <div class="card-label">HFT ΔV IMPULSE ENGINE</div>
+                            <div class="card-value status-accent" id="hftEngineVal">ACTIVE (1000 Hz)</div>
+                            <div class="card-sub" id="hftEngineSub">Bullish Bias Scaling: 1.15x</div>
+                        </div>
+                    </div>
+                </div>
 
-            let color = fallback
-                ? `rgba(248, 113, 113, ${alpha})`
-                : i % 2 === 0
-                    ? `rgba(34, 211, 238, ${alpha})`
-                    : `rgba(168, 85, 247, ${alpha})`;
+            </section>
 
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            ctx.stroke();
-        }
+        </main>
 
-        // -----------------------------
-        // VOLATILITY WAVES
-        // -----------------------------
-        const waveRadius = baseRadius * 2.2;
-        const waveSegments = 80;
-        ctx.beginPath();
-        for (let i = 0; i <= waveSegments; i++) {
-            const angle = (i / waveSegments) * Math.PI * 2;
-            const volatility = Math.abs(val) * 60;
-            const r = waveRadius + Math.sin(angle * 3 + t * 3) * volatility;
+        <!-- BOTTOM TICKER BANNER -->
+        <footer class="terminal-footer">
+            <div class="ticker-label">LIVE STREAM TICKER</div>
+            <div class="ticker-scroll-wrapper">
+                <div class="ticker-track" id="tickerTrack">
+                    <!-- Populated dynamically by app.js -->
+                </div>
+            </div>
+            <div class="footer-info">
+                <span>WS: <strong id="wsServerStatus">CONNECTED (ws://localhost:8081)</strong></span>
+                <span>AUDIT LOG: <strong id="auditFileStatus">unified_audit.csv</strong></span>
+            </div>
+        </footer>
 
-            const x = cx + Math.cos(angle) * r;
-            const y = cy + Math.sin(angle) * r;
+    </div>
 
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = "rgba(56, 189, 248, 0.35)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // -----------------------------
-        // ADVISORY ARROWS (directional hints)
-        // -----------------------------
-        const arrowRadius = baseRadius * 1.4;
-        const arrowCount = assets.length;
-
-        for (let i = 0; i < arrowCount; i++) {
-            const angle = t * 0.6 + i * (Math.PI * 2 / arrowCount);
-            const x = cx + Math.cos(angle) * arrowRadius;
-            const y = cy + Math.sin(angle) * arrowRadius;
-
-            const dir = val >= 0 ? 1 : -1;
-            const arrowLen = 16 + conf * 10;
-
-            ctx.strokeStyle = dir > 0
-                ? "rgba(34, 197, 94, 0.9)"   // up/positive
-                : "rgba(248, 113, 113, 0.9)"; // down/negative
-            ctx.lineWidth = 1.5;
-
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(
-                x + Math.cos(angle) * arrowLen * dir,
-                y + Math.sin(angle) * arrowLen * dir
-            );
-            ctx.stroke();
-
-            // arrow head
-            ctx.beginPath();
-            ctx.moveTo(
-                x + Math.cos(angle) * arrowLen * dir,
-                y + Math.sin(angle) * arrowLen * dir
-            );
-            ctx.lineTo(
-                x + Math.cos(angle + 0.3) * (arrowLen * 0.4) * dir,
-                y + Math.sin(angle + 0.3) * (arrowLen * 0.4) * dir
-            );
-            ctx.lineTo(
-                x + Math.cos(angle - 0.3) * (arrowLen * 0.4) * dir,
-                y + Math.sin(angle - 0.3) * (arrowLen * 0.4) * dir
-            );
-            ctx.closePath();
-            ctx.fillStyle = ctx.strokeStyle;
-            ctx.fill();
-        }
-
-        // -----------------------------
-        // MICRO-TELEMETRY PARTICLES
-        // -----------------------------
-        particles.forEach(p => {
-            p.angle += p.drift + 0.002 + conf * 0.01;
-            p.radius += p.speed * (0.4 + conf * 0.6);
-
-            const maxR = baseRadius * 2.8;
-            if (p.radius > maxR) {
-                p.radius = Math.random() * 20;
-                p.angle = Math.random() * Math.PI * 2;
-            }
-
-            const x = cx + Math.cos(p.angle + t * 0.4) * p.radius;
-            const y = cy + Math.sin(p.angle + t * 0.4) * p.radius;
-
-            const alpha = 0.15 + conf * 0.4;
-            ctx.fillStyle = fallback
-                ? `rgba(248, 113, 113, ${alpha})`
-                : `rgba(34, 211, 238, ${alpha})`;
-
-            ctx.beginPath();
-            ctx.arc(x, y, 1.5 + conf * 1.5, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // -----------------------------
-        // DECISION BURST (center pulse)
-        // -----------------------------
-        if (burstTimer > 0) {
-            const burstRadius = baseRadius * (1 + burstTimer * 1.4);
-            const burstAlpha = burstTimer * 0.8;
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, burstRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = fallback
-                ? `rgba(248, 113, 113, ${burstAlpha})`
-                : `rgba(250, 204, 21, ${burstAlpha})`;
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, baseRadius * 0.4 + burstTimer * 10, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(34, 211, 238, ${burstAlpha})`;
-            ctx.fill();
-        }
-
-        requestAnimationFrame(render);
-    }
-
-    render();
-}
-
-    // ---------- Init ----------
-    loadStoredLogs();
-    initAssetCards();
-    initVisual();
-    initTextOverlay();
-
-    if (MOCK_MODE) {
-        startMockFeed();
-    } else {
-        connectWebSocket();
-    }
-</script>
+    <!-- Scripts -->
+    <script src="webgl_renderer.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
