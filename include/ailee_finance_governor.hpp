@@ -33,12 +33,17 @@ struct RawSellSignals {
 
 struct HFTBiasConfig {
     bool enabled{true};
+    std::string bullishness_mode{"STANDARD"}; // STANDARD, CONSERVATIVE, HYPER, CONTRARIAN
     float bullish_multiplier_price{1.05f};
     float bullish_multiplier_volume{1.05f};
     float bullish_execution_scale{1.10f};
     float bullish_sell_ceiling_factor{0.80f};
     float trust_threshold_bullish{0.70f};
     float manipulation_threshold{0.30f};
+    float contrarian_oversold_weight_mult{1.25f};
+    float contrarian_oversold_threshold{0.65f};
+    float contrarian_hf_impulse_scale{1.25f};
+    float contrarian_sell_ceiling_factor{0.85f};
 };
 
 inline bool is_bullish_mode_allowed(

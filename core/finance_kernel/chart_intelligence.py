@@ -264,7 +264,7 @@ class PatternConditionPayload:
     def __init__(self, pattern_hint: PatternHint, prior_expansion_score: float,
                  consolidation_score: float, support_strength_score: float,
                  symmetry_score: float, pattern_group: PatternHintGroup = PatternHintGroup.ExpansionGroup,
-                 timestamp_ns: int = 0):
+                 timestamp_ns: int = 0, contrarian_buy_zone: bool = False):
         self.pattern_hint = pattern_hint
         self.pattern_group = pattern_group
         self.prior_expansion_score = prior_expansion_score
@@ -272,6 +272,7 @@ class PatternConditionPayload:
         self.support_strength_score = support_strength_score
         self.symmetry_score = symmetry_score
         self.timestamp_ns = timestamp_ns
+        self.contrarian_buy_zone = contrarian_buy_zone
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -283,6 +284,7 @@ class PatternConditionPayload:
                 "support_strength": round(self.support_strength_score, 2),
                 "symmetry": round(self.symmetry_score, 2)
             },
+            "contrarian_buy_zone": self.contrarian_buy_zone,
             "timestamp_ns": self.timestamp_ns
         }
 
@@ -354,6 +356,10 @@ class ChartIntelligenceOperator(BaseOperator):
             "expected_correlation": exp_corr,
             "volume_anomaly_ratio": max(0.0, _safe_float(input_data.get("volume_anomaly_ratio", 1.0), 1.0)),
             "timestamp_ns": int(input_data.get("timestamp_ns", 0)),
+            "trust_score": float(input_data.get("trust_score", 0.85)),
+            "manipulation_score": float(input_data.get("manipulation_score", 0.0)),
+            "layer_locks_engaged": bool(input_data.get("layer_locks_engaged", False)),
+            "hft_bias_config": input_data.get("hft_bias_config", {}),
             "baseline": BaselineState(
                 vol_5m=vol_5m, vol_1h=vol_1h, vol_30d=vol_30d,
                 liq_5m=liq_5m, liq_1h=liq_1h, liq_30d=liq_30d,
@@ -690,6 +696,18 @@ class ChartIntelligenceOperator(BaseOperator):
             pattern_hint = PatternHint.NoneHint
             pattern_group = PatternHintGroup.ExpansionGroup
 
+        # Secondary contrarian buy zone assessment
+        hft_bias_cfg = input_data.get("hft_bias_config", {})
+        trust_score = float(input_data.get("trust_score", 0.85))
+        manip_score = float(input_data.get("manipulation_score", 0.0))
+        locks_unlocked = not bool(input_data.get("layer_locks_engaged", False))
+        mode = str(hft_bias_cfg.get("bullishness_mode", "STANDARD")).upper() if isinstance(hft_bias_cfg, dict) else "STANDARD"
+
+        contrarian_buy_zone = False
+        if mode in ("CONTRARIAN", "HYPER") and pattern_group == PatternHintGroup.StressGroup:
+            if trust_score >= 0.70 and manip_score <= 0.30 and locks_unlocked:
+                contrarian_buy_zone = True
+
         pattern_payload = PatternConditionPayload(
             pattern_hint=pattern_hint,
             pattern_group=pattern_group,
@@ -697,7 +715,8 @@ class ChartIntelligenceOperator(BaseOperator):
             consolidation_score=consol_score,
             support_strength_score=supp_score,
             symmetry_score=sym_score,
-            timestamp_ns=timestamp_ns
+            timestamp_ns=timestamp_ns,
+            contrarian_buy_zone=contrarian_buy_zone
         )
 
         payloads = [

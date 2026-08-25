@@ -1,6 +1,6 @@
 /*
  * AILEE Framework - FS-Gateway Networking Module Implementation
- * AILEE Finance Unified Runtime Version 20.0.0
+ * AILEE Finance Unified Runtime Version 21.0.0
  *
  * Copyright (c) Don Michael Feeney Jr.
  * Licensed under the MIT License.
@@ -219,6 +219,7 @@ std::string FsGateway::buildRuntimeJSON(std::uint64_t cycle_id, std::uint64_t ti
     json << "{\n";
     json << "  \"timestamp\": \"" << formatRFC3339(timestamp_ns) << "\",\n";
     json << "  \"module\": \"runtime\",\n";
+    json << "  \"bullishness_mode\": \"STANDARD\",\n";
     json << "  \"state\": {\n";
     json << "    \"cycle_sequence_id\": " << cycle_id << ",\n";
     json << "    \"status\": \"" << (meta_locked ? "META_LOCKED" : (stress_override ? "STRESS_OVERRIDE" : "NOMINAL_EXECUTION")) << "\",\n";
@@ -228,6 +229,13 @@ std::string FsGateway::buildRuntimeJSON(std::uint64_t cycle_id, std::uint64_t ti
     json << "  \"metrics\": {\n";
     json << "    \"throughput_ops_sec\": 1592400,\n";
     json << "    \"allocation_scale\": " << (meta_locked ? "0.000" : (stress_override ? "0.100" : "1.000")) << "\n";
+    json << "  },\n";
+    json << "  \"contrarian_analytics\": {\n";
+    json << "    \"oversold_weight_mult\": 1.25,\n";
+    json << "    \"oversold_flag_active\": false,\n";
+    json << "    \"exhaustion_accumulation_trigger\": false,\n";
+    json << "    \"momentum_corridor_active\": true,\n";
+    json << "    \"contrarian_buy_zone\": false\n";
     json << "  },\n";
     json << "  \"events\": [\"MASTER_ENGINE_TICK\"],\n";
     json << "  \"flags\": {\n";
@@ -374,6 +382,9 @@ std::string FsGateway::buildDeskJSON(std::uint64_t cycle_id, std::uint64_t times
     json << "{\n";
     json << "  \"timestamp\": \"" << formatRFC3339(timestamp_ns) << "\",\n";
     json << "  \"module\": \"desk\",\n";
+    json << "  \"bullishness_mode\": \"STANDARD\",\n";
+    json << "  \"contrarian_weighting\": 1.00,\n";
+    json << "  \"adjusted_threshold\": 0.75,\n";
     json << "  \"state\": {\n";
     json << "    \"cycle_sequence_id\": " << cycle_id << ",\n";
     json << "    \"desks\": [\n";

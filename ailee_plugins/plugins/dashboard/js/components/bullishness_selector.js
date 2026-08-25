@@ -20,7 +20,8 @@
     const MODES = {
         STANDARD: 'STANDARD',
         CONSERVATIVE: 'CONSERVATIVE',
-        HYPER: 'HYPER'
+        HYPER: 'HYPER',
+        CONTRARIAN: 'CONTRARIAN'
     };
 
     class BullishnessSelector {
@@ -107,6 +108,21 @@
                         deskBuyGlow: '0 0 18px rgba(0, 255, 136, 0.65)'
                     };
 
+                case MODES.CONTRARIAN:
+                    return {
+                        mode: MODES.CONTRARIAN,
+                        badgeText: 'CONTRARIAN OVERSOLD MODE',
+                        badgeClass: 'badge-bullish-contrarian',
+                        matrixOverlayClass: 'bullish-matrix-contrarian',
+                        upwardVolMultiplier: 1.30,
+                        liquidityEmphasis: 1.35,
+                        glowIntensity: 1.0,
+                        accentColor: '#fbbf24', // deep gold / emerald contrast
+                        fastPathWindowColor: 'rgba(251, 191, 36, 0.45)',
+                        upwardMomentumLayers: [2, 5, 6, 7, 8, 13, 16, 17], // Ingestion, HF-AT, Bias, VAM, Arbit, Stress, Anomaly, Chart Intel
+                        deskBuyGlow: '0 0 20px rgba(251, 191, 36, 0.75)'
+                    };
+
                 case MODES.STANDARD:
                 default:
                     return {
@@ -153,7 +169,15 @@
                     rowClass = 'row-bullish-hyper momentum-corridor';
                     displayVol = asset.vol * cfg.upwardVolMultiplier;
                     displayDepth = asset.depth * cfg.liquidityEmphasis;
+                } else if (cfg.mode === MODES.CONTRARIAN) {
+                    rowClass = 'row-bullish-contrarian contrarian-corridor';
+                    displayVol = asset.vol * cfg.upwardVolMultiplier;
+                    displayDepth = asset.depth * cfg.liquidityEmphasis;
                 }
+            } else if (cfg.mode === MODES.CONTRARIAN && asset.volatility > 25.0) {
+                rowClass = 'row-bullish-contrarian contrarian-buy-zone';
+                displayVol = asset.vol * cfg.upwardVolMultiplier;
+                displayDepth = asset.depth * cfg.liquidityEmphasis;
             } else if (cfg.mode === MODES.CONSERVATIVE && asset.trigger !== 'NOMINAL') {
                 rowClass = 'row-softened-bearish';
             }
@@ -179,7 +203,7 @@
             let displayIntensity = desk.decision_intensity;
             let deskGlowStyle = '';
 
-            if (desk.buy_pressure > desk.sell_pressure) {
+            if (desk.buy_pressure > desk.sell_pressure || cfg.mode === MODES.CONTRARIAN) {
                 if (cfg.mode === MODES.CONSERVATIVE) {
                     displayBuyPressure = Math.min(1.0, desk.buy_pressure * 1.10);
                     displayIntensity = Math.min(1.0, desk.decision_intensity * 1.12);
@@ -188,6 +212,10 @@
                     displayBuyPressure = Math.min(1.0, desk.buy_pressure * 1.25);
                     displayIntensity = Math.min(1.0, desk.decision_intensity * 1.35);
                     deskGlowStyle = `box-shadow: ${cfg.deskBuyGlow}; border-left: 4px solid #00ff88; animation: pulseGlow 1.5s infinite alternate;`;
+                } else if (cfg.mode === MODES.CONTRARIAN) {
+                    displayBuyPressure = Math.min(1.0, desk.buy_pressure * 1.30);
+                    displayIntensity = Math.min(1.0, desk.decision_intensity * 1.40);
+                    deskGlowStyle = `box-shadow: ${cfg.deskBuyGlow}; border-left: 4px solid #fbbf24; animation: pulseGlow 1.2s infinite alternate;`;
                 }
             }
 

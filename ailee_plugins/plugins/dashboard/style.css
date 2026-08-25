@@ -303,9 +303,22 @@ html, body {
     animation: hyperBadgePulse 1.8s infinite alternate;
 }
 
+.badge-bullish-contrarian {
+    background: rgba(251, 191, 36, 0.25);
+    color: #fbbf24;
+    border: 1px solid #fbbf24;
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.7);
+    animation: contrarianBadgePulse 1.6s infinite alternate;
+}
+
 @keyframes hyperBadgePulse {
     0% { box-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
     100% { box-shadow: 0 0 18px rgba(0, 255, 136, 0.9); }
+}
+
+@keyframes contrarianBadgePulse {
+    0% { box-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+    100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.95); }
 }
 
 /* CROSS-ASSET MATRIX VISUAL OVERLAYS */
@@ -318,6 +331,21 @@ html, body {
     background: rgba(0, 255, 136, 0.14);
     border-left: 4px solid #00ff88;
     box-shadow: inset 0 0 10px rgba(0, 255, 136, 0.15);
+}
+
+.data-table tbody tr.row-bullish-contrarian {
+    background: rgba(251, 191, 36, 0.16);
+    border-left: 4px solid #fbbf24;
+    box-shadow: inset 0 0 12px rgba(251, 191, 36, 0.2);
+}
+
+.data-table tbody tr.contrarian-corridor, .data-table tbody tr.contrarian-buy-zone {
+    animation: contrarianCorridorGlow 1.8s infinite alternate;
+}
+
+@keyframes contrarianCorridorGlow {
+    0% { background: rgba(251, 191, 36, 0.12); }
+    100% { background: rgba(251, 191, 36, 0.25); }
 }
 
 .data-table tbody tr.momentum-corridor {

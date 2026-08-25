@@ -222,14 +222,47 @@ class IntradayVolumeAdvisory(BaseOperator):
 
         advisory.oversold_score = (0.4 * norm_price + 0.3 * norm_vwap + 0.3 * norm_vol) * aggressiveness
 
+        # Retrieve hft_bias config early for contrarian modulation
+        hft_bias_cfg = input_data.get("hft_bias_config")
+        if hft_bias_cfg is None:
+            if self.config and hasattr(self.config, "hft_bias"):
+                hft_bias_cfg = getattr(self.config, "hft_bias")
+            elif self.context and getattr(self.context, "config", None) and hasattr(self.context.config, "hft_bias"):
+                hft_bias_cfg = getattr(self.context.config, "hft_bias")
+
+        if isinstance(hft_bias_cfg, dict):
+            bias_dict = hft_bias_cfg
+        elif hft_bias_cfg is not None and hasattr(hft_bias_cfg, "__dict__"):
+            bias_dict = vars(hft_bias_cfg)
+        else:
+            bias_dict = {
+                "enabled": True,
+                "bullishness_mode": "STANDARD",
+                "bullish_multiplier_price": 1.05,
+                "bullish_multiplier_volume": 1.05,
+                "bullish_execution_scale": 1.10,
+                "bullish_sell_ceiling_factor": 0.80,
+                "trust_threshold_bullish": 0.70,
+                "manipulation_threshold": 0.30,
+                "contrarian_oversold_weight_mult": 1.25,
+                "contrarian_oversold_threshold": 0.65,
+                "contrarian_hf_impulse_scale": 1.25,
+                "contrarian_sell_ceiling_factor": 0.85,
+            }
+
+        mode = str(bias_dict.get("bullishness_mode", "STANDARD")).upper()
+        if mode in ("CONTRARIAN", "HYPER"):
+            enable_contrarian = True
+
+        oversold_thresh = 0.6 if state.is_index_etf else 1.0
+        if mode in ("CONTRARIAN", "HYPER"):
+            oversold_thresh = float(bias_dict.get("contrarian_oversold_threshold", 0.65))
+
         # Conditions A and B
         cond_a = (state.price_change <= -0.012) and (state.vwap_deviation <= -0.008) and (smoothed_ratio >= 2.5)
         cond_b = (state.price_change <= -0.007) and (state.vwap_deviation <= -0.005) and (smoothed_ratio >= 1.8)
 
-        if state.is_index_etf:
-            advisory.oversold_state = (advisory.oversold_score >= 0.6) or cond_a or cond_b
-        else:
-            advisory.oversold_state = (advisory.oversold_score >= 1.0) or cond_a
+        advisory.oversold_state = (advisory.oversold_score >= oversold_thresh) or cond_a or (state.is_index_etf and cond_b)
 
         # Determine effective contrarian active
         contrarian_active = enable_contrarian
@@ -254,8 +287,10 @@ class IntradayVolumeAdvisory(BaseOperator):
 
         # Apply Contrarian Weight Multiplier if active
         if advisory.contrarian_buy_signal:
-            multiplier = 1.30 if (advisory.oversold_score >= 0.9 or cond_a) else 1.15
-            advisory.recommended_weight *= multiplier
+            c_mult = float(bias_dict.get("contrarian_oversold_weight_mult", 1.25)) if mode in ("CONTRARIAN", "HYPER") else 1.15
+            if advisory.oversold_score >= 0.9 or cond_a:
+                c_mult += 0.05
+            advisory.recommended_weight *= c_mult
 
         # Market Stabilizer (MSGAM) Coupling
         stabilizer_factor = input_data.get("stabilizer_factor", 1.0)

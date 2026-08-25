@@ -21,6 +21,7 @@ def is_bullish_mode_allowed(
     if hft_bias_config is None:
         hft_bias_config = {
             "enabled": True,
+            "bullishness_mode": "STANDARD",
             "trust_threshold_bullish": 0.70,
             "manipulation_threshold": 0.30,
         }

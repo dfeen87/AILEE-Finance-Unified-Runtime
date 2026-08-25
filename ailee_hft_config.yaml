@@ -1,12 +1,17 @@
-version: "16.0.0"
+version: "21.0.0"
 hft_bias:
   enabled: true
+  bullishness_mode: "STANDARD"
   bullish_multiplier_price: 1.05
   bullish_multiplier_volume: 1.05
   bullish_execution_scale: 1.10
   bullish_sell_ceiling_factor: 0.80
   trust_threshold_bullish: 0.70
   manipulation_threshold: 0.30
+  contrarian_oversold_weight_mult: 1.25
+  contrarian_oversold_threshold: 0.65
+  contrarian_hf_impulse_scale: 1.25
+  contrarian_sell_ceiling_factor: 0.85
 
 anomaly_detection:
   enabled: true

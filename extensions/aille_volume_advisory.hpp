@@ -87,7 +87,7 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
 // ADVISORY EVALUATION
 // ============================================================================
 
-[[nodiscard]] constexpr VolumeAdvisory evaluate_volume_state(
+[[nodiscard]] inline VolumeAdvisory evaluate_volume_state(
     const VolumeState& state,
     const SafetyState* safety,
     const MarketStabilizerAdvisory* stabilizer = nullptr,
@@ -140,13 +140,23 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
         advisory.oversold_state = (advisory.oversold_score >= 1.0f) || cond_a;
     }
 
+    ailee::HFTBiasConfig default_cfg{};
+    const ailee::HFTBiasConfig& cfg = (hft_bias_cfg != nullptr) ? *hft_bias_cfg : default_cfg;
+    bool is_contrarian_mode = (cfg.bullishness_mode == "CONTRARIAN" || cfg.bullishness_mode == "HYPER");
+
     // Determine effective contrarian enabling
-    bool contrarian_active = enable_contrarian;
+    bool contrarian_active = enable_contrarian || is_contrarian_mode;
     if (state.contrarian_override == 1) {
         contrarian_active = true;
     } else if (state.contrarian_override == -1) {
         contrarian_active = false;
     }
+
+    float eff_oversold_thresh = state.is_index_etf ? 0.6f : 1.0f;
+    if (is_contrarian_mode) {
+        eff_oversold_thresh = cfg.contrarian_oversold_threshold;
+    }
+    advisory.oversold_state = (advisory.oversold_score >= eff_oversold_thresh) || cond_a || (state.is_index_etf && cond_b);
 
     advisory.contrarian_buy_signal = contrarian_active && advisory.oversold_state;
 
@@ -167,9 +177,9 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
 
     // Apply Contrarian Weight Multiplier if contrarian buy signal active
     if (advisory.contrarian_buy_signal) {
-        float multiplier = 1.15f;
+        float multiplier = is_contrarian_mode ? cfg.contrarian_oversold_weight_mult : 1.15f;
         if (advisory.oversold_score >= 0.9f || cond_a) {
-            multiplier = 1.30f;
+            multiplier += 0.05f;
         }
         advisory.recommended_weight *= multiplier;
     }
