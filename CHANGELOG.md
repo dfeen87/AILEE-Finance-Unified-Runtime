@@ -5,6 +5,10 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [18.0.0] - 2026-12-01
+### Added
+- Institutional-grade UI/UX Terminal Dashboard (`ailee_plugins/plugins/dashboard/`) featuring Bloomberg-style multi-panel layout, Cross-Asset Evaluation Matrix (Equities, FX, Crypto, Commodities, Derivatives, Synthetics), 19-layer governance stack monitoring, 60 FPS real-time Canvas visualizers, and Developer Integration Lab.
+
 ## [17.0.0] - 2026-12-01
 ### Added
 - **Layer 19 — Unified Cohesive Runtime & Resiliency Engine (UNIFIED_RUNTIME_V1)** master orchestration cycle tying together all 18 layers into a single allocator-free, cache-aligned runtime loop.

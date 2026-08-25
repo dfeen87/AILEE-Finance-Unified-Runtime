@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "17.0.0";
-constexpr int AILLE_VERSION_MAJOR = 17;
+constexpr const char* AILLE_VERSION = "18.0.0";
+constexpr int AILLE_VERSION_MAJOR = 18;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
