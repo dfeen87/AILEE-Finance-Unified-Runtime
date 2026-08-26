@@ -99,11 +99,11 @@ test_v21:
 test_v22:
 	@printf "$(COLOR_YELLOW)=== Executing FS-Gateway Subsystem Tests ===$(COLOR_RESET)\n"
 	@PYTHONPATH=. pytest tests/test_fs_gateway_schema.py tests/test_desk_stream_correctness.py tests/test_connection_resilience.py
-	@printf "$(COLOR_YELLOW)=== Executing AILEE v22.0.0 Full Validation Suite ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== Executing AILEE v22.1.0 Full Validation Suite ===$(COLOR_RESET)\n"
 	@PYTHONPATH=. pytest tests/
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v22.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v22.1.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(WEBSOCKET_FLAGS) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o demo; then \
@@ -250,7 +250,7 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 	fi
 
 fs_gateway: ailee_runtime/fs_gateway/main.cpp ailee_runtime/fs_gateway/fs_gateway.cpp ailee_runtime/fs_gateway/fs_gateway.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v22.0.0 — FS-Gateway Networking Module ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v22.1.0 — FS-Gateway Networking Module ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling FS-Gateway server...$(COLOR_RESET)\n"
 	@mkdir -p bin
@@ -291,9 +291,9 @@ release:
 			exit 1; \
 		fi; \
 	done
-	@echo "22.0.0" > release/VERSION
-	@printf "$(COLOR_GREEN)✓ Stamped Version: 22.0.0$(COLOR_RESET)\n"
-	@printf "$(COLOR_GREEN)AILEE CORE v22.0.0 Release Package Ready.$(COLOR_RESET)\n"
+	@echo "22.1.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 22.1.0$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v22.1.0 Release Package Ready.$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:
