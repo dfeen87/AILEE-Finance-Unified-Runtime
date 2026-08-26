@@ -1,9 +1,9 @@
-# AILEE Finance Unified Runtime (v21.0.0)
+# AILEE Finance Unified Runtime (v22.0.0)
 ## Contrarian Bull Switch Performance Analytics & Multi-Mode Benchmark Report
 
 ### Executive Summary
 
-This report documents the empirical evaluation and performance benchmark analysis of the **Contrarian Bull Switch** feature introduced in recent commits of the AILEE Finance Unified Runtime (v21.0.0).
+This report documents the empirical evaluation and performance benchmark analysis of the **Contrarian Bull Switch** feature introduced in recent commits of the AILEE Finance Unified Runtime (v22.0.0).
 
 The system supports a 4-level global bullishness mode hierarchy (`STANDARD`, `CONSERVATIVE`, `HYPER`, `CONTRARIAN`) synchronized across C++, Python runtime operators, FS-Gateway WebSocket streams, and the Bloomberg-style Dashboard UI. When `CONTRARIAN` mode is active, the runtime modulates passive volume advisories, chart pattern intelligence, high-frequency trade execution weights, and dynamic sell ceilings while strictly maintaining fail-closed safety kill switches.
 

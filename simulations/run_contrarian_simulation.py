@@ -28,7 +28,7 @@ from ailee_finance.domains.finance.sell_governance import compute_sell_ceiling
 
 def run_contrarian_simulation(num_cycles: int = 5000):
     print("=================================================================")
-    print("  AILEE Finance Unified Runtime (v21.0.0)")
+    print("  AILEE Finance Unified Runtime (v22.0.0)")
     print("  Contrarian Bull Switch Performance Analytics & Multi-Mode Benchmark")
     print("=================================================================\n")
 
