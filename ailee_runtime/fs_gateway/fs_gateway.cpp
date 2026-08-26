@@ -220,6 +220,17 @@ std::string FsGateway::buildRuntimeJSON(std::uint64_t cycle_id, std::uint64_t ti
     json << "  \"timestamp\": \"" << formatRFC3339(timestamp_ns) << "\",\n";
     json << "  \"module\": \"runtime\",\n";
     json << "  \"bullishness_mode\": \"STANDARD\",\n";
+    json << "  \"sync_tick\": {\n";
+    json << "    \"tick_index\": " << cycle_id << ",\n";
+    json << "    \"timestamp_ns\": " << timestamp_ns << ",\n";
+    json << "    \"wave_phase\": 0.000,\n";
+    json << "    \"drift_ns\": 0,\n";
+    json << "    \"confidence\": 1.000,\n";
+    json << "    \"alignment_flags\": 1,\n";
+    json << "    \"degraded\": false,\n";
+    json << "    \"escalate_stress\": false,\n";
+    json << "    \"escalate_meta_lock\": false\n";
+    json << "  },\n";
     json << "  \"state\": {\n";
     json << "    \"cycle_sequence_id\": " << cycle_id << ",\n";
     json << "    \"status\": \"" << (meta_locked ? "META_LOCKED" : (stress_override ? "STRESS_OVERRIDE" : "NOMINAL_EXECUTION")) << "\",\n";

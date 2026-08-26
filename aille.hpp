@@ -91,6 +91,11 @@ struct UnifiedRuntimeTraceStep;
 struct UnifiedRuntimeAdvisory;
 struct UnifiedRuntimeConfig;
 
+struct SyncTick;
+struct SyncAdapterState;
+struct SyncAdapterConfig;
+struct SyncAdapterObservabilityMetrics;
+
 // ============================================================================
 // LAYER 13 — DETERMINISTIC STRESS‑REGIME OVERRIDE FORWARD DECLARATIONS
 // ============================================================================
@@ -727,6 +732,8 @@ private:
     WNFSAdvisory* wnfs_advisory_ = nullptr;
     const WNFSConfig* wnfs_config_ = nullptr;
 
+    const SyncTick* sync_tick_ = nullptr;
+
     UnifiedRuntimeState* unified_state_ = nullptr;
     UnifiedRuntimeMetrics* unified_metrics_ = nullptr;
     UnifiedRuntimeAdvisory* unified_advisory_ = nullptr;
@@ -793,6 +800,9 @@ public:
     void set_wnfs_advisory(WNFSAdvisory* advisory) { wnfs_advisory_ = advisory; }
     void set_wnfs_config(const WNFSConfig* cfg) { wnfs_config_ = cfg; }
     void evaluate_wnfs_advisory();
+
+    void set_sync_tick(const SyncTick* tick) noexcept { sync_tick_ = tick; }
+    [[nodiscard]] const SyncTick* get_sync_tick() const noexcept { return sync_tick_; }
 
     void set_unified_runtime_state(UnifiedRuntimeState* state) { unified_state_ = state; }
     void set_unified_runtime_metrics(UnifiedRuntimeMetrics* metrics) { unified_metrics_ = metrics; }

@@ -50,7 +50,8 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_anomaly.cpp \
            extensions/aille_chart_intelligence.cpp \
            extensions/aille_wnfs.cpp \
-           extensions/aille_unified_runtime.cpp
+           extensions/aille_unified_runtime.cpp \
+           extensions/aille_sync_adapter.cpp
 
 PYTHON_FLAGS = $(shell python3-config --cflags --embed --ldflags 2>/dev/null || python3-config --cflags --ldflags 2>/dev/null || echo "")
 
