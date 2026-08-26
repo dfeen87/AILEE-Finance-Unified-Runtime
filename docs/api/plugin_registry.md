@@ -168,7 +168,7 @@ Linking `my_plugin.cpp` activates registration automatically.
 ## See Also
 
 - [plugin_guide.md](plugin_guide.md) — Interface documentation and integration examples
-- [ailee_plugins/PluginRegistry.hpp](../ailee_plugins/PluginRegistry.hpp) — Full API
-- [ailee_plugins/IMarketDataSource.hpp](../ailee_plugins/IMarketDataSource.hpp)
-- [ailee_plugins/IExecutionProvider.hpp](../ailee_plugins/IExecutionProvider.hpp)
-- [ailee_plugins/IAnalyticsObserver.hpp](../ailee_plugins/IAnalyticsObserver.hpp)
+- [ailee_plugins/PluginRegistry.hpp](../../ailee_plugins/PluginRegistry.hpp) — Full API
+- [ailee_plugins/IMarketDataSource.hpp](../../ailee_plugins/IMarketDataSource.hpp)
+- [ailee_plugins/IExecutionProvider.hpp](../../ailee_plugins/IExecutionProvider.hpp)
+- [ailee_plugins/IAnalyticsObserver.hpp](../../ailee_plugins/IAnalyticsObserver.hpp)

@@ -221,7 +221,7 @@ execute(decision);
 | `isHealthy(max_fallback_rate)` | Simple health check (default threshold: 10%) |
 | `reset()` | Clear all accumulated metrics |
 
-See `docs/metrics_extension.md` for full documentation.
+See `docs/metrics/metrics_extension.md` for full documentation.
 
 ### Constraints
 
@@ -433,7 +433,7 @@ file into the application automatically calls `registerMarketData()` /
 `registerExecutionProvider()` / `registerAnalyticsObserver()` at static-init time,
 before `main()` runs.
 
-See [docs/plugin_registry.md](plugin_registry.md) for the full registry reference.
+See [plugin_registry.md](plugin_registry.md) for the full registry reference.
 
 ---
 
@@ -476,11 +476,11 @@ linked, and it deliberately does not register as an execution provider.
 
 ## See Also
 
-- [README.md](../README.md) — Framework overview and architecture
-- [QUICKSTART.md](../QUICKSTART.md) — Get running in 60 seconds
-- [docs/metrics_extension.md](metrics_extension.md) — Analytics extension reference
-- [docs/REST_API.md](REST_API.md) — REST API integration
-- [docs/plugin_registry.md](plugin_registry.md) — Plugin discovery and registry reference
+- [README.md](../../README.md) — Framework overview and architecture
+- [QUICKSTART.md](../../QUICKSTART.md) — Get running in 60 seconds
+- [metrics_extension.md](../metrics/metrics_extension.md) — Analytics extension reference
+- [REST_API.md](REST_API.md) — REST API integration
+- [plugin_registry.md](plugin_registry.md) — Plugin discovery and registry reference
 
 ---
 

@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python Finance Runtime Kernel operator (`core/finance_kernel/unified_runtime.py`) and default operator registry integration (`unified_runtime_operator`).
 - Spire interface integration (`aillee_spire::get_unified_runtime_advisory()`, `aillee_spire::get_unified_runtime_metrics()`).
 - C++ benchmarking tool (`examples/unified_runtime_demo.cpp`) and Python simulation harness (`simulations/run_unified_simulation.py`).
-- Architecture documentation (`docs/17.0.0_unified_cohesive_runtime.md`).
+- Architecture documentation (`docs/architecture/17.0.0_unified_cohesive_runtime.md`).
 - Comprehensive unit test coverage in C++ (`tests/unit_tests.cpp`) and Python (`tests/test_finance_kernel_unified.py`).
 
 ## [16.0.0] - 2026-11-15
