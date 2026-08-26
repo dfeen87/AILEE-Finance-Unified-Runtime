@@ -13,7 +13,7 @@
         <!-- TOP-LEVEL UNIFIED RUNTIME DASHBOARD / HEADER -->
         <header class="terminal-header">
             <div class="header-brand">
-                <div class="brand-title">AILEE FINANCE <span class="v-tag">V21.0.0</span></div>
+                <div class="brand-title">AILEE FINANCE <span class="v-tag">V22.0.0</span></div>
                 <div class="brand-subtitle">UNIFIED RUNTIME • 19-LAYER DETERMINISTIC GOVERNANCE ENGINE</div>
             </div>
 
@@ -54,6 +54,16 @@
                         <option value="CONTRARIAN">Contrarian</option>
                     </select>
                     <span id="bullishnessModeBadge" class="badge badge-bullish-standard">STANDARD LENS</span>
+                </div>
+
+                <div class="bullishness-selector-container">
+                    <span class="bullishness-label">TECHNICAL OVERLAY:</span>
+                    <select id="technicalOverlayModeSelect" class="bullishness-select">
+                        <option value="NONE">None</option>
+                        <option value="FIBONACCI">Fibonacci / Golden Ratio</option>
+                        <option value="VOLUME_ONLY">Volume-Only</option>
+                        <option value="FIB_VOLUME_UNIFIED" selected>Fib + Volume (Unified)</option>
+                    </select>
                 </div>
 
                 <button id="streamToggleBtn" class="btn btn-primary btn-sm">STREAM: LIVE WS</button>

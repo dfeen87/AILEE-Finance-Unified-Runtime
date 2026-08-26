@@ -96,6 +96,12 @@ test_v21:
 	@printf "$(COLOR_YELLOW)=== Executing AILEE v21.0.0 Full Validation Suite ===$(COLOR_RESET)\n"
 	@PYTHONPATH=. pytest tests/
 
+test_v22:
+	@printf "$(COLOR_YELLOW)=== Executing FS-Gateway Subsystem Tests ===$(COLOR_RESET)\n"
+	@PYTHONPATH=. pytest tests/test_fs_gateway_schema.py tests/test_desk_stream_correctness.py tests/test_connection_resilience.py
+	@printf "$(COLOR_YELLOW)=== Executing AILEE v22.0.0 Full Validation Suite ===$(COLOR_RESET)\n"
+	@PYTHONPATH=. pytest tests/
+
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@printf "$(COLOR_YELLOW)=== AILEE CORE v21.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps

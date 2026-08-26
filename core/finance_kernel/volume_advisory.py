@@ -407,3 +407,56 @@ class IntradayVolumeAdvisory(BaseOperator):
     def finalize(self, result_data: dict) -> dict:
         """Finalizes trace steps or outputs."""
         return result_data
+
+
+def evaluate_oversold(
+    current_price: float,
+    current_volume: float,
+    avg_volume: float,
+    mode: str = "STANDARD",
+    fib: Optional[Any] = None
+) -> Dict[str, Any]:
+    """Evaluates oversold conditions modulated by Fibonacci advisories."""
+    vol_ratio = (current_volume / avg_volume) if avg_volume > 0.0 else 1.0
+    mode_str = str(mode).upper()
+    base_thresh = 0.75
+    if mode_str == "CONTRARIAN":
+        base_thresh = 0.65
+    elif mode_str == "CONSERVATIVE":
+        base_thresh = 0.80
+    elif mode_str == "HYPER":
+        base_thresh = 0.70
+
+    weight = 0.5
+    if vol_ratio >= 1.2:
+        weight = 0.7
+
+    fib_buy = getattr(fib, 'fib_buy_signal', False) if fib else False
+    fib_active = getattr(fib, 'fib_zone_active', False) if fib else False
+    contrarian_fib = getattr(fib, 'contrarian_fib_buy_zone', False) if fib else False
+    fib_sell = getattr(fib, 'fib_sell_signal', False) if fib else False
+    hyper_breakout = getattr(fib, 'hyper_fib_breakout', False) if fib else False
+
+    if fib_active and fib_buy:
+        weight *= 1.05
+        base_thresh -= 0.02
+
+    if contrarian_fib and mode_str == "CONTRARIAN":
+        weight *= 1.10
+        base_thresh -= 0.03
+
+    if fib_sell or hyper_breakout:
+        weight *= 0.95
+
+    oversold_score = min(1.0, vol_ratio / 2.0)
+    oversold_state = (oversold_score >= base_thresh) or fib_buy or contrarian_fib
+    contrarian_buy_signal = contrarian_fib or (mode_str == "CONTRARIAN" and oversold_state)
+    recommended_weight = max(0.0, min(1.0, weight))
+
+    return {
+        "oversold_state": oversold_state,
+        "contrarian_buy_signal": contrarian_buy_signal,
+        "oversold_score": oversold_score,
+        "recommended_weight": recommended_weight,
+        "buy_threshold": base_thresh
+    }
