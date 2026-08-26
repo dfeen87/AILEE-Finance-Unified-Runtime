@@ -5,6 +5,14 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [22.1.0] - 2026-12-28
+### Changed
+- **Structural Efficiency Pass**: Cleaned up module boundaries, cross-module couplings, and header includes across Layer 17, VAM, Fibonacci, Safety, and Runtime Config.
+- **Fibonacci Signal Consolidation**: Consolidated all Fibonacci-related advisory outputs (`fib_zone_active`, `fib_buy_signal`, `fib_sell_signal`, `hyper_fib_breakout`, `contrarian_fib_buy_zone`) into a single canonical `FibAdvisory` struct passed into VAM and chart intelligence across C++ and Python.
+- **Runtime Path Simplification**: Consolidated the sequential sub-advisory evaluation calls inside `AILLEEngine::makeDecision` into a single `evaluate_unified_advisories()` function per tick, reducing hot-loop branching and centralizing tick evaluations.
+- **Safety Lock Priority Enforcement**: Reordered execution entry points to evaluate top-level fail-closed safety locks (`hardware_fault`, `kill_switch`) with strict top priority prior to running advisory logic.
+- **Internal Documentation Alignment**: Synchronized in-code comments, docstrings, and function/header annotations across C++ and Python sources to reflect tightened module boundaries while leaving external Markdown documentation untouched.
+
 ## [21.0.0] - 2026-12-21
 ### Added
 - **Global Bullish/Contrarian Mode Architecture Hardening**: Standardized `STANDARD`, `CONSERVATIVE`, `HYPER`, and `CONTRARIAN` modes as first-class runtime and configuration concepts across C++, Python, FS-Gateway, and Dashboard UI.
