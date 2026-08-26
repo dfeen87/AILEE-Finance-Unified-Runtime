@@ -1021,4 +1021,78 @@ std::size_t serialize_stress_regime_payload_json(
     return static_cast<std::size_t>(written);
 }
 
+FibAdvisory compute_fib_advisory(
+    double current_price,
+    double recent_high,
+    double recent_low,
+    double current_volume,
+    double avg_volume,
+    BullishnessMode mode
+) noexcept {
+    FibAdvisory adv{};
+    if (recent_high <= recent_low || current_price <= 0.0) {
+        return adv;
+    }
+
+    auto ret = ailee::fib::compute_retracements(recent_high, recent_low);
+    auto ext = ailee::fib::compute_extensions(recent_high, recent_low);
+
+    double range = recent_high - recent_low;
+    double epsilon = 0.002 * recent_high;
+
+    bool near_ret236 = std::abs(current_price - ret.level_236) <= epsilon;
+    bool near_ret382 = std::abs(current_price - ret.level_382) <= epsilon;
+    bool near_ret618 = std::abs(current_price - ret.level_618) <= epsilon;
+    bool near_ret786 = std::abs(current_price - ret.level_786) <= epsilon;
+
+    bool near_ext1272 = std::abs(current_price - ext.level_1272) <= epsilon;
+    bool near_ext1618 = std::abs(current_price - ext.level_1618) <= epsilon;
+    bool near_ext2618 = std::abs(current_price - ext.level_2618) <= epsilon;
+
+    bool near_retracement = near_ret236 || near_ret382 || near_ret618 || near_ret786;
+    bool near_extension = near_ext1272 || near_ext1618 || near_ext2618;
+
+    adv.fib_zone_active = near_retracement || near_extension;
+
+    bool vol_confirmed_1_2 = (avg_volume > 0.0) && (current_volume >= 1.2 * avg_volume);
+    bool vol_confirmed_1_3 = (avg_volume > 0.0) && (current_volume >= 1.3 * avg_volume);
+    bool vol_exhaustion = (avg_volume > 0.0) && (current_volume <= 0.8 * avg_volume);
+
+    switch (mode) {
+        case BullishnessMode::STANDARD:
+            adv.fib_buy_signal = false;
+            adv.fib_sell_signal = false;
+            break;
+
+        case BullishnessMode::CONSERVATIVE:
+            if (adv.fib_zone_active && vol_confirmed_1_2 && near_retracement) {
+                adv.fib_buy_signal = true;
+            }
+            if (near_extension && vol_exhaustion) {
+                adv.fib_sell_signal = true;
+            }
+            break;
+
+        case BullishnessMode::HYPER:
+            if (adv.fib_zone_active && vol_confirmed_1_3 && (current_price >= ret.level_382 || near_extension)) {
+                adv.hyper_fib_breakout = true;
+            }
+            if (near_extension) {
+                adv.fib_sell_signal = true;
+            }
+            break;
+
+        case BullishnessMode::CONTRARIAN:
+            if (adv.fib_zone_active && vol_confirmed_1_3 && (current_price <= ret.level_618 || current_price <= recent_low + 0.236 * range)) {
+                adv.contrarian_fib_buy_zone = true;
+            }
+            if (near_extension && vol_exhaustion) {
+                adv.fib_sell_signal = true;
+            }
+            break;
+    }
+
+    return adv;
+}
+
 } // namespace AILLE

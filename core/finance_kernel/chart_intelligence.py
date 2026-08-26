@@ -16,6 +16,7 @@ from typing import List, Dict, Any, Optional
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import BaseOperator
+from core.finance_kernel.fibonacci import compute_retracements, compute_extensions
 
 
 class ChartIndicatorType(IntEnum):
@@ -734,3 +735,88 @@ class ChartIntelligenceOperator(BaseOperator):
             "liquidity_regime": LIQUIDITY_REGIME_MAP[modifier.liquidity_regime],
             "correlation_regime": CORRELATION_REGIME_MAP[modifier.correlation_regime]
         }
+
+
+class FibAdvisory:
+    """Deterministic Fibonacci & Golden Ratio Technical Advisory Result."""
+    def __init__(
+        self,
+        fib_zone_active: bool = False,
+        fib_buy_signal: bool = False,
+        fib_sell_signal: bool = False,
+        contrarian_fib_buy_zone: bool = False,
+        hyper_fib_breakout: bool = False
+    ):
+        self.fib_zone_active = fib_zone_active
+        self.fib_buy_signal = fib_buy_signal
+        self.fib_sell_signal = fib_sell_signal
+        self.contrarian_fib_buy_zone = contrarian_fib_buy_zone
+        self.hyper_fib_breakout = hyper_fib_breakout
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "fib_zone_active": self.fib_zone_active,
+            "fib_buy_signal": self.fib_buy_signal,
+            "fib_sell_signal": self.fib_sell_signal,
+            "contrarian_fib_buy_zone": self.contrarian_fib_buy_zone,
+            "hyper_fib_breakout": self.hyper_fib_breakout
+        }
+
+
+def compute_fib_advisory(
+    current_price: float,
+    recent_high: float,
+    recent_low: float,
+    current_volume: float,
+    avg_volume: float,
+    mode: str = "STANDARD"
+) -> FibAdvisory:
+    adv = FibAdvisory()
+    if recent_high <= recent_low or current_price <= 0.0:
+        return adv
+
+    ret = compute_retracements(recent_high, recent_low)
+    ext = compute_extensions(recent_high, recent_low)
+
+    rng = recent_high - recent_low
+    epsilon = 0.002 * recent_high
+
+    near_ret236 = abs(current_price - ret.level_236) <= epsilon
+    near_ret382 = abs(current_price - ret.level_382) <= epsilon
+    near_ret618 = abs(current_price - ret.level_618) <= epsilon
+    near_ret786 = abs(current_price - ret.level_786) <= epsilon
+
+    near_ext1272 = abs(current_price - ext.level_1272) <= epsilon
+    near_ext1618 = abs(current_price - ext.level_1618) <= epsilon
+    near_ext2618 = abs(current_price - ext.level_2618) <= epsilon
+
+    near_retracement = near_ret236 or near_ret382 or near_ret618 or near_ret786
+    near_extension = near_ext1272 or near_ext1618 or near_ext2618
+
+    adv.fib_zone_active = near_retracement or near_extension
+
+    vol_confirmed_1_2 = (avg_volume > 0.0) and (current_volume >= 1.2 * avg_volume)
+    vol_confirmed_1_3 = (avg_volume > 0.0) and (current_volume >= 1.3 * avg_volume)
+    vol_exhaustion = (avg_volume > 0.0) and (current_volume <= 0.8 * avg_volume)
+
+    mode_str = str(mode).upper()
+    if mode_str == "STANDARD":
+        adv.fib_buy_signal = False
+        adv.fib_sell_signal = False
+    elif mode_str == "CONSERVATIVE":
+        if adv.fib_zone_active and vol_confirmed_1_2 and near_retracement:
+            adv.fib_buy_signal = True
+        if near_extension and vol_exhaustion:
+            adv.fib_sell_signal = True
+    elif mode_str == "HYPER":
+        if adv.fib_zone_active and vol_confirmed_1_3 and (current_price >= ret.level_382 or near_extension):
+            adv.hyper_fib_breakout = True
+        if near_extension:
+            adv.fib_sell_signal = True
+    elif mode_str == "CONTRARIAN":
+        if adv.fib_zone_active and vol_confirmed_1_3 and (current_price <= ret.level_618 or current_price <= recent_low + 0.236 * rng):
+            adv.contrarian_fib_buy_zone = True
+        if near_extension and vol_exhaustion:
+            adv.fib_sell_signal = True
+
+    return adv

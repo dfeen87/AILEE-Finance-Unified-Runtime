@@ -40,8 +40,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "21.0.0";
-constexpr int AILLE_VERSION_MAJOR = 21;
+constexpr const char* AILLE_VERSION = "22.0.0";
+constexpr int AILLE_VERSION_MAJOR = 22;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -78,6 +78,7 @@ struct BaselineState;
 struct ChartConditionPayload;
 struct PatternEnvironmentState;
 struct PatternConditionPayload;
+struct FibAdvisory;
 struct WNFSFrame;
 struct WNFSState;
 struct WNFSAdvisory;
@@ -123,6 +124,36 @@ struct alignas(64) MarketStabilizerState final {
           historical_stabilizer_weight(0.5f), _padding{} {}
 };
 static_assert(sizeof(MarketStabilizerState) == 64, "MarketStabilizerState must be exactly 64 bytes");
+
+enum class BullishnessMode : std::uint8_t {
+    STANDARD = 0,
+    CONSERVATIVE = 1,
+    HYPER = 2,
+    CONTRARIAN = 3
+};
+
+enum class TechnicalOverlayMode : std::uint8_t {
+    None = 0,
+    FibonacciOnly = 1,
+    VolumeOnly = 2,
+    FibVolumeUnified = 3
+};
+
+struct alignas(64) FibAdvisory final {
+    bool fib_zone_active;
+    bool fib_buy_signal;
+    bool fib_sell_signal;
+    bool contrarian_fib_buy_zone;
+    bool hyper_fib_breakout;
+    std::uint8_t _padding[59];
+
+    constexpr FibAdvisory()
+        : fib_zone_active(false), fib_buy_signal(false), fib_sell_signal(false),
+          contrarian_fib_buy_zone(false), hyper_fib_breakout(false), _padding{} {}
+};
+static_assert(sizeof(FibAdvisory) == 64, "FibAdvisory must be exactly 64 bytes");
+static_assert(alignof(FibAdvisory) == 64, "FibAdvisory must be alignas(64)");
+static_assert(std::is_trivially_copyable_v<FibAdvisory>, "FibAdvisory must be trivially copyable");
 
 struct alignas(64) MarketStabilizerAdvisory final {
     float stabilization_risk_score;  // 4

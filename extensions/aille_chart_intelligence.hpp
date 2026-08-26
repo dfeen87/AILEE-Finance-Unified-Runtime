@@ -23,6 +23,7 @@
 #include "aille_anomaly.hpp"
 #include "aille_volume_advisory.hpp"
 #include "aille_wnfs.hpp"
+#include "fibonacci.hpp"
 
 namespace AILLE {
 
@@ -483,6 +484,15 @@ std::size_t serialize_pattern_payload_json(
     const PatternConditionPayload& payload,
     char* buffer,
     std::size_t buffer_size
+) noexcept;
+
+FibAdvisory compute_fib_advisory(
+    double current_price,
+    double recent_high,
+    double recent_low,
+    double current_volume,
+    double avg_volume,
+    BullishnessMode mode
 ) noexcept;
 
 } // namespace AILLE
