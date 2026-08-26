@@ -96,7 +96,8 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
     const ailee::HFTBiasConfig* hft_bias_cfg = nullptr,
     float trust_score = 0.85f,
     float manipulation_score = 0.0f,
-    bool drawdown_near_breach = false
+    bool drawdown_near_breach = false,
+    const FibAdvisory* fib_adv = nullptr
 ) noexcept {
     VolumeAdvisory advisory{};
 
@@ -156,7 +157,26 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
     if (is_contrarian_mode) {
         eff_oversold_thresh = cfg.contrarian_oversold_threshold;
     }
+
+    // Apply Fibonacci advisory modulation if provided via canonical FibAdvisory struct
+    if (fib_adv != nullptr) {
+        if (fib_adv->fib_zone_active && fib_adv->fib_buy_signal) {
+            advisory.recommended_weight *= 1.05f;
+            eff_oversold_thresh -= 0.02f;
+        }
+        if (fib_adv->contrarian_fib_buy_zone && is_contrarian_mode) {
+            advisory.recommended_weight *= 1.10f;
+            eff_oversold_thresh -= 0.03f;
+        }
+        if (fib_adv->fib_sell_signal || fib_adv->hyper_fib_breakout) {
+            advisory.recommended_weight *= 0.95f;
+        }
+    }
+
     advisory.oversold_state = (advisory.oversold_score >= eff_oversold_thresh) || cond_a || (state.is_index_etf && cond_b);
+    if (fib_adv != nullptr && (fib_adv->fib_buy_signal || fib_adv->contrarian_fib_buy_zone)) {
+        advisory.oversold_state = true;
+    }
 
     advisory.contrarian_buy_signal = contrarian_active && advisory.oversold_state;
 

@@ -815,7 +815,7 @@ public:
     void set_stress_trace(StressTraceSteps* t) noexcept { stress_trace_ = t; }
     void set_normal_safety_failed(bool f) noexcept { normal_safety_failed_ = f; }
 
-    [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
+    void evaluate_unified_advisories() noexcept {
         evaluate_btc_advisory();
         evaluate_eth_advisory();
         evaluate_oil_advisory();
@@ -831,15 +831,16 @@ public:
         evaluate_macro_advisory();
         evaluate_stabilizer_advisory();
         evaluate_unified_runtime();
+    }
 
-        std::lock_guard<std::mutex> lock(engine_mtx_);
-
+    [[nodiscard]] Decision makeDecision(const ModelSignal* model_signals, size_t count) {
         Decision decision;
         decision.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()
         ).count();
         decision.num_contributing_models = 0;
 
+        // Top-level fail-closed safety lock evaluation (Safety precedence)
         if (safety_state_ && (safety_state_->kill_switch || safety_state_->hardware_fault)) {
             decision.status = FALLBACK_ACTIVATED;
             decision.final_value = 0.0f;
@@ -849,6 +850,10 @@ public:
             decision.setReasoning(safety_state_->hardware_fault ? "Hardware fault detected - fallback to zero" : "Kill switch engaged - fallback to zero");
             return decision;
         }
+
+        evaluate_unified_advisories();
+
+        std::lock_guard<std::mutex> lock(engine_mtx_);
 
         if (!validateConfig(config, decision)) {
             decision.num_contributing_models = 0;
