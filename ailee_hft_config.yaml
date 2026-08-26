@@ -1,4 +1,4 @@
-version: "22.1.0"
+version: "23.0.0"
 hft_bias:
   enabled: true
   bullishness_mode: "STANDARD"

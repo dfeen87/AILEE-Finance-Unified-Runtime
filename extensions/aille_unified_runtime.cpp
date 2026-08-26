@@ -16,6 +16,7 @@
 #include "aille_anomaly.hpp"
 #include "aille_stress_regime_override.hpp"
 #include "aille_meta_governance.hpp"
+#include "aille_sync_adapter.hpp"
 
 namespace AILLE {
 
@@ -28,7 +29,8 @@ namespace AILLE {
     const StressPortfolioState* stress_state,
     const MetaGovernanceState* meta_state,
     const UnifiedRuntimeConfig& config,
-    const SafetyState* safety
+    const SafetyState* safety,
+    const SyncTick* sync_tick
 ) noexcept {
     UnifiedRuntimeAdvisory advisory;
 
@@ -38,8 +40,8 @@ namespace AILLE {
         sequence_violation = true;
     }
     std::uint64_t next_sequence = std::max(state.cycle_sequence_id + 1, metrics.total_cycles_processed + 1);
-    state.cycle_sequence_id = next_sequence;
-    state.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+    state.cycle_sequence_id = (sync_tick && sync_tick->tick_index > 0) ? sync_tick->tick_index : next_sequence;
+    state.timestamp_ns = (sync_tick && sync_tick->timestamp_ns > 0) ? sync_tick->timestamp_ns : std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::high_resolution_clock::now().time_since_epoch()
     ).count();
 
@@ -104,7 +106,10 @@ namespace AILLE {
     }
 
     // 5. Evaluate Stress Regime Override (Layer 13) & Fault Escalations
-    bool crisis_escalation = (config.auto_escalate_faults && (wnfs_fault || anomaly_fault)) ||
+    bool sync_stress = (sync_tick && sync_tick->escalate_stress);
+    bool sync_meta_lock = (sync_tick && sync_tick->escalate_meta_lock);
+
+    bool crisis_escalation = (config.auto_escalate_faults && (wnfs_fault || anomaly_fault || sync_stress)) ||
                              (stress_state && stress_state->stress_level == static_cast<std::uint8_t>(StressMode::CRISIS));
     bool stress_mode = (stress_state && stress_state->stress_level == static_cast<std::uint8_t>(StressMode::STRESS));
 
@@ -126,7 +131,15 @@ namespace AILLE {
     }
 
     // 6. Evaluate Meta-Governance Lock (Layer 14)
-    if (meta_state) {
+    if (sync_meta_lock) {
+        state.system_status = UNIFIED_STATUS_META_LOCKED;
+        state.execution_ready = 0;
+        metrics.meta_lock_active = 1;
+        advisory.execution_permitted = 0;
+        advisory.recommended_execution_scale = 0.0f;
+        advisory.system_confidence = 0.0f;
+        advisory.hft_freeze_active = 1;
+    } else if (meta_state) {
         if (!meta_state->execution_ready && config.enforce_strict_lock) {
             state.system_status = UNIFIED_STATUS_META_LOCKED;
             state.execution_ready = 0;
@@ -178,7 +191,8 @@ void AILLEEngine::evaluate_unified_runtime() {
         stress_state_,
         meta_state_,
         cfg,
-        safety_state_
+        safety_state_,
+        sync_tick_
     );
     *unified_state_ = mutable_state;
 }

@@ -146,7 +146,8 @@ static_assert(sizeof(UnifiedRuntimeConfig) == 64, "UnifiedRuntimeConfig must be 
     const StressPortfolioState* stress_state,
     const MetaGovernanceState* meta_state,
     const UnifiedRuntimeConfig& config = UnifiedRuntimeConfig(),
-    const SafetyState* safety = nullptr
+    const SafetyState* safety = nullptr,
+    const SyncTick* sync_tick = nullptr
 ) noexcept;
 
 } // namespace AILLE
