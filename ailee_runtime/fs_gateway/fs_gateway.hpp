@@ -33,7 +33,7 @@ namespace websocketpp {
 
 namespace AILEE {
 
-constexpr const char* FS_GATEWAY_VERSION = "22.1.0";
+constexpr const char* FS_GATEWAY_VERSION = "23.0.0";
 constexpr const char* FS_GATEWAY_DEFAULT_PATH = "/ailee/finance/runtime";
 constexpr int FS_GATEWAY_DEFAULT_PORT = 9002;
 

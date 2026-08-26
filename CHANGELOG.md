@@ -5,6 +5,13 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [23.0.0] - 2026-12-30
+### Added
+- **Deterministic Sync Adapter (SYNC_ADAPTER_V1)**: Integrated authoritative temporal clock binding AILEE Finance to the AILEE Runtime Protocol clock in C++ (`extensions/aille_sync_adapter.hpp/.cpp`) and Python (`core/finance_kernel/sync_adapter.py`).
+- **Mainnet Temporal Alignment**: Bound all advisory evaluations (Layer 17 Chart Intelligence, Volume Advisory Module / VAM, Fibonacci Overlay, WNFS, Safety Locks, and Layer 19 Unified Runtime Evaluation) to canonical `SyncTick` snapshots (`tick_index`, `timestamp_ns`, `wave_phase`, `drift_ns`, `confidence`, `alignment_flags`).
+- **AF-WSX Telemetry Stream Sync**: Embedded `sync_tick` JSON metadata in FS-Gateway WebSocket server frames (`ailee_runtime/fs_gateway/fs_gateway.cpp`).
+- **Fail-Closed Escalation Path**: Configured automatic escalation to Layer 13 Stress Override and Layer 14 Meta-Governance Lock on clock drift or sequence gap breaches.
+
 ## [22.1.0] - 2026-12-28
 ### Changed
 - **Structural Efficiency Pass**: Cleaned up module boundaries, cross-module couplings, and header includes across Layer 17, VAM, Fibonacci, Safety, and Runtime Config.

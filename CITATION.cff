@@ -6,7 +6,7 @@ authors:
     name-suffix: "Jr."
     orcid: "https://orcid.org/0009-0003-1350-4160"
 title: "AILEE Finance Unified Runtime"
-version: 22.1.0
+version: 23.0.0
 license: MIT
 repository-code: "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime"
 date-released: "2026-08-25"
