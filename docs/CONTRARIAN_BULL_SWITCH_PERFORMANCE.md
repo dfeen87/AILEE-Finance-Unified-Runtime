@@ -7,6 +7,8 @@ This report documents the empirical evaluation and performance benchmark analysi
 
 The system supports a 4-level global bullishness mode hierarchy (`STANDARD`, `CONSERVATIVE`, `HYPER`, `CONTRARIAN`) synchronized across C++, Python runtime operators, FS-Gateway WebSocket streams, and the Bloomberg-style Dashboard UI. When `CONTRARIAN` mode is active, the runtime modulates passive volume advisories, chart pattern intelligence, high-frequency trade execution weights, and dynamic sell ceilings while strictly maintaining fail-closed safety kill switches.
 
+Under these assumptions, the Contrarian Bull Switch regime turns $100,000 into a median ≈$160,000 over 30,000 contrarian trades, with a risk‑controlled floor around $90,000 (5th percentile) and a high‑end outcome near $260,000 (95th percentile), while roughly one‑third of paths trigger the 12% max‑drawdown kill‑switch at least once.
+
 ---
 
 ### Architectural Overview & Modulation Mechanics
