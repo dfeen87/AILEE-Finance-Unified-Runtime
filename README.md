@@ -545,7 +545,7 @@ AILLE now includes an optional next-generation performance layer for deployments
 | **SIMD consensus kernels** | Provides vector-style consensus summaries for parallel confidence filtering, directional votes, weighted sums, and valid-lane counts. | Produces passive evidence; the canonical engine still performs auditable decisions. |
 | **FPGA/ASIC manifests** | Defines synthesis-compatible execution models for fixed-point streaming risk and mitigation scoring. | Hardware targets explicitly report `advisory_only = true` and `emits_orders = false`. |
 
-See [docs/performance_layer.md](docs/performance_layer.md) for integration guidance and hardware deployment constraints.
+See [docs/architecture/performance_layer.md](docs/architecture/performance_layer.md) for integration guidance and hardware deployment constraints.
 
 ## Use Cases
 
@@ -610,7 +610,7 @@ response = requests.post("http://localhost:8080/api/decision",
 decision = response.json()
 ```
 
-**See [REST API Documentation](docs/REST_API.md) for complete details.**
+**See [REST API Documentation](docs/api/REST_API.md) for complete details.**
 
 ---
 
@@ -697,7 +697,7 @@ AILLE is designed to be extended without modifying its core. Three categories of
 
 The built-in `extensions/aille_metrics.hpp` (`MetricsCollector`) is the reference analytics plugin. The `extensions/aille_rest_api.hpp` is the reference execution transport. Stable C++ base classes for all three plugin categories live in `ailee_plugins/` (`IMarketDataSource`, `IExecutionProvider`, `IAnalyticsObserver`), together with the thread-safe `PluginRegistry` singleton and bundled example implementations.
 
-**See [docs/plugin_guide.md](docs/plugin_guide.md) for the complete plugin authoring reference**, including the stable API contract, per-plugin interface requirements, and configuration guidance.
+**See [docs/api/plugin_guide.md](docs/api/plugin_guide.md) for the complete plugin authoring reference**, including the stable API contract, per-plugin interface requirements, and configuration guidance.
 
 ---
 
@@ -881,9 +881,9 @@ This target performs the following actions:
 
 ## Test Plan and Benchmarking
 
-- **Test plan:** See `docs/test_plan.md` for build, functional, and cleanup steps.
+- **Test plan:** See `docs/analysis/validation/test_plan.md` for build, functional, and cleanup steps.
 - **Benchmark harness:** Build with `make benchmark` and run `./benchmark [iterations]` to measure decision throughput.
-- **Simulation harness:** Run `python3 simulations/aille_simulation.py` for a reproducible synthetic comparison of AILLE vs a naive baseline. See `docs/simulation.md` for details.
+- **Simulation harness:** Run `python3 simulations/aille_simulation.py` for a reproducible synthetic comparison of AILLE vs a naive baseline. See `docs/analysis/validation/simulation.md` for details.
 
 ---
 

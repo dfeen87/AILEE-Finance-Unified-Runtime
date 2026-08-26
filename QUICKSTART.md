@@ -217,9 +217,9 @@ Run the demo — it prints every decision step in real time:
 
 - ✅ Run the demo (`make && ./demo`)
 - ✅ Read the main [README.md](README.md)
-- ✅ Review [docs/test_plan.md](docs/test_plan.md) for build and test steps
-- ✅ See [docs/REST_API.md](docs/REST_API.md) for HTTP integration
-- ✅ See [docs/plugin_guide.md](docs/plugin_guide.md) to build market-data, execution, or analytics plugins
+- ✅ Review [docs/analysis/validation/test_plan.md](docs/analysis/validation/test_plan.md) for build and test steps
+- ✅ See [docs/api/REST_API.md](docs/api/REST_API.md) for HTTP integration
+- ✅ See [docs/api/plugin_guide.md](docs/api/plugin_guide.md) to build market-data, execution, or analytics plugins
 
 ---
 
