@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Feeney"
+    given-names: "Don Michael"
+    name-suffix: "Jr."
+    orcid: "https://orcid.org/0009-0003-1350-4160"
+title: "AILEE Finance Unified Runtime"
+version: 21.0.0
+license: MIT
+repository-code: "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime"
+date-released: "2026-08-25"
+abstract: "AILEE Finance Unified Runtime: An institutional-grade, low-latency, deterministic multi-layer algorithmic governance and high-frequency trading execution engine."
