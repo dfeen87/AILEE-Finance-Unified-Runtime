@@ -1,4 +1,6 @@
 # Build artifacts
+build_manifest.json
+build_manifest.json.asc
 demo
 demo_debug
 benchmark

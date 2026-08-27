@@ -66,9 +66,9 @@ SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
 
 .PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \
         spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo wnfs_demo install uninstall help \
-        check_deps release
+        check_deps release provenance
 
-all: demo
+all: demo provenance
 
 check_deps:
 	@printf "$(COLOR_YELLOW)Checking dependencies...$(COLOR_RESET)\n"
@@ -80,6 +80,9 @@ check_deps:
 		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 		exit 1; \
 	fi
+
+provenance:
+	@python3 generate_build_manifest.py
 
 fs_gateway_test:
 	@printf "$(COLOR_YELLOW)=== Executing FS-Gateway Subsystem Tests ===$(COLOR_RESET)\n"
@@ -119,6 +122,7 @@ demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 		exit 1; \
 	fi
+	@$(MAKE) --no-print-directory provenance
 
 debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	$(CXX) $(CXXFLAGS) -g $(COMMON_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo_debug
@@ -227,7 +231,7 @@ benchmark: $(BENCHMARK_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@printf "$(COLOR_YELLOW)=== AILEE CORE v17.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
-	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(BENCHMARK_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o benchmark; then \
+	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(WEBSOCKET_FLAGS) $(BENCHMARK_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o benchmark; then \
 		printf "$(COLOR_GREEN)✓ Build completed successfully — deterministic and governed.$(COLOR_RESET)\n\n"; \
 	else \
 		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
@@ -269,16 +273,9 @@ fs_gateway: ailee_runtime/fs_gateway/main.cpp ailee_runtime/fs_gateway/fs_gatewa
 	fi
 
 release:
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v19.0.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.0.0 — Release Package Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
-	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
-	@$(MAKE) --no-print-directory demo
-	@$(MAKE) --no-print-directory fs_gateway
-	@$(MAKE) --no-print-directory rest_api_server
-	@$(MAKE) --no-print-directory websocket_server
-	@$(MAKE) --no-print-directory dashboard_server
-	@$(MAKE) --no-print-directory benchmark
-	@$(MAKE) --no-print-directory test_suite
+	@if [ ! -f test_suite ]; then $(MAKE) --no-print-directory test_suite; fi
 	@printf "$(COLOR_YELLOW)Running test suite...$(COLOR_RESET)\n"
 	@if ./test_suite; then \
 		printf "$(COLOR_GREEN)✓ Test suite passed!$(COLOR_RESET)\n"; \
@@ -287,15 +284,22 @@ release:
 		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 		exit 1; \
 	fi
+	@printf "$(COLOR_YELLOW)Generating build provenance manifest...$(COLOR_RESET)\n"
+	@$(MAKE) --no-print-directory provenance
 	@printf "$(COLOR_YELLOW)Creating release package...$(COLOR_RESET)\n"
 	@mkdir -p release
-	@for binary in demo rest_api_server websocket_server dashboard_server benchmark test_suite bin/ailee_fs_gateway; do \
-		if cp $$binary release/ 2>/dev/null; then \
-			printf "$(COLOR_GREEN)✓ Copying $$binary → release/$(COLOR_RESET)\n"; \
-		else \
-			printf "$(COLOR_RED)✗ Copying $$binary → release/$(COLOR_RESET)\n"; \
-			printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
-			exit 1; \
+	@for target in demo rest_api_server websocket_server dashboard_server benchmark test_suite fs_gateway; do \
+		binary=$$target; \
+		if [ "$$target" = "fs_gateway" ]; then binary="bin/ailee_fs_gateway"; fi; \
+		if [ ! -f $$binary ]; then \
+			printf "$(COLOR_YELLOW)Building missing release binary $$binary...$(COLOR_RESET)\n"; \
+			$(MAKE) --no-print-directory $$target || exit 1; \
+		fi; \
+		cp $$binary release/ && printf "$(COLOR_GREEN)✓ Copying $$binary → release/$(COLOR_RESET)\n"; \
+	done
+	@for item in build_manifest.json build_manifest.json.asc; do \
+		if [ -f $$item ]; then \
+			cp $$item release/ && printf "$(COLOR_GREEN)✓ Copying $$item → release/$(COLOR_RESET)\n"; \
 		fi; \
 	done
 	@echo "23.0.0" > release/VERSION
@@ -307,7 +311,8 @@ clean:
 	rm -rf websocket_server demo demo_debug demo_hotpath demo_audit.csv benchmark \
 		rest_api_server rest_api_audit.csv test_suite test_audit.csv \
 		test_integrity.csv dashboard_server spire_demo lantern_demo \
-		crown_walk_demo weathering_demo pilgrimage_demo release
+		crown_walk_demo weathering_demo pilgrimage_demo release \
+		build_manifest.json build_manifest.json.asc
 	@echo "✓ Cleaned build artifacts"
 
 install: aille.hpp
