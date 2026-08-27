@@ -850,6 +850,8 @@ public:
         ).count();
         decision.num_contributing_models = 0;
 
+        evaluate_unified_advisories();
+
         // Top-level fail-closed safety lock evaluation (Safety precedence)
         if (safety_state_ && (safety_state_->kill_switch || safety_state_->hardware_fault)) {
             decision.status = FALLBACK_ACTIVATED;
@@ -860,8 +862,6 @@ public:
             decision.setReasoning(safety_state_->hardware_fault ? "Hardware fault detected - fallback to zero" : "Kill switch engaged - fallback to zero");
             return decision;
         }
-
-        evaluate_unified_advisories();
 
         std::lock_guard<std::mutex> lock(engine_mtx_);
 

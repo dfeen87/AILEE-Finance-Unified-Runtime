@@ -93,6 +93,25 @@ FsGateway::~FsGateway() {
 
 bool FsGateway::startAsync() {
     if (running_) return false;
+
+    FsGatewayImpl* impl = static_cast<FsGatewayImpl*>(server_ptr_);
+    try {
+        websocketpp::lib::error_code ec;
+        impl->server.listen(websocketpp::lib::asio::ip::tcp::v4(), port_, ec);
+        if (ec) {
+            std::cerr << "[FS-Gateway] Listen failed: " << ec.message() << "\n";
+            return false;
+        }
+        impl->server.start_accept(ec);
+        if (ec) {
+            std::cerr << "[FS-Gateway] Start accept failed: " << ec.message() << "\n";
+            return false;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[FS-Gateway] Listen exception: " << e.what() << "\n";
+        return false;
+    }
+
     running_ = true;
 
     server_thread_ = std::thread([this]() {
@@ -109,8 +128,6 @@ bool FsGateway::startAsync() {
 void FsGateway::run() {
     FsGatewayImpl* impl = static_cast<FsGatewayImpl*>(server_ptr_);
     try {
-        impl->server.listen(port_);
-        impl->server.start_accept();
         std::cout << "[FS-Gateway] Server listening on port " << port_ << " (" << path_ << ")...\n";
         impl->server.run();
     } catch (const websocketpp::exception& e) {
@@ -123,24 +140,23 @@ void FsGateway::run() {
 }
 
 void FsGateway::stop() {
-    if (!running_) return;
     running_ = false;
 
     FsGatewayImpl* impl = static_cast<FsGatewayImpl*>(server_ptr_);
     if (impl) {
-        impl->server.stop_listening();
+        websocketpp::lib::error_code ec;
+        impl->server.stop_listening(ec);
 
         {
             std::lock_guard<std::mutex> lock(impl->mtx);
             for (auto it = impl->connections.begin(); it != impl->connections.end(); ++it) {
-                websocketpp::lib::error_code ec;
                 impl->server.close(*it, websocketpp::close::status::going_away, "FS-Gateway shutting down", ec);
             }
             impl->connections.clear();
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         impl->server.stop();
+        impl->server.get_io_service().stop();
     }
 }
 
