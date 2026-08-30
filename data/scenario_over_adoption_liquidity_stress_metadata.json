@@ -1,0 +1,70 @@
+{
+  "scenario_key": "over_adoption_liquidity_stress",
+  "scenario_name": "Over-Adoption + Liquidity Stress",
+  "description": "Very strong adoption demand coupled with severely constrained liquidity providers to evaluate market fragility and severe drawdowns.",
+  "seed": 202,
+  "T": 1000,
+  "market_model": "lob",
+  "indicators": {
+    "max_drawdown_pct": 1.4437188328373702,
+    "max_elevated_sell_duration_steps": 6,
+    "mean_sell_ratio": 0.3024052593661995,
+    "peak_price": 8817.24,
+    "final_price": 8817.24,
+    "total_volume": 1609002.6300000004,
+    "recovery_time_steps": 1
+  },
+  "config": {
+    "name": "Over-Adoption + Liquidity Stress",
+    "description": "Very strong adoption demand coupled with severely constrained liquidity providers to evaluate market fragility and severe drawdowns.",
+    "seed": 202,
+    "T": 1000,
+    "market_model": "lob",
+    "adoption_curve": {
+      "type": "logistic",
+      "initial_value": 100.0,
+      "target_value": 350.0,
+      "midpoint": 250,
+      "growth_rate": 0.025
+    },
+    "sentiment": {
+      "baseline": 0.6,
+      "sensitivity_to_adoption": 0.8
+    },
+    "agents": {
+      "bullish_adopters": 110,
+      "profit_takers": 80,
+      "panic_sellers": 60,
+      "liquidity_providers": 10,
+      "arbitrageurs": 20
+    },
+    "initial_allocations": {
+      "bullish_adopters": {
+        "cash": 1500000.0,
+        "inventory": 12000.0,
+        "risk_tolerance": 0.9
+      },
+      "profit_takers": {
+        "cash": 600000.0,
+        "inventory": 10000.0,
+        "profit_target_pct": 0.1
+      },
+      "panic_sellers": {
+        "cash": 400000.0,
+        "inventory": 7000.0,
+        "drawdown_threshold_pct": 0.03
+      },
+      "liquidity_providers": {
+        "cash": 500000.0,
+        "inventory": 5000.0,
+        "half_spread_pct": 0.012,
+        "max_position": 15000.0
+      },
+      "arbitrageurs": {
+        "cash": 800000.0,
+        "inventory": 6000.0,
+        "aggression": 0.4
+      }
+    }
+  }
+}
