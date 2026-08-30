@@ -1,0 +1,70 @@
+{
+  "scenario_key": "smooth_adoption",
+  "scenario_name": "Smooth Adoption, Mild Profit-Taking",
+  "description": "Gradual logistic increase in adoption A(t) with low volatility, measuring baseline selling pressure from profit-taking.",
+  "seed": 42,
+  "T": 1000,
+  "market_model": "lob",
+  "indicators": {
+    "max_drawdown_pct": 14.92241379310345,
+    "max_elevated_sell_duration_steps": 8,
+    "mean_sell_ratio": 0.4857383902564084,
+    "peak_price": 249.92,
+    "final_price": 249.92,
+    "total_volume": 16269416.940000001,
+    "recovery_time_steps": 1
+  },
+  "config": {
+    "name": "Smooth Adoption, Mild Profit-Taking",
+    "description": "Gradual logistic increase in adoption A(t) with low volatility, measuring baseline selling pressure from profit-taking.",
+    "seed": 42,
+    "T": 1000,
+    "market_model": "lob",
+    "adoption_curve": {
+      "type": "logistic",
+      "initial_value": 100.0,
+      "target_value": 250.0,
+      "midpoint": 400,
+      "growth_rate": 0.015
+    },
+    "sentiment": {
+      "baseline": 0.5,
+      "sensitivity_to_adoption": 0.5
+    },
+    "agents": {
+      "bullish_adopters": 80,
+      "profit_takers": 60,
+      "panic_sellers": 40,
+      "liquidity_providers": 40,
+      "arbitrageurs": 40
+    },
+    "initial_allocations": {
+      "bullish_adopters": {
+        "cash": 1000000.0,
+        "inventory": 10000.0,
+        "risk_tolerance": 0.8
+      },
+      "profit_takers": {
+        "cash": 500000.0,
+        "inventory": 8000.0,
+        "profit_target_pct": 0.15
+      },
+      "panic_sellers": {
+        "cash": 300000.0,
+        "inventory": 5000.0,
+        "drawdown_threshold_pct": 0.05
+      },
+      "liquidity_providers": {
+        "cash": 2000000.0,
+        "inventory": 20000.0,
+        "half_spread_pct": 0.005,
+        "max_position": 50000.0
+      },
+      "arbitrageurs": {
+        "cash": 1500000.0,
+        "inventory": 12000.0,
+        "aggression": 0.5
+      }
+    }
+  }
+}

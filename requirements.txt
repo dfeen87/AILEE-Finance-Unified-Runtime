@@ -18,3 +18,9 @@ pytest-cov==5.0.0
 
 # Optional: environment variable support
 python-dotenv==1.0.1
+
+# Simulation dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+pyyaml>=6.0.0
+matplotlib>=3.7.0

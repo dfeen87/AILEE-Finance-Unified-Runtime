@@ -1,0 +1,81 @@
+{
+  "scenario_key": "algorithmic_overreaction",
+  "scenario_name": "Algorithmic Overreaction",
+  "description": "Aggressive algorithmic arbitrageurs and momentum rules amplifying short-term mispricing, inducing selling cascades and volatile recovery.",
+  "seed": 303,
+  "T": 1000,
+  "market_model": "lob",
+  "indicators": {
+    "max_drawdown_pct": 15.13058384592114,
+    "max_elevated_sell_duration_steps": 27,
+    "mean_sell_ratio": 0.5068608262478019,
+    "peak_price": 249.51,
+    "final_price": 219.88,
+    "total_volume": 26198427.86,
+    "recovery_time_steps": 71
+  },
+  "config": {
+    "name": "Algorithmic Overreaction",
+    "description": "Aggressive algorithmic arbitrageurs and momentum rules amplifying short-term mispricing, inducing selling cascades and volatile recovery.",
+    "seed": 303,
+    "T": 1000,
+    "market_model": "lob",
+    "adoption_curve": {
+      "type": "stepwise",
+      "initial_value": 100.0,
+      "steps": [
+        {
+          "step": 0,
+          "value": 100.0
+        },
+        {
+          "step": 250,
+          "value": 180.0
+        },
+        {
+          "step": 500,
+          "value": 230.0
+        }
+      ]
+    },
+    "sentiment": {
+      "baseline": 0.5,
+      "sensitivity_to_adoption": 0.6
+    },
+    "agents": {
+      "bullish_adopters": 60,
+      "profit_takers": 60,
+      "panic_sellers": 50,
+      "liquidity_providers": 30,
+      "arbitrageurs": 90
+    },
+    "initial_allocations": {
+      "bullish_adopters": {
+        "cash": 800000.0,
+        "inventory": 8000.0,
+        "risk_tolerance": 0.8
+      },
+      "profit_takers": {
+        "cash": 500000.0,
+        "inventory": 8000.0,
+        "profit_target_pct": 0.12
+      },
+      "panic_sellers": {
+        "cash": 300000.0,
+        "inventory": 5000.0,
+        "drawdown_threshold_pct": 0.04
+      },
+      "liquidity_providers": {
+        "cash": 1200000.0,
+        "inventory": 12000.0,
+        "half_spread_pct": 0.008,
+        "max_position": 30000.0
+      },
+      "arbitrageurs": {
+        "cash": 2500000.0,
+        "inventory": 20000.0,
+        "aggression": 0.95
+      }
+    }
+  }
+}
