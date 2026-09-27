@@ -58,6 +58,8 @@ class Trade:
 
 class LimitOrderBook:
     def __init__(self, tick_size: float = 0.01):
+        if not math.isfinite(tick_size) or tick_size <= 0:
+            raise ValueError("tick_size must be a positive finite number")
         self.tick_size = tick_size
         self.bids: List[Order] = []  # Sorted descending by price, then ascending by timestamp
         self.asks: List[Order] = []  # Sorted ascending by price, then ascending by timestamp
@@ -110,7 +112,13 @@ class LimitOrderBook:
         return {"bids": sorted_bids, "asks": sorted_asks}
 
     def process_order(self, order: Order) -> List[Trade]:
-        if order.order_type == OrderType.LIMIT and order.price is not None:
+        if not math.isfinite(order.quantity) or order.quantity <= 0:
+            raise ValueError("order quantity must be a positive finite number")
+        if order.filled_quantity < 0 or order.filled_quantity > order.quantity:
+            raise ValueError("filled quantity must be between zero and order quantity")
+        if order.order_type == OrderType.LIMIT:
+            if order.price is None or not math.isfinite(order.price) or order.price <= 0:
+                raise ValueError("limit orders require a positive finite price")
             order.price = self._round_price(order.price)
 
         executed_trades: List[Trade] = []
@@ -203,14 +211,24 @@ class LimitOrderBook:
 
 class ImpactMarketModel:
     def __init__(self, initial_price: float = 100.0, impact_coefficient: float = 0.005):
+        if not math.isfinite(initial_price) or initial_price <= 0:
+            raise ValueError("initial_price must be a positive finite number")
+        if not math.isfinite(impact_coefficient) or impact_coefficient < 0:
+            raise ValueError("impact_coefficient must be a non-negative finite number")
         self.current_price = initial_price
         self.impact_coefficient = impact_coefficient
         self.trades: List[Trade] = []
         self.trade_counter = 0
 
     def process_orders(self, orders: List[Order], timestamp: int) -> Tuple[List[Trade], float]:
-        buy_qty = sum(o.quantity for o in orders if o.side == OrderSide.BUY)
-        sell_qty = sum(o.quantity for o in orders if o.side == OrderSide.SELL)
+        for order in orders:
+            if not math.isfinite(order.quantity) or order.quantity <= 0:
+                raise ValueError("order quantity must be a positive finite number")
+            if order.filled_quantity < 0 or order.filled_quantity > order.quantity:
+                raise ValueError("filled quantity must be between zero and order quantity")
+
+        buy_qty = sum(o.remaining_quantity for o in orders if o.side == OrderSide.BUY)
+        sell_qty = sum(o.remaining_quantity for o in orders if o.side == OrderSide.SELL)
         net_imbalance = buy_qty - sell_qty
 
         # Impact formula: dP = price * impact_coef * (net_imbalance / total_volume) or absolute imbalance
@@ -226,8 +244,8 @@ class ImpactMarketModel:
         # Execute matched volume at updated price
         matched_volume = min(buy_qty, sell_qty)
         if matched_volume > 0:
-            buys = [o for o in orders if o.side == OrderSide.BUY]
-            sells = [o for o in orders if o.side == OrderSide.SELL]
+            buys = [o for o in orders if o.side == OrderSide.BUY and o.remaining_quantity > 1e-6]
+            sells = [o for o in orders if o.side == OrderSide.SELL and o.remaining_quantity > 1e-6]
 
             b_idx, s_idx = 0, 0
             while b_idx < len(buys) and s_idx < len(sells):
@@ -261,6 +279,8 @@ class ImpactMarketModel:
 
 
 def generate_adoption_curve(config: Dict[str, Any], T: int) -> np.ndarray:
+    if not isinstance(T, int) or isinstance(T, bool) or T < 0:
+        raise ValueError("T must be a non-negative integer")
     curve_type = config.get("type", "logistic")
     A = np.zeros(T)
     if curve_type == "logistic":
@@ -277,7 +297,7 @@ def generate_adoption_curve(config: Dict[str, Any], T: int) -> np.ndarray:
         for step_info in sorted(steps, key=lambda x: x["step"]):
             step_t = step_info["step"]
             val = step_info["value"]
-            if step_t < T:
+            if 0 <= step_t < T:
                 A[step_t:] = val
     else:
         A.fill(config.get("initial_value", 100.0))
@@ -306,6 +326,8 @@ class MarketSimulator:
         self.rng = np.random.default_rng(self.seed)
 
         self.T = self.config.get("T", 1000)
+        if not isinstance(self.T, int) or isinstance(self.T, bool) or self.T <= 0:
+            raise ValueError("scenario T must be a positive integer")
         self.initial_price = self.default_settings.get("initial_price", 100.0)
         self.market_model_type = self.config.get("market_model", self.default_settings.get("market_model", "lob"))
 

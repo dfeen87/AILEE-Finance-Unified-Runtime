@@ -418,23 +418,25 @@ class AlgorithmicArbitrageur(Agent):
 
             if signal > 0 and self.cash > trade_value and quantity >= 0.1:
                 # Buy signal
+                order_type = OrderType.LIMIT if rng.random() < 0.5 else OrderType.MARKET
                 orders.append(
                     self.create_order(
                         side=OrderSide.BUY,
-                        order_type=OrderType.LIMIT if rng.random() < 0.5 else OrderType.MARKET,
+                        order_type=order_type,
                         quantity=round(quantity, 2),
-                        price=round(mid_price * 1.001, 2) if rng.random() < 0.5 else None,
+                        price=round(mid_price * 1.001, 2) if order_type == OrderType.LIMIT else None,
                         timestamp=timestamp,
                     )
                 )
             elif signal < 0 and self.inventory >= quantity and quantity >= 0.1:
                 # Sell signal
+                order_type = OrderType.LIMIT if rng.random() < 0.5 else OrderType.MARKET
                 orders.append(
                     self.create_order(
                         side=OrderSide.SELL,
-                        order_type=OrderType.LIMIT if rng.random() < 0.5 else OrderType.MARKET,
+                        order_type=order_type,
                         quantity=round(quantity, 2),
-                        price=round(mid_price * 0.999, 2) if rng.random() < 0.5 else None,
+                        price=round(mid_price * 0.999, 2) if order_type == OrderType.LIMIT else None,
                         timestamp=timestamp,
                     )
                 )
