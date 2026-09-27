@@ -80,6 +80,32 @@ def test_impact_market_model():
     assert new_price > 100.0  # Net positive buy imbalance increases price
 
 
+def test_order_book_rejects_invalid_orders_and_tick_size():
+    with pytest.raises(ValueError, match="tick_size"):
+        LimitOrderBook(tick_size=0.0)
+
+    lob = LimitOrderBook()
+    invalid_limit = Order(1, "buyer", "test", OrderSide.BUY, OrderType.LIMIT, None, 1.0, 1)
+    with pytest.raises(ValueError, match="limit orders"):
+        lob.process_order(invalid_limit)
+
+    invalid_quantity = Order(2, "buyer", "test", OrderSide.BUY, OrderType.MARKET, None, 0.0, 1)
+    with pytest.raises(ValueError, match="quantity"):
+        lob.process_order(invalid_quantity)
+
+
+def test_impact_model_uses_only_remaining_order_quantity():
+    model = ImpactMarketModel(initial_price=100.0, impact_coefficient=0.01)
+    buy = Order(1, "buyer", "test", OrderSide.BUY, OrderType.MARKET, None, 10.0, 1, filled_quantity=6.0)
+    sell = Order(2, "seller", "test", OrderSide.SELL, OrderType.MARKET, None, 4.0, 1)
+
+    trades, _ = model.process_orders([buy, sell], timestamp=1)
+
+    assert len(trades) == 1
+    assert trades[0].quantity == 4.0
+    assert buy.filled_quantity == 10.0
+
+
 def test_curves_generation():
     config = {
         "type": "logistic",
@@ -95,6 +121,24 @@ def test_curves_generation():
     S = generate_sentiment_curve(A, {"baseline": 0.5, "sensitivity_to_adoption": 0.5})
     assert len(S) == 100
     assert np.all(S >= 0.0) and np.all(S <= 1.0)
+
+
+def test_stepwise_curve_ignores_negative_step_indices():
+    curve = generate_adoption_curve(
+        {
+            "type": "stepwise",
+            "initial_value": 100.0,
+            "steps": [{"step": -1, "value": 999.0}, {"step": 2, "value": 120.0}],
+        },
+        T=4,
+    )
+
+    assert curve.tolist() == [100.0, 100.0, 120.0, 120.0]
+
+
+def test_market_simulator_rejects_empty_horizon():
+    with pytest.raises(ValueError, match="positive integer"):
+        MarketSimulator("empty", {"T": 0}, {"initial_price": 100.0})
 
 
 def test_agent_decisions_and_executions():
@@ -130,6 +174,29 @@ def test_agent_decisions_and_executions():
     buyer.on_trade_execution(OrderSide.BUY, price=100.0, quantity=10.0)
     assert buyer.cash == 10000.0 - 1000.0
     assert buyer.inventory == 110.0
+
+
+def test_arbitrageur_order_type_and_price_are_consistent():
+    agent = AlgorithmicArbitrageur("arb", initial_cash=100000.0, initial_inventory=1000.0)
+    rng = np.random.default_rng(7)
+
+    orders = []
+    for timestamp in range(1, 50):
+        orders.extend(
+            agent.decide_orders(
+                timestamp=timestamp,
+                market_price=80.0,
+                mid_price=80.0,
+                fundamental_value=100.0,
+                adoption_level=100.0,
+                sentiment=0.5,
+                volatility=0.01,
+                rng=rng,
+            )
+        )
+
+    assert orders
+    assert all((order.price is not None) == (order.order_type == OrderType.LIMIT) for order in orders)
 
 
 def test_market_simulator_run():
