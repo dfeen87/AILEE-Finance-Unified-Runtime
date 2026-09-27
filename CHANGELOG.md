@@ -5,6 +5,10 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [23.1.0] - 2026-09-27
+### Changed
+- Updated project, package, runtime, dashboard, diagnostics, release, and updater version metadata to 23.1.0.
+
 ## [23.0.0] - 2026-12-30
 ### Added
 - **Deterministic Sync Adapter (SYNC_ADAPTER_V1)**: Integrated authoritative temporal clock binding AILEE Finance to the AILEE Runtime Protocol clock in C++ (`extensions/aille_sync_adapter.hpp/.cpp`) and Python (`core/finance_kernel/sync_adapter.py`).
