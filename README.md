@@ -1,5 +1,9 @@
 # AILEE Finance Unified Runtime
 
+Clone: `git clone https://github.com/dfeen87/AILEE-Finance-Unified-Runtime.git && cd AILEE-Finance-Unified-Runtime`
+Docker: `docker-compose up --build`
+Without Docker: `make deps && make build && make test`
+
 > Mitigating Risk and Sustaining Growth Software
 
 **The Algorithmic Safety System That Transforms Risk into Reliability**

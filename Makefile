@@ -64,11 +64,21 @@ REST_API_IMPL    = extensions/aille_rest_api.cpp
 UNIT_TESTS_SRC   = tests/unit_tests.cpp
 SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
 
-.PHONY: all demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \
+.PHONY: all deps build demo debug clean run test benchmark rest_api_server dashboard_server websocket_server \
         spire_demo lantern_demo crown_walk_demo weathering_demo pilgrimage_demo wnfs_demo install uninstall help \
         check_deps release provenance
 
 all: demo provenance
+
+deps:
+	@./setup_rest_api.sh
+	@./setup_websocket.sh
+	@python3 -m pip install --break-system-packages --requirement requirements.txt
+
+build: demo test_suite
+
+test:
+	@./test_suite
 
 check_deps:
 	@printf "$(COLOR_YELLOW)Checking dependencies...$(COLOR_RESET)\n"
