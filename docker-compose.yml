@@ -1,0 +1,9 @@
+services:
+  ailee-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ailee-finance-unified-runtime:23.1.0
+    command: ["make", "test"]
+    volumes:
+      - ./repro:/repro
