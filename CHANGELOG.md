@@ -5,6 +5,11 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [23.2.0] - 2026-09-28
+### Changed
+- Updated project, package, runtime, dashboard, diagnostics, release, container, and updater version metadata to 23.2.0.
+- Added concise Dockerfile build and run directions to the README.
+
 ## [23.1.0] - 2026-09-27
 ### Changed
 - Updated project, package, runtime, dashboard, diagnostics, release, and updater version metadata to 23.1.0.

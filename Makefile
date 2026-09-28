@@ -119,11 +119,11 @@ test_v22:
 test_v23:
 	@printf "$(COLOR_YELLOW)=== Executing FS-Gateway Subsystem Tests ===$(COLOR_RESET)\n"
 	@PYTHONPATH=. pytest tests/test_fs_gateway_schema.py tests/test_desk_stream_correctness.py tests/test_connection_resilience.py
-	@printf "$(COLOR_YELLOW)=== Executing AILEE v23.1.0 Full Validation Suite ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== Executing AILEE v23.2.0 Full Validation Suite ===$(COLOR_RESET)\n"
 	@PYTHONPATH=. pytest tests/
 
 demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.1.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.2.0 — Deterministic Build Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling runtime modules...$(COLOR_RESET)\n"
 	@if $(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(WEBSOCKET_FLAGS) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o demo; then \
@@ -271,7 +271,7 @@ websocket_server: examples/websocket_server.cpp extensions/aille_websocket.cpp e
 	fi
 
 fs_gateway: ailee_runtime/fs_gateway/main.cpp ailee_runtime/fs_gateway/fs_gateway.cpp ailee_runtime/fs_gateway/fs_gateway.hpp aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.1.0 — FS-Gateway Networking Module ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.2.0 — FS-Gateway Networking Module ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@printf "$(COLOR_YELLOW)Compiling FS-Gateway server...$(COLOR_RESET)\n"
 	@mkdir -p bin
@@ -283,7 +283,7 @@ fs_gateway: ailee_runtime/fs_gateway/main.cpp ailee_runtime/fs_gateway/fs_gatewa
 	fi
 
 release:
-	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.1.0 — Release Package Console ===$(COLOR_RESET)\n"
+	@printf "$(COLOR_YELLOW)=== AILEE CORE v23.2.0 — Release Package Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
 	@if [ ! -f test_suite ]; then $(MAKE) --no-print-directory test_suite; fi
 	@printf "$(COLOR_YELLOW)Running test suite...$(COLOR_RESET)\n"
@@ -312,9 +312,9 @@ release:
 			cp $$item release/ && printf "$(COLOR_GREEN)✓ Copying $$item → release/$(COLOR_RESET)\n"; \
 		fi; \
 	done
-	@echo "23.1.0" > release/VERSION
-	@printf "$(COLOR_GREEN)✓ Stamped Version: 23.1.0$(COLOR_RESET)\n"
-	@printf "$(COLOR_GREEN)AILEE CORE v23.1.0 Release Package Ready.$(COLOR_RESET)\n"
+	@echo "23.2.0" > release/VERSION
+	@printf "$(COLOR_GREEN)✓ Stamped Version: 23.2.0$(COLOR_RESET)\n"
+	@printf "$(COLOR_GREEN)AILEE CORE v23.2.0 Release Package Ready.$(COLOR_RESET)\n"
 	@printf "$(COLOR_GREEN)=========================================================$(COLOR_RESET)\n"
 
 clean:

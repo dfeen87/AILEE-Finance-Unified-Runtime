@@ -1,6 +1,6 @@
 /*
  * AILEE Framework - FS-Gateway Daemon Main Entry Point
- * AILEE Finance Unified Runtime Version 23.1.0
+ * AILEE Finance Unified Runtime Version 23.2.0
  *
  * Exposes WebSocket endpoint: ws://<host>:9002/ailee/finance/runtime
  *
@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, signalHandler);
 
     std::cout << "=======================================================\n";
-    std::cout << "  AILEE Finance Unified Runtime v23.1.0 - FS-Gateway\n";
+    std::cout << "  AILEE Finance Unified Runtime v23.2.0 - FS-Gateway\n";
     std::cout << "  Endpoint: ws://0.0.0.0:" << port << AILEE::FS_GATEWAY_DEFAULT_PATH << "\n";
     std::cout << "=======================================================\n";
 
