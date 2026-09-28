@@ -32,7 +32,7 @@ from core.finance_kernel.sync_adapter import (
 
 def run_bitcoin_sync_simulation(num_ticks: int = 100000, inject_drift: bool = True, inject_gaps: bool = True):
     print("=================================================================")
-    print("  AILEE Finance Runtime (v23.0.0)")
+    print("  AILEE Finance Runtime (v23.2.0)")
     print("  Bitcoin Mainnet Temporal Timing Sync Simulation Harness")
     print("=================================================================\n")
 
