@@ -2,4 +2,4 @@
 AILEE Finance Package
 """
 
-__version__ = "5.0.0"
+__version__ = "24.0.0"

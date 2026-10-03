@@ -95,3 +95,34 @@ def test_config_resolution_precedence(monkeypatch, tmp_path):
     # 4. Explicit overrides
     config.merge_overrides({"operator_timeout": 5.0})
     assert config.operator_timeout == 5.0
+
+
+@pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf")])
+def test_operator_timeout_rejects_non_positive_or_non_finite_values(value):
+    with pytest.raises(KernelConfigurationError):
+        FinanceKernelConfig(operator_timeout=value)
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_max_concurrent_operators_requires_positive_value(value):
+    with pytest.raises(KernelConfigurationError):
+        FinanceKernelConfig(max_concurrent_operators=value)
+
+
+def test_invalid_update_is_atomic():
+    config = FinanceKernelConfig()
+    original = config.to_dict()
+
+    with pytest.raises(KernelConfigurationError):
+        config.merge_overrides({
+            "operator_timeout": 5.0,
+            "hft_bias": {"trust_threshold_bullish": float("nan")},
+        })
+
+    assert config.to_dict() == original
+
+
+def test_string_booleans_are_rejected_in_structured_overrides():
+    config = FinanceKernelConfig()
+    with pytest.raises(KernelConfigurationError):
+        config.merge_overrides({"strict_determinism": "false"})

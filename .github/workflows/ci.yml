@@ -25,6 +25,12 @@ jobs:
         run: |
           python -c "import importlib.util; spec = importlib.util.spec_from_file_location('aille_simulation', 'simulations/aille_simulation.py'); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print('Imported simulation module successfully')"
 
+      - name: Run Python unit and integration tests
+        run: PYTHONPATH=. pytest -q tests/
+
+      - name: Build and run C++ regression suite
+        run: make test_suite && ./test_suite
+
       - name: Run deterministic simulation
         run: |
           python simulations/aille_simulation.py
