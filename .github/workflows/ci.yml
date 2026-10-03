@@ -29,7 +29,10 @@ jobs:
         run: PYTHONPATH=. pytest -q tests/
 
       - name: Build and run C++ regression suite
-        run: make test_suite && ./test_suite
+        run: |
+          ./setup_websocket.sh
+          make test_suite
+          ./test_suite
 
       - name: Run deterministic simulation
         run: |

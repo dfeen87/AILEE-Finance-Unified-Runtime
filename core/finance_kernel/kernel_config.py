@@ -21,10 +21,12 @@ class FinanceKernelConfig:
                  hft_bias: dict = None):
         try:
             self.operator_timeout = float(operator_timeout)
-            self.max_concurrent_operators = int(max_concurrent_operators)
             self.contrarian_oversold_aggressiveness = float(contrarian_oversold_aggressiveness)
         except (TypeError, ValueError) as e:
             raise KernelConfigurationError(f"Invalid numeric configuration: {e}") from e
+        self.max_concurrent_operators = _require_positive_integer(
+            "max_concurrent_operators", max_concurrent_operators
+        )
         self.logging_level = str(logging_level)
         self.strict_determinism = _require_bool("strict_determinism", strict_determinism)
         self.json_compat_mode = _require_bool("json_compat_mode", json_compat_mode)
@@ -51,7 +53,9 @@ class FinanceKernelConfig:
             updates["operator_timeout"] = os.environ["FINANCE_OPERATOR_TIMEOUT"]
 
         if "FINANCE_MAX_CONCURRENT_OPERATORS" in os.environ:
-            updates["max_concurrent_operators"] = os.environ["FINANCE_MAX_CONCURRENT_OPERATORS"]
+            updates["max_concurrent_operators"] = _parse_env_positive_integer(
+                "FINANCE_MAX_CONCURRENT_OPERATORS"
+            )
 
         if "FINANCE_LOGGING_LEVEL" in os.environ:
             updates["logging_level"] = os.environ["FINANCE_LOGGING_LEVEL"]
@@ -101,10 +105,9 @@ class FinanceKernelConfig:
                 raise KernelConfigurationError(f"Invalid operator_timeout: {e}")
 
         if "max_concurrent_operators" in data:
-            try:
-                candidate["max_concurrent_operators"] = int(data["max_concurrent_operators"])
-            except (TypeError, ValueError) as e:
-                raise KernelConfigurationError(f"Invalid max_concurrent_operators: {e}")
+            candidate["max_concurrent_operators"] = _require_positive_integer(
+                "max_concurrent_operators", data["max_concurrent_operators"]
+            )
 
         if "logging_level" in data:
             candidate["logging_level"] = str(data["logging_level"])
@@ -212,7 +215,7 @@ def parse_config_file(path: str) -> dict:
 def validate_hft_bias_config(cfg_dict: dict) -> dict:
     """Validates hft_bias configuration dictionary against strict bounds."""
     hft_bias = cfg_dict.get("hft_bias", cfg_dict) if isinstance(cfg_dict, dict) else {}
-    enabled = bool(hft_bias.get("enabled", True))
+    enabled = _require_bool("hft_bias.enabled", hft_bias.get("enabled", True))
 
     try:
         price_mult = float(hft_bias.get("bullish_multiplier_price", 1.05))
@@ -264,6 +267,26 @@ def _require_bool(name: str, value) -> bool:
     if not isinstance(value, bool):
         raise KernelConfigurationError(f"{name} must be a boolean")
     return value
+
+
+def _require_positive_integer(name: str, value) -> int:
+    """Validate a structured integer without truthiness or truncation coercion."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise KernelConfigurationError(f"{name} must be a positive integer")
+    if isinstance(value, float) and (not math.isfinite(value) or not value.is_integer()):
+        raise KernelConfigurationError(f"{name} must be a finite positive integer")
+    result = int(value)
+    if result < 1:
+        raise KernelConfigurationError(f"{name} must be at least one")
+    return result
+
+
+def _parse_env_positive_integer(name: str) -> int:
+    """Parse the documented decimal-integer environment-variable surface."""
+    value = os.environ[name].strip()
+    if not value.isdecimal():
+        raise KernelConfigurationError(f"Invalid {name} positive integer: {os.environ[name]}")
+    return _require_positive_integer(name, int(value))
 
 
 def _parse_env_bool(name: str) -> bool:

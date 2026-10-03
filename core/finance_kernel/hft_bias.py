@@ -27,8 +27,8 @@ def is_bullish_mode_allowed(
             "manipulation_threshold": 0.30,
         }
 
-    enabled = bool(hft_bias_config.get("enabled", True))
-    if not enabled:
+    enabled = hft_bias_config.get("enabled", True)
+    if not isinstance(enabled, bool) or not enabled:
         return False
 
     try:
@@ -53,10 +53,21 @@ def is_bullish_mode_allowed(
             return False
     elif isinstance(drawdown_state, (int, float)):
         # If float represents current drawdown percentage/ratio, e.g. 0.04 (4%)
-        if float(drawdown_state) >= 0.04:  # Near breach threshold
+        drawdown = float(drawdown_state)
+        if not math.isfinite(drawdown) or drawdown < 0.0:
+            return False
+        if drawdown >= 0.04:  # Near breach threshold
             return False
     elif isinstance(drawdown_state, dict):
-        if drawdown_state.get("near_breach", False) or drawdown_state.get("breached", False) or drawdown_state.get("locked_out", False):
+        safety_fields = ("near_breach", "breached", "locked_out")
+        present_fields = [field for field in safety_fields if field in drawdown_state]
+        if not present_fields:
             return False
+        if any(not isinstance(drawdown_state[field], bool) for field in present_fields):
+            return False
+        if any(drawdown_state[field] for field in present_fields):
+            return False
+    else:
+        return False
 
     return True

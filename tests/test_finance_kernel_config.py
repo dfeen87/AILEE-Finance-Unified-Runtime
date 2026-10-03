@@ -103,10 +103,22 @@ def test_operator_timeout_rejects_non_positive_or_non_finite_values(value):
         FinanceKernelConfig(operator_timeout=value)
 
 
-@pytest.mark.parametrize("value", [0, -1])
+@pytest.mark.parametrize("value", [0, -1, True, False, 4.9, float("nan"), float("inf"), "4", None])
 def test_max_concurrent_operators_requires_positive_value(value):
     with pytest.raises(KernelConfigurationError):
         FinanceKernelConfig(max_concurrent_operators=value)
+
+
+@pytest.mark.parametrize("value", [1, 4, 4.0])
+def test_max_concurrent_operators_accepts_positive_integral_values(value):
+    assert FinanceKernelConfig(max_concurrent_operators=value).max_concurrent_operators == int(value)
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "4.9", "nan", "inf", "true"])
+def test_max_concurrent_operators_env_rejects_non_positive_integer(monkeypatch, value):
+    monkeypatch.setenv("FINANCE_MAX_CONCURRENT_OPERATORS", value)
+    with pytest.raises(KernelConfigurationError):
+        FinanceKernelConfig().load_from_env()
 
 
 def test_invalid_update_is_atomic():
