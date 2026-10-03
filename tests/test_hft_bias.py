@@ -47,6 +47,34 @@ def test_bullish_mode_fails_closed_for_non_finite_evidence(trust_score, manipula
     assert is_bullish_mode_allowed(trust_score, manipulation_score) is False
 
 
+@pytest.mark.parametrize("enabled", ["false", "true", 0, 1, None, [], {}])
+def test_hft_enabled_requires_a_structured_boolean(enabled):
+    with pytest.raises(KernelConfigurationError):
+        validate_hft_bias_config({"enabled": enabled})
+
+    cfg = {"enabled": enabled}
+    assert is_bullish_mode_allowed(0.8, 0.1, False, cfg) is False
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_hft_enabled_accepts_booleans(enabled):
+    assert validate_hft_bias_config({"enabled": enabled})["enabled"] is enabled
+
+
+@pytest.mark.parametrize(
+    "drawdown_state",
+    [float("nan"), float("inf"), float("-inf"), "0.01", object(), [], {}],
+)
+def test_bullish_mode_fails_closed_for_invalid_drawdown_evidence(drawdown_state):
+    assert is_bullish_mode_allowed(0.8, 0.1, drawdown_state) is False
+
+
+@pytest.mark.parametrize("field", ["near_breach", "breached", "locked_out"])
+def test_drawdown_dictionary_requires_boolean_safety_fields(field):
+    assert is_bullish_mode_allowed(0.8, 0.1, {field: "false"}) is False
+    assert is_bullish_mode_allowed(0.8, 0.1, {field: False}) is True
+
+
 @pytest.mark.parametrize("field", [
     "bullish_multiplier_price",
     "bullish_multiplier_volume",
