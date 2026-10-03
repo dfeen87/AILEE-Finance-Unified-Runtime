@@ -2,7 +2,7 @@
 
 Clone: `git clone https://github.com/dfeen87/AILEE-Finance-Unified-Runtime.git && cd AILEE-Finance-Unified-Runtime`
 Docker: `docker-compose up --build`
-Dockerfile: build with `docker build -t ailee-finance-unified-runtime:23.2.0 .`, then run with `docker run --rm ailee-finance-unified-runtime:23.2.0`.
+Dockerfile: build with `docker build -t ailee-finance-unified-runtime:24.0.0 .`, then run with `docker run --rm ailee-finance-unified-runtime:24.0.0`.
 Without Docker: `make deps && make build && make test`
 
 > Mitigating Risk and Sustaining Growth Software
@@ -15,13 +15,26 @@ Without Docker: `make deps && make build && make test`
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
-[![Version](https://img.shields.io/badge/version-23.2.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-24.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
 
 <img src="bull/america.jpeg" width="420">
 
+
+---
+
+## v24.0.0: BEDROCK Engineering Baseline
+
+Version 24.0.0 preserves the existing layered architecture while making foundational
+configuration, atomicity, and trust-evidence guarantees explicit. Configuration
+updates are validate-before-commit operations, numerical safety settings must be
+finite and within their documented domains, and malformed trust/manipulation evidence
+cannot enable bullish execution behavior. CI executes both the complete Python suite
+and the compiled C++ regression suite. See the
+[24.0.0 BEDROCK release contract](docs/releases/24.0.0-bedrock.md) for compatibility,
+failure semantics, and real-world validation boundaries.
 
 ---
 
@@ -817,7 +830,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `23.2.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `24.0.0`).
 
 ### For Quantitative Researchers
 

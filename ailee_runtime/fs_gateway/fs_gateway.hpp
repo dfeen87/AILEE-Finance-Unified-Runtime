@@ -1,6 +1,6 @@
 /*
  * AILEE Framework - FS-Gateway Networking Module (Layer 18 Live Data Layer)
- * AILEE Finance Unified Runtime Version 23.2.0
+ * AILEE Finance Unified Runtime Version 24.0.0
  *
  * Exposes WebSocket endpoint: ws://<host>:9002/ailee/finance/runtime
  * Streams deterministic AF-WSX JSON messages for runtime, governance,
@@ -33,7 +33,7 @@ namespace websocketpp {
 
 namespace AILEE {
 
-constexpr const char* FS_GATEWAY_VERSION = "23.2.0";
+constexpr const char* FS_GATEWAY_VERSION = "24.0.0";
 constexpr const char* FS_GATEWAY_DEFAULT_PATH = "/ailee/finance/runtime";
 constexpr int FS_GATEWAY_DEFAULT_PORT = 9002;
 

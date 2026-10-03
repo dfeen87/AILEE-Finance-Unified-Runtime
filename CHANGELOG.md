@@ -5,6 +5,17 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [24.0.0] - 2026-10-03
+### Changed
+- Established the BEDROCK engineering baseline while preserving the layered runtime architecture.
+- Made configuration updates atomic and rejected non-finite, non-positive, mistyped, or unsupported safety configuration.
+- Changed bullish-mode trust evaluation to fail closed for malformed and non-finite evidence.
+- Synchronized active release metadata at 24.0.0 and documented compatibility and external-validation boundaries.
+
+### Tests
+- Added regression coverage for configuration domains, rollback, typed booleans, fail-closed HFT evidence, and version consistency.
+- Expanded CI to execute the complete Python and C++ regression suites before the deterministic simulation.
+
 ## [23.2.0] - 2026-09-28
 ### Changed
 - Updated project, package, runtime, dashboard, diagnostics, release, container, and updater version metadata to 23.2.0.

@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 """HFT Bullish Bias Layer - Safety-Gated Configuration and Execution Helpers."""
 
+import math
 from typing import Any, Dict, Optional
 
 
@@ -30,13 +31,21 @@ def is_bullish_mode_allowed(
     if not enabled:
         return False
 
-    trust_thresh = float(hft_bias_config.get("trust_threshold_bullish", 0.70))
-    manip_thresh = float(hft_bias_config.get("manipulation_threshold", 0.30))
-
-    if float(trust_score) < trust_thresh:
+    try:
+        trust = float(trust_score)
+        manipulation = float(manipulation_score)
+        trust_thresh = float(hft_bias_config.get("trust_threshold_bullish", 0.70))
+        manip_thresh = float(hft_bias_config.get("manipulation_threshold", 0.30))
+    except (TypeError, ValueError):
         return False
 
-    if float(manipulation_score) > manip_thresh:
+    if not all(math.isfinite(value) for value in (trust, manipulation, trust_thresh, manip_thresh)):
+        return False
+
+    if trust < trust_thresh:
+        return False
+
+    if manipulation > manip_thresh:
         return False
 
     if isinstance(drawdown_state, bool):

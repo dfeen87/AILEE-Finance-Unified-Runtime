@@ -4,6 +4,7 @@
 
 import os
 import json
+import math
 from core.finance_kernel.kernel_errors import KernelConfigurationError
 
 class FinanceKernelConfig:
@@ -18,13 +19,16 @@ class FinanceKernelConfig:
                  enable_contrarian_oversold: bool = False,
                  contrarian_oversold_aggressiveness: float = 1.0,
                  hft_bias: dict = None):
-        self.operator_timeout = float(operator_timeout)
-        self.max_concurrent_operators = int(max_concurrent_operators)
+        try:
+            self.operator_timeout = float(operator_timeout)
+            self.max_concurrent_operators = int(max_concurrent_operators)
+            self.contrarian_oversold_aggressiveness = float(contrarian_oversold_aggressiveness)
+        except (TypeError, ValueError) as e:
+            raise KernelConfigurationError(f"Invalid numeric configuration: {e}") from e
         self.logging_level = str(logging_level)
-        self.strict_determinism = bool(strict_determinism)
-        self.json_compat_mode = bool(json_compat_mode)
-        self.enable_contrarian_oversold = bool(enable_contrarian_oversold)
-        self.contrarian_oversold_aggressiveness = float(contrarian_oversold_aggressiveness)
+        self.strict_determinism = _require_bool("strict_determinism", strict_determinism)
+        self.json_compat_mode = _require_bool("json_compat_mode", json_compat_mode)
+        self.enable_contrarian_oversold = _require_bool("enable_contrarian_oversold", enable_contrarian_oversold)
 
         default_hft_bias = {
             "enabled": True,
@@ -38,43 +42,33 @@ class FinanceKernelConfig:
         if hft_bias is not None:
             default_hft_bias.update(hft_bias)
         self.hft_bias = validate_hft_bias_config(default_hft_bias)
+        self._validate()
 
     def load_from_env(self) -> "FinanceKernelConfig":
         """Overrides configuration values with environment variables if present."""
+        updates = {}
         if "FINANCE_OPERATOR_TIMEOUT" in os.environ:
-            try:
-                self.operator_timeout = float(os.environ["FINANCE_OPERATOR_TIMEOUT"])
-            except ValueError as e:
-                raise KernelConfigurationError(f"Invalid FINANCE_OPERATOR_TIMEOUT environment variable: {e}")
+            updates["operator_timeout"] = os.environ["FINANCE_OPERATOR_TIMEOUT"]
 
         if "FINANCE_MAX_CONCURRENT_OPERATORS" in os.environ:
-            try:
-                self.max_concurrent_operators = int(os.environ["FINANCE_MAX_CONCURRENT_OPERATORS"])
-            except ValueError as e:
-                raise KernelConfigurationError(f"Invalid FINANCE_MAX_CONCURRENT_OPERATORS environment variable: {e}")
+            updates["max_concurrent_operators"] = os.environ["FINANCE_MAX_CONCURRENT_OPERATORS"]
 
         if "FINANCE_LOGGING_LEVEL" in os.environ:
-            self.logging_level = str(os.environ["FINANCE_LOGGING_LEVEL"])
+            updates["logging_level"] = os.environ["FINANCE_LOGGING_LEVEL"]
 
         if "FINANCE_STRICT_DETERMINISM" in os.environ:
-            val = os.environ["FINANCE_STRICT_DETERMINISM"].lower()
-            self.strict_determinism = val in ("true", "1", "yes", "on")
+            updates["strict_determinism"] = _parse_env_bool("FINANCE_STRICT_DETERMINISM")
 
         if "FINANCE_JSON_COMPAT_MODE" in os.environ:
-            val = os.environ["FINANCE_JSON_COMPAT_MODE"].lower()
-            self.json_compat_mode = val in ("true", "1", "yes", "on")
+            updates["json_compat_mode"] = _parse_env_bool("FINANCE_JSON_COMPAT_MODE")
 
         if "FINANCE_ENABLE_CONTRARIAN_OVERSOLD" in os.environ:
-            val = os.environ["FINANCE_ENABLE_CONTRARIAN_OVERSOLD"].lower()
-            self.enable_contrarian_oversold = val in ("true", "1", "yes", "on")
+            updates["enable_contrarian_oversold"] = _parse_env_bool("FINANCE_ENABLE_CONTRARIAN_OVERSOLD")
 
         if "FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS" in os.environ:
-            try:
-                self.contrarian_oversold_aggressiveness = float(os.environ["FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS"])
-            except ValueError as e:
-                raise KernelConfigurationError(f"Invalid FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS: {e}")
+            updates["contrarian_oversold_aggressiveness"] = os.environ["FINANCE_CONTRARIAN_OVERSOLD_AGGRESSIVENESS"]
 
-        return self
+        return self.merge_overrides(updates)
 
     def load_from_file(self, path: str) -> "FinanceKernelConfig":
         """Loads and overrides configuration values from a JSON or YAML file."""
@@ -99,41 +93,55 @@ class FinanceKernelConfig:
         return self
 
     def _apply_dict(self, data: dict):
+        candidate = self.to_dict()
         if "operator_timeout" in data:
             try:
-                self.operator_timeout = float(data["operator_timeout"])
-            except ValueError as e:
+                candidate["operator_timeout"] = float(data["operator_timeout"])
+            except (TypeError, ValueError) as e:
                 raise KernelConfigurationError(f"Invalid operator_timeout: {e}")
 
         if "max_concurrent_operators" in data:
             try:
-                self.max_concurrent_operators = int(data["max_concurrent_operators"])
-            except ValueError as e:
+                candidate["max_concurrent_operators"] = int(data["max_concurrent_operators"])
+            except (TypeError, ValueError) as e:
                 raise KernelConfigurationError(f"Invalid max_concurrent_operators: {e}")
 
         if "logging_level" in data:
-            self.logging_level = str(data["logging_level"])
+            candidate["logging_level"] = str(data["logging_level"])
 
         if "strict_determinism" in data:
-            self.strict_determinism = bool(data["strict_determinism"])
+            candidate["strict_determinism"] = _require_bool("strict_determinism", data["strict_determinism"])
 
         if "json_compat_mode" in data:
-            self.json_compat_mode = bool(data["json_compat_mode"])
+            candidate["json_compat_mode"] = _require_bool("json_compat_mode", data["json_compat_mode"])
 
         if "enable_contrarian_oversold" in data:
-            self.enable_contrarian_oversold = bool(data["enable_contrarian_oversold"])
+            candidate["enable_contrarian_oversold"] = _require_bool("enable_contrarian_oversold", data["enable_contrarian_oversold"])
 
         if "contrarian_oversold_aggressiveness" in data:
             try:
-                self.contrarian_oversold_aggressiveness = float(data["contrarian_oversold_aggressiveness"])
-            except ValueError as e:
+                candidate["contrarian_oversold_aggressiveness"] = float(data["contrarian_oversold_aggressiveness"])
+            except (TypeError, ValueError) as e:
                 raise KernelConfigurationError(f"Invalid contrarian_oversold_aggressiveness: {e}")
 
         if "hft_bias" in data:
-            merged_bias = dict(self.hft_bias)
-            if isinstance(data["hft_bias"], dict):
-                merged_bias.update(data["hft_bias"])
-            self.hft_bias = validate_hft_bias_config(merged_bias)
+            if not isinstance(data["hft_bias"], dict):
+                raise KernelConfigurationError("hft_bias must be a dictionary")
+            candidate["hft_bias"].update(data["hft_bias"])
+
+        validated = FinanceKernelConfig(**candidate)
+        self.__dict__.update(validated.__dict__)
+
+    def _validate(self):
+        if not math.isfinite(self.operator_timeout) or self.operator_timeout <= 0.0:
+            raise KernelConfigurationError("operator_timeout must be finite and greater than zero")
+        if self.max_concurrent_operators < 1:
+            raise KernelConfigurationError("max_concurrent_operators must be at least one")
+        if self.logging_level.upper() not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}:
+            raise KernelConfigurationError(f"Unsupported logging_level: {self.logging_level}")
+        self.logging_level = self.logging_level.upper()
+        if not math.isfinite(self.contrarian_oversold_aggressiveness) or self.contrarian_oversold_aggressiveness < 0.0:
+            raise KernelConfigurationError("contrarian_oversold_aggressiveness must be finite and non-negative")
 
     def to_dict(self) -> dict:
         """Serializes current configuration to a dictionary."""
@@ -206,12 +214,27 @@ def validate_hft_bias_config(cfg_dict: dict) -> dict:
     hft_bias = cfg_dict.get("hft_bias", cfg_dict) if isinstance(cfg_dict, dict) else {}
     enabled = bool(hft_bias.get("enabled", True))
 
-    price_mult = float(hft_bias.get("bullish_multiplier_price", 1.05))
-    vol_mult = float(hft_bias.get("bullish_multiplier_volume", 1.05))
-    exec_scale = float(hft_bias.get("bullish_execution_scale", 1.10))
-    sell_factor = float(hft_bias.get("bullish_sell_ceiling_factor", 0.80))
-    trust_thresh = float(hft_bias.get("trust_threshold_bullish", 0.70))
-    manip_thresh = float(hft_bias.get("manipulation_threshold", 0.30))
+    try:
+        price_mult = float(hft_bias.get("bullish_multiplier_price", 1.05))
+        vol_mult = float(hft_bias.get("bullish_multiplier_volume", 1.05))
+        exec_scale = float(hft_bias.get("bullish_execution_scale", 1.10))
+        sell_factor = float(hft_bias.get("bullish_sell_ceiling_factor", 0.80))
+        trust_thresh = float(hft_bias.get("trust_threshold_bullish", 0.70))
+        manip_thresh = float(hft_bias.get("manipulation_threshold", 0.30))
+    except (TypeError, ValueError) as e:
+        raise KernelConfigurationError(f"Invalid hft_bias numeric configuration: {e}") from e
+
+    numeric_values = {
+        "bullish_multiplier_price": price_mult,
+        "bullish_multiplier_volume": vol_mult,
+        "bullish_execution_scale": exec_scale,
+        "bullish_sell_ceiling_factor": sell_factor,
+        "trust_threshold_bullish": trust_thresh,
+        "manipulation_threshold": manip_thresh,
+    }
+    for name, value in numeric_values.items():
+        if not math.isfinite(value):
+            raise KernelConfigurationError(f"{name} must be finite: {value}")
 
     if price_mult < 1.0 or price_mult > 1.5:
         raise KernelConfigurationError(f"bullish_multiplier_price out of bounds [1.0, 1.5]: {price_mult}")
@@ -235,3 +258,18 @@ def validate_hft_bias_config(cfg_dict: dict) -> dict:
         "trust_threshold_bullish": trust_thresh,
         "manipulation_threshold": manip_thresh,
     }
+
+
+def _require_bool(name: str, value) -> bool:
+    if not isinstance(value, bool):
+        raise KernelConfigurationError(f"{name} must be a boolean")
+    return value
+
+
+def _parse_env_bool(name: str) -> bool:
+    value = os.environ[name].strip().lower()
+    if value in ("true", "1", "yes", "on"):
+        return True
+    if value in ("false", "0", "no", "off"):
+        return False
+    raise KernelConfigurationError(f"Invalid {name} boolean: {os.environ[name]}")

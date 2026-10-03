@@ -3,6 +3,7 @@
 """Unit and regression tests for HFT Bullish Bias Layer."""
 
 import os
+import math
 import pytest
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 from core.finance_kernel.kernel_config import FinanceKernelConfig, validate_hft_bias_config, parse_config_file, KernelConfigurationError
@@ -36,6 +37,27 @@ def test_is_bullish_mode_allowed_gating():
     assert is_bullish_mode_allowed(0.80, 0.10, True, cfg) is False
     assert is_bullish_mode_allowed(0.80, 0.10, 0.045, cfg) is False
     assert is_bullish_mode_allowed(0.80, 0.10, {"near_breach": True}, cfg) is False
+
+
+@pytest.mark.parametrize(
+    ("trust_score", "manipulation_score"),
+    [(float("nan"), 0.0), (float("inf"), 0.0), (0.9, float("nan")), (0.9, float("inf"))],
+)
+def test_bullish_mode_fails_closed_for_non_finite_evidence(trust_score, manipulation_score):
+    assert is_bullish_mode_allowed(trust_score, manipulation_score) is False
+
+
+@pytest.mark.parametrize("field", [
+    "bullish_multiplier_price",
+    "bullish_multiplier_volume",
+    "bullish_execution_scale",
+    "bullish_sell_ceiling_factor",
+    "trust_threshold_bullish",
+    "manipulation_threshold",
+])
+def test_hft_config_rejects_non_finite_values(field):
+    with pytest.raises(KernelConfigurationError):
+        validate_hft_bias_config({field: math.nan})
 
 
 def test_config_validation_and_yaml_loading(tmp_path):
