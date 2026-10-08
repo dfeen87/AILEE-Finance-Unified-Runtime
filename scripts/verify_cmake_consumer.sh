@@ -16,6 +16,7 @@ EOF
 cat > "$scratch_dir/consumer/main.cpp" <<'EOF'
 #include <aille.hpp>
 #include <extensions/aille_volume_advisory.hpp>
+#include <extensions/v7_execution_pipeline.hpp>
 #include <cmath>
 int main() {
     AILLE::AILLEEngine engine;
@@ -31,6 +32,14 @@ int main() {
     audit.logDecision(decision, "CONSUMER", "test");
     audit.logDecision(decision, "CONSUMER", "test");
     if (audit.getAuditTrailSize() != 2 || !audit.verifyIntegrity()) return 2;
+    AILLE::V7::ConsensusLayer consensus;
+    if (!consensus.validate_signal(0.40) || consensus.validate_signal(0.30)) return 4;
+    consensus.update_confidence(5.0);
+    if (consensus.validate_signal(0.40) || !consensus.validate_signal(0.60)) return 5;
+    for (std::size_t i = 0; i < AILLE::V7::ConsensusLayer::WINDOW; ++i) {
+        consensus.update_confidence(0.0);
+    }
+    if (!consensus.validate_signal(0.40) || consensus.validate_signal(0.30)) return 6;
     return 0;
 }
 EOF

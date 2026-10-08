@@ -17,6 +17,7 @@ add_library(aille STATIC
     extensions/aille_volume_advisory.cpp
     extensions/aille_macro.cpp
     extensions/aille_stabilizer.cpp
+    extensions/v7_execution_pipeline.cpp
     extensions/v7_2_pipeline.cpp
     extensions/v7_3_pipeline.cpp
     extensions/aille_spire.cpp
