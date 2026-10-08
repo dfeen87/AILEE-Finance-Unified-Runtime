@@ -28,6 +28,37 @@ namespace AILLE {
 // ============================================================================
 namespace {
 
+// Packed audit records reserve 32 bytes for the full SHA-256 digest, not
+// a truncated, NUL-terminated copy of its 64-character hexadecimal text.
+template <size_t N>
+std::string digestToHex(const uint8_t (&src)[N]) {
+    static_assert(N == 32);
+    std::ostringstream out;
+    out << std::hex << std::setfill('0');
+    for (uint8_t byte : src) out << std::setw(2) << static_cast<unsigned int>(byte);
+    return out.str();
+}
+
+template <size_t N>
+void copyDigestToBuffer(uint8_t (&dest)[N], const std::string& hex) {
+    static_assert(N == 32);
+    if (hex.size() != N * 2) throw std::runtime_error("Invalid SHA-256 digest length");
+    for (size_t i = 0; i < N; ++i) {
+        dest[i] = static_cast<uint8_t>(std::stoul(hex.substr(i * 2, 2), nullptr, 16));
+    }
+}
+
+std::string previousDigestToString(const AuditRecord& record) {
+    // Keep the established CSV/canonical genesis marker. All later links use
+    // full digest text, including any zero bytes in the binary representation.
+    if (record.decision_id == 1 &&
+        std::all_of(std::begin(record.prev_hash), std::end(record.prev_hash),
+                    [](uint8_t byte) { return byte == 0; })) {
+        return "0000000000000000";
+    }
+    return digestToHex(record.prev_hash);
+}
+
 // Convert raw buffer back to a std::string for easy comparison and streaming
 template <size_t N>
 std::string bufferToString(const uint8_t (&src)[N]) {
@@ -199,7 +230,7 @@ std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
        << "symbol=" << record.symbol << '\x1f'
        << "strategy_id=" << record.strategy_id << '\x1f'
        << "user_id=" << record.user_id << '\x1f'
-       << "prev_hash=" << bufferToString(record.prev_hash) << '\x1f'
+       << "prev_hash=" << previousDigestToString(record) << '\x1f'
        << "contributing_models=";
        
     for (size_t i = 0; i < 10; ++i) {
@@ -253,12 +284,12 @@ std::string AuditLogger::statusToString(DecisionStatus status) const {
 
 // Constructors & Destructors
 AuditLogger::AuditLogger() : next_decision_id(1) {
-    copyStringToBuffer(last_hash, "0000000000000000");
+    std::memset(last_hash, 0, sizeof(last_hash));
 }
 
 AuditLogger::AuditLogger(const std::string& log_filename) 
     : next_decision_id(1) {
-    copyStringToBuffer(last_hash, "0000000000000000");
+    std::memset(last_hash, 0, sizeof(last_hash));
     open(log_filename);
 }
 
@@ -310,7 +341,7 @@ void AuditLogger::logDecision(const Decision& decision,
     std::memcpy(record.contributing_models, decision.contributing_models, sizeof(record.contributing_models));
     
     copyBufferToBuffer(record.prev_hash, last_hash);
-    copyStringToBuffer(record.hash, computeHash(record));
+    copyDigestToBuffer(record.hash, computeHash(record));
     copyBufferToBuffer(last_hash, record.hash);
     
     audit_trail.push_back(record);
@@ -338,8 +369,8 @@ void AuditLogger::logDecision(const Decision& decision,
                 << csvEscape(record.symbol) << ","
                 << csvEscape(record.strategy_id) << ","
                 << csvEscape(record.user_id) << ","
-                << bufferToString(record.hash) << ","
-                << bufferToString(record.prev_hash) << "\n";
+                << digestToHex(record.hash) << ","
+                << previousDigestToString(record) << "\n";
         
         log_file.flush();
     }
@@ -351,13 +382,13 @@ bool AuditLogger::verifyIntegrity() const {
     std::string expected_prev_hash = "0000000000000000";
 
     for (const auto& record : audit_trail) {
-        if (bufferToString(record.prev_hash) != expected_prev_hash) {
+        if (previousDigestToString(record) != expected_prev_hash) {
             return false;
         }
-        if (bufferToString(record.hash) != computeHash(record)) {
+        if (digestToHex(record.hash) != computeHash(record)) {
             return false;
         }
-        expected_prev_hash = bufferToString(record.hash);
+        expected_prev_hash = digestToHex(record.hash);
     }
 
     return true;

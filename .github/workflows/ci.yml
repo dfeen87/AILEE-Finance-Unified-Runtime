@@ -26,7 +26,12 @@ jobs:
           python -c "import importlib.util; spec = importlib.util.spec_from_file_location('aille_simulation', 'simulations/aille_simulation.py'); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print('Imported simulation module successfully')"
 
       - name: Run Python unit and integration tests
-        run: PYTHONPATH=. pytest -q tests/
+        run: |
+          PYTHONPATH=. python -m pytest -q tests/
+          PYTHONPATH=. python -O -m pytest -q tests/
+
+      - name: Build, install, and relocate CMake SDK consumer
+        run: ./scripts/verify_cmake_consumer.sh
 
       - name: Build and run C++ regression suite
         run: |
@@ -37,3 +42,10 @@ jobs:
       - name: Run deterministic simulation
         run: |
           python simulations/aille_simulation.py
+
+      - name: Validate REST startup, requests, and lifecycle
+        run: |
+          make -j2 rest_api_server rest_lifecycle_test
+          timeout 60 ./rest_lifecycle_test
+          python scripts/verify_rest_lifecycle.py
+          python -O scripts/verify_rest_lifecycle.py

@@ -2,12 +2,20 @@
 # Licensed under the MIT License.
 """Unit tests for the Intraday Volume Advisory operator."""
 
+import json
+import math
+import sys
+from decimal import Decimal, localcontext
+
 import pytest
+from core.finance_kernel import run_finance_operator
+from core.finance_kernel.kernel_errors import KernelConfigurationError, OperatorExecutionError
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import create_default_registry
 from core.finance_kernel.finance_kernel import FinanceRuntimeKernel
 from core.finance_kernel.volume_advisory import IntradayVolumeAdvisory, VolumeState, calculate_hft_delta_v
+from core.finance_kernel.volume_execution import VolumeExecutionOperator
 
 def test_volume_operator_registration():
     registry = create_default_registry()
@@ -257,3 +265,111 @@ def test_volume_operator_hft_mode():
     data = result.data
     assert data["hft_active"] is True
     assert data["hft_delta_v"] > 0.0
+
+
+def test_volume_operator_rejects_unrepresentable_score_before_success():
+    with pytest.raises(OperatorExecutionError, match="oversold_score.*representable"):
+        run_finance_operator(
+            "volume_operator",
+            {"current_volume": 10.0, "avg_volume": 1.0,
+             "price_change": -0.02, "vwap_deviation": -0.02},
+            config_overrides={"contrarian_oversold_aggressiveness": sys.float_info.max},
+        )
+
+
+@pytest.mark.parametrize("aggressiveness", [0.0, -0.0])
+def test_zero_aggressiveness_with_extreme_negative_prices_remains_json_compatible(aggressiveness):
+    result = run_finance_operator(
+        "volume_operator",
+        {"current_volume": 10.0, "avg_volume": 1.0,
+         "price_change": -sys.float_info.max, "vwap_deviation": -sys.float_info.max},
+        config_overrides={"contrarian_oversold_aggressiveness": aggressiveness,
+                          "json_compat_mode": True},
+    )
+    assert result["status"] == "SUCCESS"
+    assert result["data"]["oversold_score"] == 0.0
+    assert json.loads(json.dumps(result, allow_nan=False)) == result
+
+
+@pytest.mark.parametrize("price_change,aggressiveness", [
+    (-sys.float_info.max, 1e-308),
+    (-sys.float_info.max / 32.0, 1.0),
+])
+def test_representable_score_survives_overflowing_normalization(price_change, aggressiveness):
+    result = run_finance_operator(
+        "volume_operator",
+        {"current_volume": 0.0, "avg_volume": 1.0,
+         "price_change": price_change, "vwap_deviation": 0.0},
+        config_overrides={"contrarian_oversold_aggressiveness": aggressiveness,
+                          "json_compat_mode": True},
+    )
+    # Independent high-precision reference: the final value fits despite the
+    # unscaled price normalization overflowing binary64.
+    with localcontext() as decimal_context:
+        decimal_context.prec = 80
+        expected = float(
+            (Decimal.from_float(-price_change) - Decimal.from_float(0.007))
+            / Decimal.from_float(0.015) * Decimal.from_float(0.4)
+            * Decimal.from_float(aggressiveness)
+        )
+    assert result["status"] == "SUCCESS"
+    assert math.isfinite(result["data"]["oversold_score"])
+    assert result["data"]["oversold_score"] == pytest.approx(expected, rel=1e-15)
+    assert json.loads(json.dumps(result, allow_nan=False)) == result
+
+
+@pytest.mark.parametrize("hft_bias", [
+    {"bullish_multiplier_price": float("inf")},
+    {"bullish_execution_scale": 2.0},
+    [],
+])
+def test_volume_hft_request_cannot_bypass_configuration_bounds(hft_bias):
+    with pytest.raises(KernelConfigurationError):
+        run_finance_operator(
+            "volume_operator",
+            {"current_volume": 2.0, "avg_volume": 1.0,
+             "price_change": 0.008, "vwap_deviation": 0.0,
+             "enable_hft": True, "hft_bias_config": hft_bias},
+        )
+
+
+def test_volume_hft_request_preserves_disabled_bias_and_mode_extensions():
+    result = run_finance_operator(
+        "volume_operator",
+        {"current_volume": 1.0, "avg_volume": 1.0,
+         "price_change": 0.0, "vwap_deviation": 0.0,
+         "enable_hft": True, "hft_p_input": 0.08,
+         "hft_bias_config": {"enabled": False, "bullishness_mode": "CONTRARIAN",
+                             "contrarian_oversold_threshold": 0.0}},
+        config_overrides={"json_compat_mode": True},
+    )
+    assert result["status"] == "SUCCESS"
+    assert result["data"]["contrarian_buy_signal"] is True
+    assert result["data"]["hft_delta_v"] == pytest.approx(
+        calculate_hft_delta_v(1.0, 0.95, 0.1, 0.0,
+                              [{"p_input": 0.08, "w": 0.15, "v": 1.0,
+                                "M": 1.0, "dt": 0.001}])
+    )
+    assert json.loads(json.dumps(result, allow_nan=False)) == result
+
+
+@pytest.mark.parametrize("hft_bias", [
+    {"bullish_multiplier_price": float("inf")},
+    {"bullish_execution_scale": 2.0},
+    [],
+])
+def test_volume_execution_rejects_unvalidated_hft_configuration(hft_bias, tmp_path):
+    with pytest.raises(KernelConfigurationError):
+        VolumeExecutionOperator(hft_bias_config=hft_bias,
+                                audit_log_file=str(tmp_path / "audit.log"))
+
+
+def test_volume_execution_revalidates_changed_hft_config_before_mutation(tmp_path):
+    operator = VolumeExecutionOperator(audit_log_file=str(tmp_path / "audit.log"))
+    operator.hft_bias_config["bullish_multiplier_price"] = float("inf")
+    operator.current_equity = operator.peak_equity + 1.0
+    original = dict(operator.__dict__)
+    with pytest.raises(KernelConfigurationError):
+        operator.process_tick({"growth_favorable": True}, 10.0)
+    assert operator.__dict__ == original
+    assert not (tmp_path / "audit.log").exists()

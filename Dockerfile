@@ -19,8 +19,7 @@ COPY . .
 
 # Keep dependency and build policy in the repository's Makefile.
 RUN make deps && make build
-RUN git rev-parse HEAD > /src/BUILD_HASH 2>/dev/null \
-    || sha256sum Makefile aille.hpp | sha256sum | cut -d ' ' -f 1 > /src/BUILD_HASH
+RUN python3 -c "import hashlib; from pathlib import Path; hashes = b''.join(hashlib.sha256(Path(name).read_bytes()).digest() for name in ('demo', 'test_suite')); Path('BUILD_HASH').write_text(hashlib.sha256(hashes).hexdigest() + '\n')"
 
 
 FROM debian:12.7-slim AS runtime

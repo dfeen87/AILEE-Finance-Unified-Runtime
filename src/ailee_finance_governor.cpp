@@ -137,10 +137,14 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
 
     // Native C++ Evaluation Logic (Fallback / Standalone)
     SellGovernanceDecisionCpp decision;
+    const bool valid_trust = std::isfinite(signals.trust_score);
+    const bool valid_manipulation = std::isfinite(signals.bid_liquidity_drop) &&
+                                    std::isfinite(signals.spread_widening);
+    decision.trust_score = valid_trust ? std::clamp(signals.trust_score, 0.0, 1.0) : 0.0;
     if (!signals.intent_flag || signals.position_size <= 0.0) {
         decision.level = 3;
         decision.allowed_sell_amount = std::max(0.0, signals.position_size * 0.1);
-        decision.trust_score = signals.trust_score;
+        decision.trust_score = valid_trust ? signals.trust_score : 0.0;
         decision.manipulation_score = 1.0;
         decision.consensus_score = 0.0;
         decision.reason = !signals.intent_flag ? (signals.intent_reason.empty() ? "Invalid sell intent" : signals.intent_reason)
@@ -148,38 +152,55 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
         return decision;
     }
 
-    // Trust Score
-    decision.trust_score = std::clamp(signals.trust_score, 0.0, 1.0);
-
     // Manipulation Heuristics
     double manip = 0.0;
     if (signals.spoofed_bids) manip += 0.35;
     if (signals.bid_liquidity_drop > 0.0) manip += std::min(0.35, signals.bid_liquidity_drop * 0.5);
     if (signals.mev_detected) manip += 0.25;
     if (signals.spread_widening > 0.0) manip += std::min(0.20, signals.spread_widening * 0.4);
-    decision.manipulation_score = std::clamp(manip, 0.0, 1.0);
+    decision.manipulation_score = valid_manipulation ? std::clamp(manip, 0.0, 1.0) : 1.0;
 
     // Consensus Score
-    if (signals.feeds.empty()) {
+    const bool valid_feeds = std::all_of(signals.feeds.begin(), signals.feeds.end(),
+        [](const FeedDataCpp& feed) {
+            return std::isfinite(feed.price) && std::isfinite(feed.confidence);
+        });
+    if (signals.feeds.empty() || !valid_feeds) {
         decision.consensus_score = 0.0;
     } else {
-        double sum_p = 0.0;
-        double sum_conf = 0.0;
+        // Relative dispersion is scale-invariant. Normalize before summing or
+        // squaring finite prices, including subnormals and signed native feeds.
+        long double price_scale = 0.0L;
+        long double confidence_scale = 0.0L;
         for (const auto& feed : signals.feeds) {
-            sum_p += feed.price;
-            sum_conf += feed.confidence;
+            price_scale = std::max(price_scale, std::abs(static_cast<long double>(feed.price)));
+            confidence_scale = std::max(confidence_scale, std::abs(static_cast<long double>(feed.confidence)));
         }
-        double avg_p = sum_p / signals.feeds.size();
-        double avg_conf = sum_conf / signals.feeds.size();
-
-        double var = 0.0;
+        const auto add_compensated = [](long double value, long double& sum, long double& correction) {
+            const long double next = sum + value;
+            correction += std::abs(sum) >= std::abs(value)
+                ? (sum - next) + value : (value - next) + sum;
+            sum = next;
+        };
+        long double sum_p = 0.0L, price_correction = 0.0L;
+        long double sum_conf = 0.0L, confidence_correction = 0.0L;
         for (const auto& feed : signals.feeds) {
-            var += (feed.price - avg_p) * (feed.price - avg_p);
+            add_compensated(price_scale ? static_cast<long double>(feed.price) / price_scale : 0.0L,
+                            sum_p, price_correction);
+            add_compensated(confidence_scale ? static_cast<long double>(feed.confidence) / confidence_scale : 0.0L,
+                            sum_conf, confidence_correction);
         }
-        double std_dev = std::sqrt(var / signals.feeds.size());
-        double rel_std = (avg_p > 0.0) ? (std_dev / avg_p) : 0.0;
-        double p_consensus = std::max(0.0, 1.0 - (rel_std * 5.0));
-        decision.consensus_score = std::clamp(p_consensus * avg_conf, 0.0, 1.0);
+        const long double count = static_cast<long double>(signals.feeds.size());
+        const long double avg_p = (sum_p + price_correction) / count;
+        const long double avg_conf = (sum_conf + confidence_correction) / count * confidence_scale;
+        long double var = 0.0L;
+        for (const auto& feed : signals.feeds) {
+            const long double delta = (price_scale ? static_cast<long double>(feed.price) / price_scale : 0.0L) - avg_p;
+            var += delta * delta;
+        }
+        const long double rel_std = avg_p > 0.0L ? std::sqrt(var / count) / avg_p : 0.0L;
+        const long double p_consensus = std::max(0.0L, 1.0L - rel_std * 5.0L);
+        decision.consensus_score = static_cast<double>(std::clamp(p_consensus * avg_conf, 0.0L, 1.0L));
     }
 
     // Governance Level Determination
@@ -202,7 +223,8 @@ SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignal
     double raw_allowed = signals.position_size * ceiling_ratio;
 
     HFTBiasConfig cfg{};
-    bool bullish_active = is_bullish_mode_allowed((float)decision.trust_score, (float)decision.manipulation_score, false, cfg);
+    bool bullish_active = valid_trust && valid_manipulation &&
+        is_bullish_mode_allowed((float)decision.trust_score, (float)decision.manipulation_score, false, cfg);
     decision.bullish_mode_active = bullish_active;
     decision.bullish_multiplier_price = cfg.bullish_multiplier_price;
     decision.bullish_multiplier_volume = cfg.bullish_multiplier_volume;

@@ -17,6 +17,7 @@ logger = logging.getLogger("AILLE.FinanceKernel.VolumeExecution")
 
 from core.finance_kernel.kernel_registry import BaseOperator
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
+from core.finance_kernel.kernel_config import validate_hft_bias_config
 
 class VolumeExecutionOperator(BaseOperator):
     role = "transaction"
@@ -64,7 +65,9 @@ class VolumeExecutionOperator(BaseOperator):
                 "manipulation_threshold": 0.30,
             }
         else:
+            validated_bias = validate_hft_bias_config(hft_bias_config)
             self.hft_bias_config = dict(hft_bias_config)
+            self.hft_bias_config.update(validated_bias)
 
         self.current_position_side = "FLAT"
         self.pending_side = "FLAT"
@@ -123,6 +126,8 @@ class VolumeExecutionOperator(BaseOperator):
 
     def process_tick(self, advisory_data: Dict[str, Any], current_price: float, safety_state: Optional[Dict[str, Any]] = None,
                      trust_score: float = 0.85, manipulation_score: float = 0.0):
+        validated_bias = validate_hft_bias_config(self.hft_bias_config)
+        self.hft_bias_config.update(validated_bias)
         # 1. Safety & Drawdown Check
         if safety_state and (safety_state.get("kill_switch") or safety_state.get("hardware_fault")):
             self.trigger_lockout("Hardware fault or kill switch triggered in SafetyState")

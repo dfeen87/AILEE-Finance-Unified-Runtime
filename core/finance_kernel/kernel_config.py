@@ -22,7 +22,7 @@ class FinanceKernelConfig:
         try:
             self.operator_timeout = float(operator_timeout)
             self.contrarian_oversold_aggressiveness = float(contrarian_oversold_aggressiveness)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError, OverflowError) as e:
             raise KernelConfigurationError(f"Invalid numeric configuration: {e}") from e
         self.max_concurrent_operators = _require_positive_integer(
             "max_concurrent_operators", max_concurrent_operators
@@ -42,6 +42,8 @@ class FinanceKernelConfig:
             "manipulation_threshold": 0.30,
         }
         if hft_bias is not None:
+            if not isinstance(hft_bias, dict):
+                raise KernelConfigurationError("hft_bias must be a dictionary")
             default_hft_bias.update(hft_bias)
         self.hft_bias = validate_hft_bias_config(default_hft_bias)
         self._validate()
@@ -88,10 +90,12 @@ class FinanceKernelConfig:
 
     def merge_overrides(self, overrides_dict: dict) -> "FinanceKernelConfig":
         """Merges explicit dictionary overrides into the configuration."""
-        if not overrides_dict:
+        if overrides_dict is None:
             return self
         if not isinstance(overrides_dict, dict):
             raise KernelConfigurationError("Configuration overrides must be a dictionary")
+        if not overrides_dict:
+            return self
 
         self._apply_dict(overrides_dict)
         return self
@@ -101,7 +105,7 @@ class FinanceKernelConfig:
         if "operator_timeout" in data:
             try:
                 candidate["operator_timeout"] = float(data["operator_timeout"])
-            except (TypeError, ValueError) as e:
+            except (TypeError, ValueError, OverflowError) as e:
                 raise KernelConfigurationError(f"Invalid operator_timeout: {e}")
 
         if "max_concurrent_operators" in data:
@@ -124,7 +128,7 @@ class FinanceKernelConfig:
         if "contrarian_oversold_aggressiveness" in data:
             try:
                 candidate["contrarian_oversold_aggressiveness"] = float(data["contrarian_oversold_aggressiveness"])
-            except (TypeError, ValueError) as e:
+            except (TypeError, ValueError, OverflowError) as e:
                 raise KernelConfigurationError(f"Invalid contrarian_oversold_aggressiveness: {e}")
 
         if "hft_bias" in data:
@@ -214,7 +218,11 @@ def parse_config_file(path: str) -> dict:
 
 def validate_hft_bias_config(cfg_dict: dict) -> dict:
     """Validates hft_bias configuration dictionary against strict bounds."""
-    hft_bias = cfg_dict.get("hft_bias", cfg_dict) if isinstance(cfg_dict, dict) else {}
+    if not isinstance(cfg_dict, dict):
+        raise KernelConfigurationError("hft_bias configuration must be a dictionary")
+    hft_bias = cfg_dict.get("hft_bias", cfg_dict)
+    if not isinstance(hft_bias, dict):
+        raise KernelConfigurationError("hft_bias must be a dictionary")
     enabled = _require_bool("hft_bias.enabled", hft_bias.get("enabled", True))
 
     try:
@@ -224,7 +232,7 @@ def validate_hft_bias_config(cfg_dict: dict) -> dict:
         sell_factor = float(hft_bias.get("bullish_sell_ceiling_factor", 0.80))
         trust_thresh = float(hft_bias.get("trust_threshold_bullish", 0.70))
         manip_thresh = float(hft_bias.get("manipulation_threshold", 0.30))
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, OverflowError) as e:
         raise KernelConfigurationError(f"Invalid hft_bias numeric configuration: {e}") from e
 
     numeric_values = {

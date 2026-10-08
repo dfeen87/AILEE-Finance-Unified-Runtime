@@ -7,11 +7,12 @@
 
 #include <iostream>
 #include <vector>
-#include <cassert>
 #include <cmath>
 #include <string>
 #include <functional>
 #include <memory>
+#include <limits>
+#include <utility>
 
 // Include the library to test
 #include "../aille.hpp"
@@ -95,13 +96,52 @@ int tests_failed = 0;
 } while(0)
 
 #define ASSERT_FLOAT_EQ(a, b) do { \
-    if (std::abs((a) - (b)) > 1e-5) { \
-        throw std::runtime_error("Assertion failed: " + std::to_string(a) + " != " + std::to_string(b)); \
+    const auto assert_float_actual = (a); \
+    const auto assert_float_expected = (b); \
+    if (!std::isfinite(assert_float_actual) || !std::isfinite(assert_float_expected) || \
+        std::abs(assert_float_actual - assert_float_expected) > 1e-5) { \
+        throw std::runtime_error("Assertion failed: " + std::to_string(assert_float_actual) + " != " + std::to_string(assert_float_expected)); \
     } \
 } while(0)
 
 
 // Test Cases
+
+TEST(TestFloatAssertionsRejectNonFinite) {
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double infinity = std::numeric_limits<double>::infinity();
+    const std::pair<double, double> mismatches[] = {
+        {nan, 0.0}, {0.0, nan}, {nan, nan},
+        {infinity, 0.0}, {-infinity, 0.0},
+        {infinity, infinity}, {-infinity, -infinity},
+        {infinity, -infinity}, {0.0, infinity},
+        {1.0, 1.0001}
+    };
+    for (const auto& [actual, expected] : mismatches) {
+        bool rejected = false;
+        try {
+            ASSERT_FLOAT_EQ(actual, expected);
+        } catch (const std::runtime_error&) {
+            rejected = true;
+        }
+        ASSERT_TRUE(rejected);
+    }
+}
+
+TEST(TestFloatAssertionsPreserveFiniteCompatibility) {
+    ASSERT_FLOAT_EQ(-0.0, 0.0);
+    ASSERT_FLOAT_EQ(-123.45, -123.45);
+    ASSERT_FLOAT_EQ(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+    ASSERT_FLOAT_EQ(std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
+    ASSERT_FLOAT_EQ(std::numeric_limits<double>::denorm_min(), 0.0);
+    ASSERT_FLOAT_EQ(1.0, 1.000001);
+
+    int actual_evaluations = 0;
+    int expected_evaluations = 0;
+    ASSERT_FLOAT_EQ((++actual_evaluations, 1.0), (++expected_evaluations, 1.0));
+    ASSERT_EQ(actual_evaluations, 1);
+    ASSERT_EQ(expected_evaluations, 1);
+}
 
 class CapturingAlertAdapter : public AILLE::Plugins::ITradingAlertAdapter {
 public:
@@ -364,7 +404,56 @@ TEST(TestAuditLogger) {
     if (h1 != p2) throw std::runtime_error("Hash chain broken!");
 }
 
-TEST(TestAuditLoggerIntegrityFailure) { /* removed */ }
+TEST(TestAuditLoggerIntegrityFailure) {
+    AILLE::AuditLogger logger;
+    AILLE::Decision decision;
+    decision.status = AILLE::DECISION_VALID;
+    decision.final_value = -0.75f;
+    decision.confidence = 0.90f;
+    logger.logDecision(decision, "AAPL", "integrity-regression");
+    logger.logDecision(decision, "MSFT", "integrity-regression");
+    ASSERT_TRUE(logger.verifyIntegrity());
+
+    // The logger owns a mutable trail. Corrupt it only in this adversarial test;
+    // no production mutation API or persisted-file verification is implied.
+    auto& trail = const_cast<std::vector<AILLE::AuditRecord>&>(logger.getAuditTrail());
+    ASSERT_EQ(trail.size(), 2);
+    const AILLE::AuditRecord original = trail[0];
+    trail[0].final_value = 0.75f;
+    ASSERT_FALSE(logger.verifyIntegrity());
+    trail[0] = original;
+    ASSERT_TRUE(logger.verifyIntegrity());
+
+    const AILLE::AuditRecord second = trail[1];
+    trail[1].prev_hash[0] ^= 1;
+    ASSERT_FALSE(logger.verifyIntegrity());
+    trail[1] = second;
+    ASSERT_TRUE(logger.verifyIntegrity());
+
+    // Independently calculated SHA-256 of the canonical zero-valued decision
+    // at timestamp 2. The digest contains an embedded zero byte at offset 12.
+    AILLE::AuditLogger binary_logger;
+    AILLE::Decision binary_decision;
+    binary_decision.status = AILLE::DECISION_VALID;
+    binary_decision.timestamp_ns = 2;
+    binary_logger.logDecision(binary_decision, "", "", "");
+    const uint8_t expected_digest[32] = {
+        0x40, 0x6c, 0x74, 0xf1, 0xf5, 0x9e, 0x09, 0x73,
+        0x77, 0x25, 0x5a, 0xf8, 0x00, 0xbe, 0x9a, 0x40,
+        0xa3, 0xf8, 0x1d, 0xef, 0x69, 0xba, 0x83, 0x7a,
+        0x74, 0xb2, 0xe3, 0xf1, 0x31, 0x87, 0x35, 0xf1
+    };
+    ASSERT_EQ(sizeof(AILLE::AuditRecord), 256ULL);
+    ASSERT_TRUE(std::memcmp(binary_logger.getAuditTrail()[0].hash, expected_digest, 32) == 0);
+    binary_logger.logDecision(binary_decision, "", "", "");
+    ASSERT_TRUE(binary_logger.verifyIntegrity());
+    ASSERT_TRUE(std::memcmp(binary_logger.getAuditTrail()[1].prev_hash, expected_digest, 32) == 0);
+    auto& binary_trail = const_cast<std::vector<AILLE::AuditRecord>&>(binary_logger.getAuditTrail());
+    binary_trail[0].hash[31] ^= 1;
+    ASSERT_FALSE(binary_logger.verifyIntegrity());
+    binary_trail[0].hash[31] ^= 1;
+    ASSERT_TRUE(binary_logger.verifyIntegrity());
+}
 
 TEST(TestInvalidInputs) {
     AILLE::AILLEEngine engine;
@@ -522,7 +611,31 @@ TEST(TestPerformanceLayerPublishesAdvisoryIPCEnvelope) {
     ASSERT_TRUE(envelope.published_timestamp_ns >= signal.timestamp_ns);
 }
 
-TEST(TestPerformanceLayerSIMDConsensusIsPassiveVectorSummary) { /* removed */ }
+TEST(TestPerformanceLayerSIMDConsensusIsPassiveVectorSummary) {
+    AILLE::PerformanceLayer layer;
+    const AILLE::ModelSignal signals[] = {
+        AILLE::ModelSignal(1.0f, 0.8f, 1),
+        AILLE::ModelSignal(-0.5f, 0.6f, 2),
+        AILLE::ModelSignal(10.0f, 0.1f, 3),
+        AILLE::ModelSignal(std::numeric_limits<float>::quiet_NaN(), 0.9f, 4),
+        AILLE::ModelSignal(1.0f, std::numeric_limits<float>::infinity(), 5)
+    };
+    const auto summary = layer.evaluateConsensusVector(signals, 5, 0.5f);
+    ASSERT_TRUE(summary.advisory_only);
+    ASSERT_EQ(summary.valid_lanes, 2);
+    ASSERT_EQ(summary.positive_votes, 1);
+    ASSERT_EQ(summary.negative_votes, 1);
+    ASSERT_FLOAT_EQ(summary.weighted_sum, 0.5f);
+    ASSERT_FLOAT_EQ(summary.total_weight, 1.4f);
+    ASSERT_FLOAT_EQ(signals[0].value, 1.0f);
+    ASSERT_FLOAT_EQ(signals[1].value, -0.5f);
+
+    const auto empty = layer.evaluateConsensusVector(nullptr, 0, 0.5f);
+    ASSERT_TRUE(empty.advisory_only);
+    ASSERT_EQ(empty.valid_lanes, 0);
+    ASSERT_FLOAT_EQ(empty.weighted_sum, 0.0f);
+    ASSERT_FLOAT_EQ(empty.total_weight, 0.0f);
+}
 
 TEST(TestHardwareKernelManifestNeverEmitsOrders) {
     AILLE::PerformanceLayer layer;
@@ -2391,7 +2504,11 @@ TEST(TestAileeFinanceGovernorEvaluateSellValid) {
     ailee::SellGovernanceDecisionCpp decision = governor.evaluateSell(signals);
     ASSERT_EQ(decision.level, 0);
     ASSERT_TRUE(decision.bullish_mode_active);
-    ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 800.0);
+    // Python uses a double factor; the standalone API stores its factor as a
+    // float. Require either documented representation and its exact cap.
+    ASSERT_TRUE(decision.bullish_sell_ceiling_factor == 0.8 ||
+                decision.bullish_sell_ceiling_factor == static_cast<double>(0.8f));
+    ASSERT_FLOAT_EQ(decision.allowed_sell_amount, 1000.0 * decision.bullish_sell_ceiling_factor);
     ASSERT_TRUE(decision.trust_score >= 0.85);
     ASSERT_TRUE(decision.manipulation_score <= 0.20);
     ASSERT_TRUE(decision.consensus_score >= 0.80);
@@ -2452,6 +2569,143 @@ TEST(TestHFTBiasGatingLogic) {
     ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.80f, 0.10f, true, cfg));
 }
 
+TEST(TestHFTBiasRejectsNonFiniteEvidenceAndConfiguration) {
+    const float nonfinite[] = {
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    };
+    float ailee::HFTBiasConfig::* const fields[] = {
+        &ailee::HFTBiasConfig::trust_threshold_bullish,
+        &ailee::HFTBiasConfig::manipulation_threshold,
+        &ailee::HFTBiasConfig::bullish_multiplier_price,
+        &ailee::HFTBiasConfig::bullish_multiplier_volume,
+        &ailee::HFTBiasConfig::bullish_execution_scale,
+        &ailee::HFTBiasConfig::bullish_sell_ceiling_factor
+    };
+    for (float invalid : nonfinite) {
+        ASSERT_FALSE(ailee::is_bullish_mode_allowed(invalid, 0.0f, false));
+        ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.9f, invalid, false));
+        for (auto field : fields) {
+            ailee::HFTBiasConfig config;
+            config.*field = invalid;
+            ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.9f, 0.0f, false, config));
+        }
+    }
+    ailee::HFTBiasConfig config;
+    config.trust_threshold_bullish = -0.1f;
+    ASSERT_FALSE(ailee::is_bullish_mode_allowed(0.9f, 0.0f, false, config));
+    config.trust_threshold_bullish = 0.0f;
+    config.manipulation_threshold = 0.0f;
+    ASSERT_TRUE(ailee::is_bullish_mode_allowed(-0.0f, -0.0f, false, config));
+    ASSERT_TRUE(ailee::is_bullish_mode_allowed(0.9f, -0.1f, false));
+    ASSERT_TRUE(ailee::is_bullish_mode_allowed(std::numeric_limits<float>::max(),
+                                             -std::numeric_limits<float>::max(), false));
+}
+
+TEST(TestAileeFinanceGovernorRejectsNonFiniteProvenance) {
+    ailee::AileeFinanceGovernor governor;
+    ailee::RawSellSignals signals;
+    signals.position_size = 1000.0;
+    signals.volatility = 0.1;
+    signals.trust_score = 0.9;
+    signals.feeds = {{"first", 100.0, 0.95}, {"second", 100.1, 0.95}};
+    const double nonfinite[] = {
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::infinity(),
+        -std::numeric_limits<double>::infinity()
+    };
+    double ailee::RawSellSignals::* const fields[] = {
+        &ailee::RawSellSignals::trust_score,
+        &ailee::RawSellSignals::bid_liquidity_drop,
+        &ailee::RawSellSignals::spread_widening
+    };
+    for (double invalid : nonfinite) {
+        for (auto field : fields) {
+            auto malformed = signals;
+            malformed.*field = invalid;
+            const auto decision = governor.evaluateSell(malformed);
+            ASSERT_EQ(decision.level, 3);
+            ASSERT_FALSE(decision.bullish_mode_active);
+            ASSERT_TRUE(std::isfinite(decision.allowed_sell_amount));
+            ASSERT_TRUE(decision.allowed_sell_amount >= 0.0 && decision.allowed_sell_amount <= 100.0);
+            ASSERT_TRUE(std::isfinite(decision.trust_score));
+            ASSERT_TRUE(std::isfinite(decision.manipulation_score));
+        }
+    }
+
+    auto invalid_feeds = signals;
+    for (auto& feed : invalid_feeds.feeds) {
+        feed.price = std::numeric_limits<double>::quiet_NaN();
+    }
+    const auto invalid_consensus = governor.evaluateSell(invalid_feeds);
+    ASSERT_EQ(invalid_consensus.level, 3);
+    ASSERT_FLOAT_EQ(invalid_consensus.consensus_score, 0.0);
+
+    signals.bid_liquidity_drop = -0.5;
+    signals.spread_widening = -0.25;
+    const auto valid_negative = governor.evaluateSell(signals);
+    ASSERT_EQ(valid_negative.level, 0);
+    ASSERT_TRUE(valid_negative.bullish_mode_active);
+    ASSERT_FLOAT_EQ(valid_negative.manipulation_score, 0.0);
+    ASSERT_FLOAT_EQ(valid_negative.allowed_sell_amount, 1000.0 * valid_negative.bullish_sell_ceiling_factor);
+
+    // The legacy native invalid-intent response preserves finite raw trust;
+    // the Python backend normalizes it. Both must retain the protective cap.
+    signals.intent_flag = false;
+    signals.intent_reason = "finite trust compatibility";
+    for (double finite_trust : {-0.5, std::numeric_limits<double>::max()}) {
+        signals.trust_score = finite_trust;
+        const auto protective = governor.evaluateSell(signals);
+        ASSERT_EQ(protective.level, 3);
+        ASSERT_FLOAT_EQ(protective.allowed_sell_amount, 100.0);
+        if (protective.reason == signals.intent_reason) {
+            ASSERT_FALSE(protective.bullish_mode_active);
+            ASSERT_TRUE(protective.trust_score == finite_trust);
+        } else {
+            ASSERT_FLOAT_EQ(protective.trust_score, finite_trust < 0.0 ? 0.0 : 1.0);
+        }
+    }
+}
+
+TEST(TestAileeFinanceGovernorFiniteConsensusIntermediates) {
+    ailee::AileeFinanceGovernor governor;
+    ailee::RawSellSignals signals;
+    signals.position_size = 1000.0;
+    signals.volatility = 0.1;
+    signals.trust_score = 0.9;
+    for (double price : {100.0, 1e308, std::numeric_limits<double>::max(),
+                         std::numeric_limits<double>::denorm_min()}) {
+        signals.feeds = {{"a", price, 0.95}, {"b", price, 0.95}};
+        const auto decision = governor.evaluateSell(signals);
+        ASSERT_FLOAT_EQ(decision.consensus_score, 0.95);
+        ASSERT_EQ(decision.level, 0);
+    }
+
+    const double maximum = std::numeric_limits<double>::max();
+    signals.feeds = {{"a", 100.0, maximum}, {"b", 100.0, maximum},
+                     {"c", 100.0, -maximum}, {"d", 100.0, -maximum},
+                     {"e", 100.0, 0.5}};
+    ASSERT_FLOAT_EQ(governor.evaluateSell(signals).consensus_score, 0.1);
+    std::swap(signals.feeds[1], signals.feeds[4]);
+    ASSERT_FLOAT_EQ(governor.evaluateSell(signals).consensus_score, 0.1);
+
+    signals.feeds = {{"a", 100.0, -0.25}, {"b", 100.0, 0.5}};
+    ASSERT_FLOAT_EQ(governor.evaluateSell(signals).consensus_score, 0.125);
+    signals.feeds = {{"a", 100.0, -0.0}, {"b", 100.0, 0.0}};
+    ASSERT_FLOAT_EQ(governor.evaluateSell(signals).consensus_score, 0.0);
+
+    // The native backend also accepts signed/zero prices; preserve its
+    // established zero-relative-dispersion rule for non-positive means.
+    signals.feeds = {{"a", -1.0, 0.5}, {"b", -2.0, 0.5}};
+    const auto signed_prices = governor.evaluateSell(signals);
+    if (signed_prices.reason.find("via C++ governor") != std::string::npos) {
+        ASSERT_FLOAT_EQ(signed_prices.consensus_score, 0.5);
+        signals.feeds = {{"a", -0.0, 0.5}, {"b", 0.0, 0.5}};
+        ASSERT_FLOAT_EQ(governor.evaluateSell(signals).consensus_score, 0.5);
+    }
+}
+
 TEST(TestHFTBiasPrePhysicsAndPostDeltaVScaling) {
     AILLE::VolumeState state{};
     state.current_volume = 20000.0f;
@@ -2502,7 +2756,9 @@ TEST(TestHFTBiasSellCeilingAndLevel3Override) {
     ailee::SellGovernanceDecisionCpp dec_level_0 = governor.evaluateSell(sig_level_0);
     ASSERT_EQ(dec_level_0.level, 0);
     ASSERT_TRUE(dec_level_0.bullish_mode_active);
-    ASSERT_FLOAT_EQ(dec_level_0.allowed_sell_amount, 800.0);
+    ASSERT_TRUE(dec_level_0.bullish_sell_ceiling_factor == 0.8 ||
+                dec_level_0.bullish_sell_ceiling_factor == static_cast<double>(0.8f));
+    ASSERT_FLOAT_EQ(dec_level_0.allowed_sell_amount, 1000.0 * dec_level_0.bullish_sell_ceiling_factor);
 
     // Level 3 protective mode -> 1000.0 * 0.10 = 100.0 (Protective mode overrides bullish reduction)
     ailee::RawSellSignals sig_level_3 = sig_level_0;
@@ -2593,6 +2849,8 @@ TEST(TestLayer14MetaGovernanceLockHardening) {
 int main() {
     std::cout << "Starting Unit Tests..." << std::endl;
 
+    RUN_TEST(TestFloatAssertionsRejectNonFinite);
+    RUN_TEST(TestFloatAssertionsPreserveFiniteCompatibility);
     RUN_TEST(TestTradingAlertAdapterBuildsPassiveBuyAlert);
     RUN_TEST(TestTradingAlertAdapterRejectedDecisionIsHoldAlert);
     RUN_TEST(TestRobinhoodAlertAdapterRegistersWithoutExecutionProvider);
@@ -2680,6 +2938,9 @@ int main() {
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellManipulated);
     RUN_TEST(TestAileeFinanceGovernorEvaluateSellInvalidIntent);
     RUN_TEST(TestHFTBiasGatingLogic);
+    RUN_TEST(TestHFTBiasRejectsNonFiniteEvidenceAndConfiguration);
+    RUN_TEST(TestAileeFinanceGovernorRejectsNonFiniteProvenance);
+    RUN_TEST(TestAileeFinanceGovernorFiniteConsensusIntermediates);
     RUN_TEST(TestHFTBiasPrePhysicsAndPostDeltaVScaling);
     RUN_TEST(TestHFTBiasSellCeilingAndLevel3Override);
     RUN_TEST(TestWNFSIngestionAndEscalation);

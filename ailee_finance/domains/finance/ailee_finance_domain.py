@@ -7,14 +7,16 @@ and audit logging.
 import os
 import json
 import datetime
+import math
 from ailee_finance.domains.finance.sell_governance import (
     validate_sell_intent,
     compute_sell_ceiling,
-    detect_sell_manipulation,
+    _validated_sell_manipulation,
     grace_layer_sell_adjustment,
     consensus_validation,
 )
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
+from core.finance_kernel.kernel_config import validate_hft_bias_config
 
 
 class SellGovernanceDecision:
@@ -70,35 +72,38 @@ class AileeFinanceDomain:
 
     def __init__(self, log_path="logs/ailee_finance_sell_audit.log", hft_bias_config=None):
         self.log_path = log_path
-        if hft_bias_config is None:
-            self.hft_bias_config = {
-                "enabled": True,
-                "bullish_multiplier_price": 1.05,
-                "bullish_multiplier_volume": 1.05,
-                "bullish_execution_scale": 1.10,
-                "bullish_sell_ceiling_factor": 0.80,
-                "trust_threshold_bullish": 0.70,
-                "manipulation_threshold": 0.30,
-            }
-        else:
-            self.hft_bias_config = dict(hft_bias_config)
+        self.hft_bias_config = validate_hft_bias_config({} if hft_bias_config is None else hft_bias_config)
 
     def compute_trust_score(self, signals):
         """
         Compute aggregate trust score from signals payload.
         """
+        trust = self._validated_trust_score(signals)
+        return 0.0 if trust is None else trust
+
+    def _validated_trust_score(self, signals):
+        """Keep invalid evidence distinct from a legitimate zero trust score."""
         if not isinstance(signals, dict):
-            return 0.0
+            return None
 
-        if "trust_score" in signals:
-            return max(0.0, min(1.0, float(signals["trust_score"])))
+        try:
+            if "trust_score" in signals:
+                trust = float(signals["trust_score"])
+            else:
+                # Preserve the weighted composite before clamping finite scores.
+                telemetry_trust = float(signals.get("telemetry_trust", 0.85))
+                hardware_integrity = float(signals.get("hardware_integrity", 1.0))
+                model_confidence = float(signals.get("model_confidence", 0.80))
+                if not all(math.isfinite(value) for value in
+                           (telemetry_trust, hardware_integrity, model_confidence)):
+                    return None
+                trust = (telemetry_trust * 0.4) + (hardware_integrity * 0.3) + (model_confidence * 0.3)
+        except (TypeError, ValueError, OverflowError):
+            return None
 
-        # Fallback composite trust score calculation from sub-metrics
-        telemetry_trust = float(signals.get("telemetry_trust", 0.85))
-        hardware_integrity = float(signals.get("hardware_integrity", 1.0))
-        model_confidence = float(signals.get("model_confidence", 0.80))
-
-        trust = (telemetry_trust * 0.4) + (hardware_integrity * 0.3) + (model_confidence * 0.3)
+        # Check before clamping: min(1.0, NaN/+Inf) would manufacture full trust.
+        if not math.isfinite(trust):
+            return None
         return max(0.0, min(1.0, trust))
 
     def determine_governance_level(self, trust_score, manipulation_score, consensus_score):
@@ -163,11 +168,13 @@ class AileeFinanceDomain:
             signals = {}
 
         intent = validate_sell_intent(signals)
-        trust_score = self.compute_trust_score(signals)
-        market = signals.get("market", {}) if isinstance(signals.get("market"), dict) else {}
+        trust_evidence = self._validated_trust_score(signals)
+        trust_score = 0.0 if trust_evidence is None else trust_evidence
+        market = signals.get("market", {})
         feeds = signals.get("feeds", []) if isinstance(signals.get("feeds"), (list, tuple)) else []
 
-        manipulation_score = detect_sell_manipulation(market)
+        manipulation_evidence = _validated_sell_manipulation(market)
+        manipulation_score = 1.0 if manipulation_evidence is None else manipulation_evidence
         consensus_score = consensus_validation(feeds)
 
         if not intent.get("intent_valid", True):
@@ -181,10 +188,11 @@ class AileeFinanceDomain:
 
         drawdown_state = signals.get("drawdown_state", False)
         hft_cfg = signals.get("hft_bias_config", self.hft_bias_config)
+        hft_cfg = validate_hft_bias_config({} if hft_cfg is None else hft_cfg)
 
         bullish_active = is_bullish_mode_allowed(
-            trust_score=trust_score,
-            manipulation_score=manipulation_score,
+            trust_score=trust_evidence,
+            manipulation_score=manipulation_evidence,
             drawdown_state=drawdown_state,
             hft_bias_config=hft_cfg
         )

@@ -28,6 +28,7 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <mutex>
 #include <chrono>
 #include <cctype>
 #include <cstdio>
@@ -232,7 +233,8 @@ private:
 class RestAPIServer {
 public:
     RestAPIServer(AILLEEngine& engine, int port = 8080, const std::string& host = "127.0.0.1")
-        : engine_(engine), port_(port), host_(host), running_(false), server_(nullptr) {
+        : engine_(engine), port_(port), host_(host), running_(false),
+          startup_pending_(false), listener_active_(false), server_(nullptr) {
     }
     
     ~RestAPIServer();  // Defined in .cpp to allow proper cleanup
@@ -241,11 +243,7 @@ public:
     bool start();
     
     // Start the server in a background thread
-    void startAsync() {
-        server_thread_ = std::thread([this]() {
-            start();
-        });
-    }
+    void startAsync();
     
     // Stop the server
     void stop();
@@ -264,10 +262,15 @@ private:
     int port_;
     std::string host_;
     std::atomic<bool> running_;
+    std::atomic<bool> startup_pending_;
+    std::atomic<bool> listener_active_;
+    std::mutex lifecycle_mutex_;
     std::thread server_thread_;
     httplib::Server* server_;  // Raw pointer to avoid incomplete type issues
     
     void setupRoutes(httplib::Server& svr);
+    bool prepareStart();
+    bool runServer();
 };
 
 } // namespace AILLE

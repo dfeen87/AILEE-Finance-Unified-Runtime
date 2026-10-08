@@ -10,7 +10,7 @@ import math
 from typing import List, Dict, Any, Optional
 
 from core.finance_kernel.kernel_context import FinanceKernelContext
-from core.finance_kernel.kernel_config import FinanceKernelConfig
+from core.finance_kernel.kernel_config import FinanceKernelConfig, validate_hft_bias_config
 from core.finance_kernel.kernel_registry import BaseOperator
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 
@@ -87,6 +87,35 @@ class VolumeAdvisory:
         self.oversold_state = False
         self.contrarian_buy_signal = False
         self.hft_active = False
+
+
+def _representable_oversold_score(price_change: float, vwap_deviation: float,
+                                  volume_ratio: float, aggressiveness: float) -> float:
+    """Recover finite scores when normalization overflows before scaling."""
+    if (not all(math.isfinite(value) for value in
+                (price_change, vwap_deviation, volume_ratio, aggressiveness))
+            or aggressiveness < 0.0):
+        raise ValueError("oversold_score is not representable as a finite float")
+    if aggressiveness == 0.0:
+        return aggressiveness
+
+    scale_mantissa, scale_exponent = math.frexp(aggressiveness)
+    components = (
+        (max(0.0, -price_change - 0.007), 0.4, 0.015),
+        (max(0.0, -vwap_deviation - 0.005), 0.3, 0.015),
+        (max(0.0, volume_ratio - 1.5), 0.3, 2.0),
+    )
+    score = 0.0
+    for amount, weight, divisor in components:
+        mantissa, exponent = math.frexp(amount)
+        try:
+            score += math.ldexp(mantissa * scale_mantissa * weight / divisor,
+                                exponent + scale_exponent)
+        except OverflowError as exc:
+            raise ValueError("oversold_score is not representable as a finite float") from exc
+    if not math.isfinite(score):
+        raise ValueError("oversold_score is not representable as a finite float")
+    return score
 
 
 class IntradayVolumeAdvisory(BaseOperator):
@@ -221,6 +250,10 @@ class IntradayVolumeAdvisory(BaseOperator):
         norm_vol = max(0.0, (smoothed_ratio - 1.5) / 2.0)
 
         advisory.oversold_score = (0.4 * norm_price + 0.3 * norm_vwap + 0.3 * norm_vol) * aggressiveness
+        if not math.isfinite(advisory.oversold_score):
+            advisory.oversold_score = _representable_oversold_score(
+                state.price_change, state.vwap_deviation, smoothed_ratio, aggressiveness
+            )
 
         # Retrieve hft_bias config early for contrarian modulation
         hft_bias_cfg = input_data.get("hft_bias_config")
@@ -234,6 +267,8 @@ class IntradayVolumeAdvisory(BaseOperator):
             bias_dict = hft_bias_cfg
         elif hft_bias_cfg is not None and hasattr(hft_bias_cfg, "__dict__"):
             bias_dict = vars(hft_bias_cfg)
+        elif hft_bias_cfg is not None:
+            bias_dict = validate_hft_bias_config(hft_bias_cfg)
         else:
             bias_dict = {
                 "enabled": True,
@@ -249,6 +284,7 @@ class IntradayVolumeAdvisory(BaseOperator):
                 "contrarian_hf_impulse_scale": 1.25,
                 "contrarian_sell_ceiling_factor": 0.85,
             }
+        bias_dict = {**bias_dict, **validate_hft_bias_config(bias_dict)}
 
         mode = str(bias_dict.get("bullishness_mode", "STANDARD")).upper()
         if mode in ("CONTRARIAN", "HYPER"):
@@ -311,23 +347,7 @@ class IntradayVolumeAdvisory(BaseOperator):
             p_input = state.hft_p_input if state.hft_p_input != 0.0 else state.price_change * 10.0
             mass_input = state.hft_mass
 
-            # Retrieve hft_bias config
-            hft_bias_cfg = input_data.get("hft_bias_config")
-            if hft_bias_cfg is None:
-                if self.config and hasattr(self.config, "hft_bias"):
-                    hft_bias_cfg = getattr(self.config, "hft_bias")
-                elif self.context and getattr(self.context, "config", None) and hasattr(self.context.config, "hft_bias"):
-                    hft_bias_cfg = getattr(self.context.config, "hft_bias")
-            if hft_bias_cfg is None:
-                hft_bias_cfg = {
-                    "enabled": True,
-                    "bullish_multiplier_price": 1.05,
-                    "bullish_multiplier_volume": 1.05,
-                    "bullish_execution_scale": 1.10,
-                    "bullish_sell_ceiling_factor": 0.80,
-                    "trust_threshold_bullish": 0.70,
-                    "manipulation_threshold": 0.30,
-                }
+            hft_bias_cfg = bias_dict
 
             trust_score = float(input_data.get("trust_score", 0.85))
             manipulation_score = float(input_data.get("manipulation_score", 0.0))

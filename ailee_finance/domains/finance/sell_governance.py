@@ -4,6 +4,8 @@ Provides SELL-side trust governance, manipulation detection, dynamic ceilings,
 volatility grace adjustments, and consensus feed validation.
 """
 
+import math
+
 
 def validate_sell_intent(signals):
     """
@@ -75,8 +77,22 @@ def detect_sell_manipulation(market_data):
     Returns:
         float: Manipulation score 0.0 to 1.0
     """
+    score = _validated_sell_manipulation(market_data)
+    return 1.0 if score is None else score
+
+
+def _validated_sell_manipulation(market_data):
+    """Keep invalid evidence distinct from a legitimate maximum risk score."""
     if not isinstance(market_data, dict):
-        return 1.0  # Safe default if market data is corrupt or missing
+        return None
+
+    try:
+        bid_liquidity_drop = float(market_data.get("bid_liquidity_drop", 0.0))
+        spread_widening = float(market_data.get("spread_widening", 0.0))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not all(math.isfinite(value) for value in (bid_liquidity_drop, spread_widening)):
+        return None
 
     score = 0.0
 
@@ -85,7 +101,6 @@ def detect_sell_manipulation(market_data):
         score += 0.35
 
     # Collapsing bid liquidity detection
-    bid_liquidity_drop = float(market_data.get("bid_liquidity_drop", 0.0))
     if bid_liquidity_drop > 0.0:
         score += min(0.35, bid_liquidity_drop * 0.5)
 
@@ -94,7 +109,6 @@ def detect_sell_manipulation(market_data):
         score += 0.25
 
     # Spread widening detection
-    spread_widening = float(market_data.get("spread_widening", 0.0))
     if spread_widening > 0.0:
         score += min(0.20, spread_widening * 0.4)
 
@@ -152,21 +166,37 @@ def consensus_validation(feeds):
     if not valid_prices:
         return 0.0
 
+    if not all(math.isfinite(value) for value in valid_prices + confidences):
+        return 0.0
+
     if len(valid_prices) == 1:
         return max(0.0, min(1.0, confidences[0] * 0.70))
 
-    mean_price = sum(valid_prices) / len(valid_prices)
-    if mean_price == 0:
-        return 0.0
-
-    # Calculate variance / relative deviation
-    variance = sum((p - mean_price) ** 2 for p in valid_prices) / len(valid_prices)
-    std_dev = variance ** 0.5
+    # Relative deviation is invariant to scaling. Normalize before computing
+    # means and squares so finite prices do not overflow or lose variance to
+    # underflow, including subnormal positive prices.
+    price_scale = max(valid_prices)
+    scaled_prices = [price / price_scale for price in valid_prices]
+    mean_price = math.fsum(scaled_prices) / len(scaled_prices)
+    variance = math.fsum((price - mean_price) ** 2 for price in scaled_prices) / len(scaled_prices)
+    std_dev = math.sqrt(variance)
     relative_std = std_dev / mean_price
 
     # High relative std dev indicates low consensus
     price_consensus = max(0.0, 1.0 - (relative_std * 5.0))
-    avg_confidence = sum(confidences) / len(confidences)
+    try:
+        avg_confidence = math.fsum(confidences) / len(confidences)
+    except OverflowError:
+        # Divide first only when required; doing so for subnormal confidence
+        # would round each term to zero before the sum. Keep signed cancellation.
+        try:
+            avg_confidence = math.fsum(confidence / len(confidences) for confidence in confidences)
+        except OverflowError:
+            # At the largest finite boundary, rounded weighted terms can sum
+            # just beyond the representation even though their mean is bounded.
+            confidence_scale = max(abs(confidence) for confidence in confidences)
+            avg_confidence = (math.fsum(confidence / confidence_scale for confidence in confidences)
+                              / len(confidences) * confidence_scale)
 
     consensus_score = price_consensus * avg_confidence
     return max(0.0, min(1.0, float(consensus_score)))
