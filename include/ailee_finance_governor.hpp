@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <cmath>
 
 namespace ailee {
 
@@ -53,6 +54,16 @@ inline bool is_bullish_mode_allowed(
     const HFTBiasConfig& cfg = HFTBiasConfig{}
 ) noexcept {
     if (!cfg.enabled) return false;
+    const auto bounded = [](float value, float minimum, float maximum) {
+        return std::isfinite(value) && value >= minimum && value <= maximum;
+    };
+    if (!std::isfinite(trust_score) || !std::isfinite(manipulation_score)) return false;
+    if (!bounded(cfg.trust_threshold_bullish, 0.0f, 1.0f) ||
+        !bounded(cfg.manipulation_threshold, 0.0f, 1.0f) ||
+        !bounded(cfg.bullish_multiplier_price, 1.0f, 1.5f) ||
+        !bounded(cfg.bullish_multiplier_volume, 1.0f, 1.5f) ||
+        !bounded(cfg.bullish_execution_scale, 1.0f, 1.5f) ||
+        !bounded(cfg.bullish_sell_ceiling_factor, 0.1f, 1.0f)) return false;
     if (trust_score < cfg.trust_threshold_bullish) return false;
     if (manipulation_score > cfg.manipulation_threshold) return false;
     if (drawdown_near_breach) return false;

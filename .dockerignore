@@ -1,0 +1,33 @@
+# Credentials and local environment settings, including nested service directories.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.key
+**/*.pem
+**/credentials.json
+**/.aws
+**/.ssh
+
+# VCS, development environments, caches, and generated outputs are not build inputs.
+**/.git
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/*.egg-info
+build/
+dist/
+release/
+demo
+test_suite
+rest_lifecycle_test
+benchmark
+**/*.log
+**/*.csv
+build_manifest.json
+build_manifest.json.asc
+
+# Fetch websocket dependencies in the builder; retain the checked-in REST header.
+external/*
+!external/httplib.h

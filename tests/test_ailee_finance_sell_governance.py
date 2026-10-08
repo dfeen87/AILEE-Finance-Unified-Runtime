@@ -1,5 +1,8 @@
 import os
 import json
+import math
+import sys
+from decimal import Decimal, localcontext
 import pytest
 from unittest.mock import MagicMock
 from ailee_finance.domains.finance.sell_governance import (
@@ -14,6 +17,7 @@ from ailee_finance.domains.finance.ailee_finance_domain import (
     SellGovernanceDecision,
 )
 from ailee_finance.core_min import AileeFinanceTrustPipeline
+from core.finance_kernel.kernel_config import KernelConfigurationError
 
 
 def test_validate_sell_intent():
@@ -122,6 +126,66 @@ def test_consensus_validation():
     assert low_score < high_score
 
 
+def _decimal_consensus_reference(prices, confidences):
+    # Independently evaluate the documented formula without binary float
+    # overflow/underflow in the mean or squared deviations.
+    with localcontext() as context:
+        context.prec = 1400
+        decimal_prices = [Decimal.from_float(price) for price in prices]
+        count = Decimal(len(prices))
+        mean = sum(decimal_prices) / count
+        variance = sum((price - mean) ** 2 for price in decimal_prices) / count
+        price_score = max(Decimal(0), Decimal(1) - Decimal(5) * variance.sqrt() / mean)
+        confidence = sum(Decimal.from_float(value) for value in confidences) / count
+        return float(max(Decimal(0), min(Decimal(1), price_score * confidence)))
+
+
+@pytest.mark.parametrize("prices, confidences", [
+    ([1e308, 1e308], [0.95, 0.95]),
+    ([sys.float_info.max, sys.float_info.max], [0.95, 0.95]),
+    ([1e200, 1e200 + 1e190], [0.95, 0.95]),
+    ([1e-308, 2e-308], [0.95, 0.95]),
+    ([5e-324, 1e-323], [0.95, 0.95]),
+    ([1e-200, 1.01e-200], [0.95, 0.95]),
+    ([100.0, 200.0], [sys.float_info.max, sys.float_info.max]),
+    ([100.0, 100.0], [-0.5, 1.5]),
+    ([100.0, 100.0, 100.0], [sys.float_info.max, -sys.float_info.max, 1e-308]),
+    ([100.0, 100.0], [5e-324, 5e-324]),
+    ([100.0, 100.0, 100.0], [sys.float_info.max] * 3),
+], ids=["overflowing-mean", "max-finite", "overflowing-square", "underflowing-square",
+        "subnormal-prices", "near-small-prices", "overflowing-confidence-mean", "signed-confidence",
+        "confidence-cancellation", "subnormal-confidence", "weighted-confidence-boundary"])
+def test_consensus_preserves_formula_for_extreme_finite_inputs(prices, confidences):
+    feeds = [{"price": price, "confidence": confidence} for price, confidence in zip(prices, confidences)]
+    assert consensus_validation(feeds) == pytest.approx(_decimal_consensus_reference(prices, confidences),
+                                                     abs=0.0, rel=1e-12)
+
+
+@pytest.mark.parametrize("confidence", [math.nan, math.inf, -math.inf])
+def test_consensus_does_not_promote_non_finite_confidence(confidence):
+    assert consensus_validation([{"price": 100.0, "confidence": confidence},
+                                 {"price": 100.0, "confidence": confidence}]) == 0.0
+
+
+def test_consensus_keeps_ignored_non_positive_prices_and_zero_confidence():
+    assert consensus_validation([-1.0, -0.0, 0.0, {"price": 100.0, "confidence": 0.0}]) == 0.0
+    assert consensus_validation([-1.0, -0.0, 0.0, 100.0, 100.0]) == 1.0
+
+
+@pytest.mark.parametrize("price", [1e308, sys.float_info.max, 5e-324])
+def test_sell_pipeline_keeps_agreeing_extreme_price_feeds(price, tmp_path):
+    audit_path = tmp_path / "sell.jsonl"
+    domain = AileeFinanceDomain(log_path=str(audit_path))
+    decision = AileeFinanceTrustPipeline(domain=domain).process_sell({
+        "position_size": 1000.0, "trust_score": 0.9, "market": {"liquidity": 1.0},
+        "feeds": [{"price": price, "confidence": 0.95}, {"price": price, "confidence": 0.95}],
+    })
+    assert decision.level == 0
+    assert decision.consensus_score == pytest.approx(0.95)
+    assert decision.allowed_sell_amount == 800.0
+    assert json.loads(audit_path.read_text())["consensus_score"] == 0.95
+
+
 def test_ailee_finance_domain_evaluation(tmp_path):
     log_file = tmp_path / "ailee_finance_sell_audit.log"
     domain = AileeFinanceDomain(log_path=str(log_file))
@@ -168,6 +232,149 @@ def test_ailee_finance_domain_evaluation(tmp_path):
     assert log_entry["level"] == 0
     assert log_entry["allowed_sell_amount"] == 800.0
     assert log_entry["bullish_mode_active"] is True
+
+
+@pytest.mark.parametrize("field", ["trust_score", "telemetry_trust", "hardware_integrity", "model_confidence"])
+@pytest.mark.parametrize("evidence", [math.nan, math.inf, -math.inf], ids=["nan", "inf", "negative-inf"])
+@pytest.mark.parametrize("threshold", [0.7, 0.0])
+def test_sell_pipeline_does_not_launder_non_finite_trust(field, evidence, threshold, tmp_path):
+    audit_path = tmp_path / "sell.jsonl"
+    pipeline = AileeFinanceTrustPipeline(domain=AileeFinanceDomain(log_path=str(audit_path)))
+    signals = {
+        "position_size": 1000.0,
+        "market": {"liquidity": 1.0},
+        "feeds": [{"price": 100.0, "confidence": 0.95}, {"price": 100.1, "confidence": 0.95}],
+        "hft_bias_config": {"trust_threshold_bullish": threshold},
+        field: evidence,
+    }
+    decision = pipeline.process_sell(signals)
+    assert decision.trust_score == 0.0
+    assert decision.bullish_mode_active is False
+    assert decision.level == 3
+    assert decision.allowed_sell_amount == 100.0
+    logged = json.loads(audit_path.read_text())
+    assert logged["trust_score"] == 0.0
+    assert logged["bullish_mode_active"] is False
+
+
+@pytest.mark.parametrize("field", ["bid_liquidity_drop", "spread_widening"])
+@pytest.mark.parametrize("evidence", [math.nan, math.inf, -math.inf, "bad", None, 10 ** 400],
+                         ids=["nan", "inf", "negative-inf", "malformed", "missing-value", "oversized-int"])
+@pytest.mark.parametrize("threshold", [0.3, 1.0])
+def test_sell_pipeline_does_not_launder_invalid_manipulation(field, evidence, threshold, tmp_path):
+    audit_path = tmp_path / "sell.jsonl"
+    pipeline = AileeFinanceTrustPipeline(domain=AileeFinanceDomain(log_path=str(audit_path)))
+    signals = {
+        "position_size": 1000.0,
+        "trust_score": 0.9,
+        "market": {"liquidity": 1.0, field: evidence},
+        "hft_bias_config": {"manipulation_threshold": threshold},
+        "feeds": [{"price": 100.0, "confidence": 0.95}, {"price": 100.1, "confidence": 0.95}],
+    }
+    decision = pipeline.process_sell(signals)
+    assert decision.manipulation_score == 1.0
+    assert decision.bullish_mode_active is False
+    assert decision.level == 3
+    assert math.isfinite(decision.allowed_sell_amount)
+    logged = json.loads(audit_path.read_text())
+    assert logged["manipulation_score"] == 1.0
+    assert logged["bullish_mode_active"] is False
+
+
+def test_sell_pipeline_keeps_valid_maximum_manipulation_with_maximum_threshold(tmp_path):
+    domain = AileeFinanceDomain(log_path=str(tmp_path / "sell.jsonl"))
+    decision = AileeFinanceTrustPipeline(domain=domain).process_sell({
+        "position_size": 1000.0, "trust_score": 0.9,
+        "hft_bias_config": {"manipulation_threshold": 1.0},
+        "market": {"liquidity": 1.0, "spoofed_bids": True, "bid_liquidity_drop": 1.0,
+                   "mev_detected": True, "spread_widening": 1.0},
+    })
+    assert decision.manipulation_score == 1.0
+    assert decision.bullish_mode_active is True
+    assert decision.level == 3
+    assert decision.allowed_sell_amount == 50.0
+
+
+@pytest.mark.parametrize("trust, expected", [(-1.0, 0.0), (-0.0, 0.0), (0.9, 0.9), (2.0, 1.0),
+                                          (-1e308, 0.0), (1e308, 1.0), ("0.9", 0.9)])
+def test_trust_normalization_preserves_finite_legacy_values(trust, expected, tmp_path):
+    domain = AileeFinanceDomain(log_path=str(tmp_path / "sell.jsonl"))
+    assert domain.compute_trust_score({"trust_score": trust}) == expected
+
+
+@pytest.mark.parametrize("trust", [-1.0, -0.0, 0.0])
+def test_sell_pipeline_keeps_finite_clamped_zero_with_zero_threshold(trust, tmp_path):
+    domain = AileeFinanceDomain(log_path=str(tmp_path / "sell.jsonl"))
+    decision = AileeFinanceTrustPipeline(domain=domain).process_sell({
+        "position_size": 1000.0,
+        "trust_score": trust,
+        "hft_bias_config": {"trust_threshold_bullish": 0.0},
+        "market": {"liquidity": 1.0},
+    })
+    assert decision.trust_score == 0.0
+    assert decision.bullish_mode_active is True
+    assert decision.level == 3
+    assert decision.allowed_sell_amount == 100.0
+
+
+def test_composite_trust_keeps_weighted_finite_negative_values(tmp_path):
+    domain = AileeFinanceDomain(log_path=str(tmp_path / "sell.jsonl"))
+    assert domain.compute_trust_score({"telemetry_trust": -0.5, "hardware_integrity": 1.0,
+                                       "model_confidence": 1.0}) == pytest.approx(0.4)
+
+
+@pytest.mark.parametrize("field", ["bid_liquidity_drop", "spread_widening"])
+@pytest.mark.parametrize("evidence", [-1e308, -0.0, 0.0, "0.0"])
+def test_manipulation_keeps_non_positive_finite_legacy_values(field, evidence):
+    assert detect_sell_manipulation({field: evidence}) == 0.0
+
+
+@pytest.mark.parametrize("config", [
+    {"bullish_sell_ceiling_factor": 2.0},
+    {"bullish_sell_ceiling_factor": math.inf},
+    {"bullish_sell_ceiling_factor": math.nan},
+    {"bullish_execution_scale": 2.0},
+    {"enabled": "false"},
+], ids=["ceiling-over-position", "infinite-ceiling", "nan-ceiling", "execution-out-of-domain", "untyped-enable"])
+def test_sell_domain_enforces_hft_config_at_constructor_and_request(config, tmp_path):
+    audit_path = tmp_path / "sell.jsonl"
+    with pytest.raises(KernelConfigurationError):
+        AileeFinanceDomain(log_path=str(audit_path), hft_bias_config=config)
+
+    domain = AileeFinanceDomain(log_path=str(audit_path))
+    baseline = dict(domain.hft_bias_config)
+    signals = {"position_size": 1000.0, "trust_score": 0.9, "market": {"liquidity": 1.0},
+               "feeds": [{"price": 100.0, "confidence": 0.95}, {"price": 100.1, "confidence": 0.95}]}
+    with pytest.raises(KernelConfigurationError):
+        domain.evaluate_sell(dict(signals, hft_bias_config=config))
+    assert domain.hft_bias_config == baseline
+
+    fallback = AileeFinanceTrustPipeline(domain=domain).process_sell(dict(signals, hft_bias_config=config))
+    assert fallback.level == 3
+    assert fallback.bullish_mode_active is False
+    assert fallback.allowed_sell_amount == 100.0
+    assert domain.hft_bias_config == baseline
+    assert not audit_path.exists()
+
+    recovered = domain.evaluate_sell(signals)
+    assert recovered.level == 0
+    assert recovered.allowed_sell_amount == 800.0
+    assert recovered.bullish_mode_active is True
+
+
+@pytest.mark.parametrize("config, expected", [(None, 800.0), ({}, 800.0), ({"enabled": False}, 1000.0),
+                                              ({"bullish_sell_ceiling_factor": 0.1}, 100.0),
+                                              ({"bullish_sell_ceiling_factor": 1.0}, 1000.0)])
+def test_sell_pipeline_keeps_optional_partial_and_boundary_hft_configs(config, expected, tmp_path):
+    domain = AileeFinanceDomain(log_path=str(tmp_path / "sell.jsonl"), hft_bias_config=config)
+    decision = AileeFinanceTrustPipeline(domain=domain).process_sell({
+        "position_size": 1000.0, "trust_score": 0.9, "hft_bias_config": config,
+        "market": {"liquidity": 1.0},
+        "feeds": [{"price": 100.0, "confidence": 0.95}, {"price": 100.1, "confidence": 0.95}],
+    })
+    assert decision.level == 0
+    assert decision.allowed_sell_amount == expected
+    assert decision.bullish_mode_active is (not (config and config.get("enabled") is False))
 
 
 def test_ailee_finance_trust_pipeline_fallback(tmp_path):

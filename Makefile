@@ -53,7 +53,9 @@ EXT_SRCS = extensions/aille_btc.cpp \
            extensions/aille_unified_runtime.cpp \
            extensions/aille_sync_adapter.cpp
 
-PYTHON_FLAGS = $(shell python3-config --cflags --embed --ldflags 2>/dev/null || python3-config --cflags --ldflags 2>/dev/null || echo "")
+# Python's --cflags injects its own -O3/-DNDEBUG, overriding Debug/sanitizer
+# policy in CXXFLAGS. Only the embed include/link paths belong in this build.
+PYTHON_FLAGS = $(shell python3-config --includes --embed --ldflags 2>/dev/null || python3-config --includes --ldflags 2>/dev/null || echo "")
 
 EXT_SRCS_WITH_AUDIT = $(EXT_SRCS) aille_audit.cpp ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp src/ailee_finance_governor.cpp ailee_runtime/fs_gateway/fs_gateway.cpp
 
@@ -141,7 +143,7 @@ demo: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	@$(MAKE) --no-print-directory provenance
 
 debug: $(EXAMPLE_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
-	$(CXX) $(CXXFLAGS) -g $(COMMON_INCLUDES) $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) -o demo_debug
+	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SYSTEM_INCLUDES) $(HTTPLIB_INCLUDES) $(WEBSOCKET_FLAGS) -O0 -g $(EXAMPLE_SRC) $(EXT_SRCS_WITH_AUDIT) $(SSL_FLAGS) $(PYTHON_FLAGS) -o demo_debug
 	@echo ""
 	@echo "✓ Debug build ready"
 	@echo ""
@@ -156,6 +158,10 @@ rest_api_server: $(REST_API_SRC) $(REST_API_IMPL) aille_framework.cpp aille_audi
 		printf "$(COLOR_RED)✗ Build aborted — see above diagnostics.$(COLOR_RESET)\n\n"; \
 		exit 1; \
 	fi
+
+rest_lifecycle_test: tests/rest_lifecycle.cpp $(REST_API_IMPL) extensions/aille_rest_api.hpp aille_framework.cpp aille_audit.cpp aille.hpp $(EXT_SRCS)
+	@$(MAKE) --no-print-directory check_deps
+	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(HTTPLIB_INCLUDES) $(THREAD_FLAGS) tests/rest_lifecycle.cpp $(REST_API_IMPL) aille_framework.cpp aille_audit.cpp $(EXT_SRCS) -o rest_lifecycle_test
 
 spire_demo: $(SPIRE_DEMO_SRC) aille.hpp $(EXT_SRCS_WITH_AUDIT)
 	$(CXX) $(CXXFLAGS) $(COMMON_INCLUDES) $(SPIRE_DEMO_SRC) $(EXT_SRCS_WITH_AUDIT) -o spire_demo
@@ -288,10 +294,9 @@ fs_gateway: ailee_runtime/fs_gateway/main.cpp ailee_runtime/fs_gateway/fs_gatewa
 		exit 1; \
 	fi
 
-release:
+release: demo rest_api_server websocket_server dashboard_server benchmark test_suite fs_gateway
 	@printf "$(COLOR_YELLOW)=== AILEE CORE v24.0.0 — Release Package Console ===$(COLOR_RESET)\n"
 	@$(MAKE) --no-print-directory check_deps
-	@if [ ! -f test_suite ]; then $(MAKE) --no-print-directory test_suite; fi
 	@printf "$(COLOR_YELLOW)Running test suite...$(COLOR_RESET)\n"
 	@if ./test_suite; then \
 		printf "$(COLOR_GREEN)✓ Test suite passed!$(COLOR_RESET)\n"; \
@@ -307,15 +312,13 @@ release:
 	@for target in demo rest_api_server websocket_server dashboard_server benchmark test_suite fs_gateway; do \
 		binary=$$target; \
 		if [ "$$target" = "fs_gateway" ]; then binary="bin/ailee_fs_gateway"; fi; \
-		if [ ! -f $$binary ]; then \
-			printf "$(COLOR_YELLOW)Building missing release binary $$binary...$(COLOR_RESET)\n"; \
-			$(MAKE) --no-print-directory $$target || exit 1; \
-		fi; \
-		cp $$binary release/ && printf "$(COLOR_GREEN)✓ Copying $$binary → release/$(COLOR_RESET)\n"; \
+		cp "$$binary" release/ || exit 1; \
+		printf "$(COLOR_GREEN)✓ Copying $$binary → release/$(COLOR_RESET)\n"; \
 	done
 	@for item in build_manifest.json build_manifest.json.asc; do \
 		if [ -f $$item ]; then \
-			cp $$item release/ && printf "$(COLOR_GREEN)✓ Copying $$item → release/$(COLOR_RESET)\n"; \
+			cp "$$item" release/ || exit 1; \
+			printf "$(COLOR_GREEN)✓ Copying $$item → release/$(COLOR_RESET)\n"; \
 		fi; \
 	done
 	@echo "24.0.0" > release/VERSION

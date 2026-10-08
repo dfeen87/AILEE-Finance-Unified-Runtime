@@ -126,7 +126,11 @@ int main() {
     
     // Verify audit trail
     std::cout << "=== Audit Verification ===\n";
-    std::cout << "Integrity check: PASSED ✓\n"; // Integrity logic moved to enclave
+    if (!logger.verifyIntegrity()) {
+        std::cerr << "Integrity check: FAILED\n";
+        return 1;
+    }
+    std::cout << "Integrity check: PASSED ✓\n";
     std::cout << "\nAudit log saved to: demo_audit.csv\n";
     
     return 0;

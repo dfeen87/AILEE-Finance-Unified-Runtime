@@ -17,6 +17,10 @@ namespace AILLE {
 
 RestAPIServer::~RestAPIServer() {
     stop();
+    join();
+    while (listener_active_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     if (server_) {
         delete server_;
         server_ = nullptr;
@@ -258,11 +262,42 @@ void RestAPIServer::setupRoutes(httplib::Server& svr) {
 }
 
 bool RestAPIServer::start() {
-    if (running_) {
+    {
+        std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+        if (!prepareStart()) return false;
+    }
+    return runServer();
+}
+
+bool RestAPIServer::prepareStart() {
+    if (running_ || startup_pending_) {
         std::cerr << "Server already running\n";
         return false;
     }
-    
+    join();
+    if (listener_active_) return false;  // A blocking start is still shutting down.
+    startup_pending_ = true;
+    listener_active_ = true;
+    return true;
+}
+
+void RestAPIServer::startAsync() {
+    std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+    if (!prepareStart()) return;
+    try {
+        server_thread_ = std::thread([this]() { runServer(); });
+    } catch (...) {
+        startup_pending_ = false;
+        listener_active_ = false;
+        throw;
+    }
+    while (startup_pending_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if (running_ && server_) server_->wait_until_ready();
+}
+
+bool RestAPIServer::runServer() {
     try {
         if (server_) {
             delete server_;
@@ -271,6 +306,13 @@ bool RestAPIServer::start() {
         server_ = new httplib::Server();
         
         setupRoutes(*server_);
+        // Bind before publishing readiness; failed startup must never look live.
+        if (!server_->bind_to_port(host_, port_)) {
+            std::cerr << "Failed to start server on " << host_ << ":" << port_ << "\n";
+            startup_pending_ = false;
+            listener_active_ = false;
+            return false;
+        }
         
         std::cout << "=== AILLE Framework REST API Server ===\n";
         std::cout << "Starting server on " << host_ << ":" << port_ << "\n";
@@ -284,26 +326,30 @@ bool RestAPIServer::start() {
         std::cout << "\n";
         
         running_ = true;
-        
-        // Bind to configured host (default: 127.0.0.1 for security)
-        if (!server_->listen(host_.c_str(), port_)) {
-            std::cerr << "Failed to start server on " << host_ << ":" << port_ << "\n";
-            running_ = false;
-            return false;
-        }
-        
-        return true;
+        startup_pending_ = false;
+        const bool result = server_->listen_after_bind();
+        running_ = false;
+        listener_active_ = false;
+        return result;
         
     } catch (const std::exception& e) {
         std::cerr << "Error starting server: " << e.what() << "\n";
         running_ = false;
+        startup_pending_ = false;
+        listener_active_ = false;
         return false;
     }
 }
 
 void RestAPIServer::stop() {
+    std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+    while (startup_pending_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     if (running_ && server_) {
         std::cout << "\nStopping server...\n";
+        // httplib ignores stop() until its listener enters the running state.
+        server_->wait_until_ready();
         server_->stop();
         running_ = false;
     }

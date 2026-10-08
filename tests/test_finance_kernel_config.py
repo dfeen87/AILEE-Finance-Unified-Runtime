@@ -4,8 +4,10 @@
 
 import os
 import json
+import math
+import sys
 import pytest
-from core.finance_kernel.kernel_config import FinanceKernelConfig
+from core.finance_kernel.kernel_config import FinanceKernelConfig, validate_hft_bias_config
 from core.finance_kernel.kernel_errors import KernelConfigurationError
 
 def test_config_defaults():
@@ -138,3 +140,72 @@ def test_string_booleans_are_rejected_in_structured_overrides():
     config = FinanceKernelConfig()
     with pytest.raises(KernelConfigurationError):
         config.merge_overrides({"strict_determinism": "false"})
+
+
+@pytest.mark.parametrize("field", ["operator_timeout", "contrarian_oversold_aggressiveness"])
+@pytest.mark.parametrize("source", ["constructor", "override"])
+def test_unrepresentable_numeric_configuration_uses_configuration_error(field, source):
+    value = 10 ** 400
+    config = FinanceKernelConfig()
+    original = config.to_dict()
+    with pytest.raises(KernelConfigurationError):
+        if source == "constructor":
+            FinanceKernelConfig(**{field: value})
+        else:
+            config.merge_overrides({"logging_level": "DEBUG", field: value})
+    assert config.to_dict() == original
+
+
+@pytest.mark.parametrize("field", [
+    "bullish_multiplier_price", "bullish_multiplier_volume", "bullish_execution_scale",
+    "bullish_sell_ceiling_factor", "trust_threshold_bullish", "manipulation_threshold",
+])
+def test_unrepresentable_hft_numeric_configuration_uses_configuration_error(field):
+    with pytest.raises(KernelConfigurationError):
+        FinanceKernelConfig(hft_bias={field: 10 ** 400})
+
+
+@pytest.mark.parametrize("value", [[], "", 0, False, [("enabled", False)]])
+def test_constructor_rejects_non_dictionary_hft_bias(value):
+    with pytest.raises(KernelConfigurationError):
+        FinanceKernelConfig(hft_bias=value)
+
+
+@pytest.mark.parametrize("value", [None, [], "", 0, False, {"hft_bias": None}, {"hft_bias": []}])
+def test_hft_validator_rejects_non_dictionary_configuration(value):
+    with pytest.raises(KernelConfigurationError):
+        validate_hft_bias_config(value)
+
+
+@pytest.mark.parametrize("value", [[], "", 0, False])
+def test_falsey_non_dictionary_overrides_are_rejected_atomically(value):
+    config = FinanceKernelConfig()
+    original = config.to_dict()
+    with pytest.raises(KernelConfigurationError):
+        config.merge_overrides(value)
+    assert config.to_dict() == original
+
+
+def test_valid_configuration_boundaries_and_empty_overrides_remain_supported():
+    config = FinanceKernelConfig(
+        operator_timeout=sys.float_info.max,
+        max_concurrent_operators=4.0,
+        contrarian_oversold_aggressiveness=-0.0,
+        hft_bias={
+            "enabled": False,
+            "bullish_multiplier_price": 1.0,
+            "bullish_multiplier_volume": 1.5,
+            "bullish_execution_scale": 1.5,
+            "bullish_sell_ceiling_factor": 0.1,
+            "trust_threshold_bullish": 0.0,
+            "manipulation_threshold": 1.0,
+        },
+    )
+    original = config.to_dict()
+    assert config.operator_timeout == sys.float_info.max
+    assert math.copysign(1.0, config.contrarian_oversold_aggressiveness) == -1.0
+    assert config.merge_overrides({}) is config
+    assert config.merge_overrides(None) is config
+    assert config.to_dict() == original
+    assert FinanceKernelConfig(**original).to_dict() == original
+    assert validate_hft_bias_config({"hft_bias": config.hft_bias}) == config.hft_bias

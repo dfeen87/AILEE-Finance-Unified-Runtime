@@ -47,6 +47,34 @@ def test_bullish_mode_fails_closed_for_non_finite_evidence(trust_score, manipula
     assert is_bullish_mode_allowed(trust_score, manipulation_score) is False
 
 
+@pytest.mark.parametrize("field", ["trust", "manipulation", "drawdown", "trust_threshold", "manipulation_threshold"])
+def test_bullish_mode_fails_closed_for_unrepresentable_numeric_evidence(field):
+    trust, manipulation, drawdown = 0.8, 0.1, False
+    config = {}
+    oversized = 10 ** 400
+    if field == "trust":
+        trust = oversized
+    elif field == "manipulation":
+        manipulation = oversized
+    elif field == "drawdown":
+        drawdown = oversized
+    elif field == "trust_threshold":
+        config["trust_threshold_bullish"] = oversized
+    else:
+        config["manipulation_threshold"] = oversized
+    assert is_bullish_mode_allowed(trust, manipulation, drawdown, config) is False
+
+
+@pytest.mark.parametrize("config", [[], "false", False, 0])
+def test_bullish_mode_fails_closed_for_malformed_config_container(config):
+    assert is_bullish_mode_allowed(0.8, 0.1, False, config) is False
+
+
+@pytest.mark.parametrize("drawdown", [False, -0.0, 0.0, 0.039999, {"near_breach": False}])
+def test_bullish_mode_keeps_valid_drawdown_neighbors(drawdown):
+    assert is_bullish_mode_allowed("0.70", "0.30", drawdown) is True
+
+
 @pytest.mark.parametrize("enabled", ["false", "true", 0, 1, None, [], {}])
 def test_hft_enabled_requires_a_structured_boolean(enabled):
     with pytest.raises(KernelConfigurationError):
