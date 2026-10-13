@@ -42,6 +42,7 @@ struct DaemonConfig {
     std::string symbol{"SPY"};
     std::string audit_log_file{"volume_trader_audit.log"};
     ailee::HFTBiasConfig hft_bias_cfg;
+    bool live_authorized{false};
 };
 
 class VolumeTraderDaemon {
@@ -51,6 +52,7 @@ public:
         AlpacaConfig alpaca_cfg = AlpacaExecution::loadConfigFromEnv(/*fail_closed=*/false);
         alpaca_cfg.mock_mode = config_.mock_mode;
         alpaca_cfg.is_live = config_.is_live;
+        alpaca_cfg.live_authorized = config_.live_authorized;
         alpaca_cfg.max_position_usd = config_.max_position_usd;
 
         executor_ = std::make_unique<AlpacaExecution>(alpaca_cfg);
@@ -247,6 +249,7 @@ void printUsage(const char* prog) {
               << "  --max-drawdown-pct=NUM     Daily max drawdown threshold [0.01..0.50] (default: 0.05)\n"
               << "  --hysteresis=NUM           Bar count confirmation hysteresis (default: 2)\n"
               << "  --mock                     Use mock order simulator (default: enabled)\n"
+              << "  --no-mock                  Use the validated broker destination from ALPACA_BASE_URL\n"
               << "  --confirm-live             Required flag when using --mode=live\n"
               << "  --help                     Show this help message\n";
 }
@@ -296,6 +299,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "ERROR: Live trading mode requested (--mode=live) without --confirm-live safety flag. Aborting.\n";
         return 1;
     }
+    cfg.live_authorized = confirm_live;
 
     std::cout << "========================================================\n"
               << " AILEE Intraday Volume Auto-Trader Daemon v13.0.0\n"
@@ -311,6 +315,10 @@ int main(int argc, char* argv[]) {
               << "========================================================\n";
 
     VolumeTraderDaemon daemon(cfg);
+    if (!daemon.executor()->isEnabled()) {
+        std::cerr << "ERROR: Broker configuration disabled; check credentials, destination, and mode authorization.\n";
+        return 1;
+    }
 
     // Simulate 5 intraday bar updates
     std::vector<VolumeState> sim_ticks(5);

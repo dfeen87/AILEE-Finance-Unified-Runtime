@@ -20,6 +20,9 @@
 #include <sstream>
 #include <chrono>
 #include <cmath>
+#include <algorithm>
+#include <cctype>
+#include <regex>
 
 namespace AILLE {
 namespace Plugins {
@@ -44,11 +47,8 @@ AlpacaConfig AlpacaExecution::loadConfigFromEnv(bool fail_closed) {
         cfg.base_url = "https://paper-api.alpaca.markets";
     }
 
-    if (cfg.base_url.find("paper") == std::string::npos) {
-        cfg.is_live = true;
-    } else {
-        cfg.is_live = false;
-    }
+    // A destination is configuration, not operator authorization. Keep the
+    // default paper mode; explicit callers must request and authorize live.
 
     if (fail_closed && (cfg.api_key_id.empty() || cfg.secret_key.empty())) {
         cfg.mock_mode = false; // Cannot operate live/paper without creds
@@ -59,9 +59,12 @@ AlpacaConfig AlpacaExecution::loadConfigFromEnv(bool fail_closed) {
 
 AlpacaExecution::AlpacaExecution(const AlpacaConfig& config)
     : config_(config) {
-    if (!config_.api_key_id.empty() && !config_.secret_key.empty()) {
+    if (config_.mock_mode) {
+        // Simulation never constructs a client, even with real-looking URLs.
         is_enabled_ = true;
-    } else if (config_.mock_mode) {
+    } else if (!validateDestination()) {
+        std::cerr << "[AlpacaExecution] Disabled: incompatible destination, mode, or live authorization.\n";
+    } else if (!config_.api_key_id.empty() && !config_.secret_key.empty()) {
         is_enabled_ = true;
     } else {
         is_enabled_ = false;
@@ -69,37 +72,29 @@ AlpacaExecution::AlpacaExecution(const AlpacaConfig& config)
     }
 }
 
-std::string AlpacaExecution::parseHost(const std::string& url) const {
-    std::string host = url;
-    size_t pos = host.find("://");
-    if (pos != std::string::npos) {
-        host = host.substr(pos + 3);
-    }
-    pos = host.find('/');
-    if (pos != std::string::npos) {
-        host = host.substr(0, pos);
-    }
-    pos = host.find(':');
-    if (pos != std::string::npos) {
-        host = host.substr(0, pos);
-    }
-    return host;
-}
+bool AlpacaExecution::validateDestination() {
+    if (config_.is_live && !config_.live_authorized) return false;
 
-int AlpacaExecution::parsePort(const std::string& url) const {
-    size_t pos = url.find("://");
-    std::string rest = (pos != std::string::npos) ? url.substr(pos + 3) : url;
-    size_t slash = rest.find('/');
-    if (slash != std::string::npos) rest = rest.substr(0, slash);
-    size_t colon = rest.find(':');
-    if (colon != std::string::npos) {
-        return std::atoi(rest.substr(colon + 1).c_str());
+    std::string url = config_.base_url;
+    std::transform(url.begin(), url.end(), url.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    // Origins only: no userinfo, suffixes, path, query, fragment, escapes, or
+    // alternate numeric-host spellings. Loopback is an explicit simulation
+    // exception, not a hostname substring heuristic or a custom broker policy.
+    static const std::regex origin(
+        R"(^(https?)://(paper-api\.alpaca\.markets|api\.alpaca\.markets|localhost|127\.0\.0\.1|\[::1\])(:([0-9]{1,5}))?/?$)");
+    std::smatch match;
+    if (!std::regex_match(url, match, origin)) return false;
+    const std::string scheme = match[1], host = match[2];
+    const int port = match[4].matched ? std::stoi(match[4]) : (scheme == "https" ? 443 : 80);
+    if (port < 1 || port > 65535) return false;
+    const bool loopback = host == "localhost" || host == "127.0.0.1" || host == "[::1]";
+    if (!loopback) {
+        if (scheme != "https" || port != 443) return false;
+        if (config_.is_live != (host == "api.alpaca.markets")) return false;
     }
-    return isHttps(url) ? 443 : 80;
-}
-
-bool AlpacaExecution::isHttps(const std::string& url) const {
-    return url.rfind("https://", 0) == 0;
+    broker_origin_ = scheme + "://" + host + ":" + std::to_string(port);
+    return true;
 }
 
 std::string AlpacaExecution::sideToString(OrderSide side) const {
@@ -118,7 +113,7 @@ void AlpacaExecution::triggerLockout(const std::string& reason) {
 
 std::string AlpacaExecution::submitOrder(const OrderRequest& request) {
     if (!is_enabled_) {
-        std::cerr << "[AlpacaExecution] submitOrder rejected: Plugin disabled (missing credentials/fail-closed).\n";
+        std::cerr << "[AlpacaExecution] submitOrder rejected: Plugin disabled (configuration/fail-closed).\n";
         return {};
     }
     if (locked_out_) {
@@ -146,12 +141,9 @@ std::string AlpacaExecution::submitOrder(const OrderRequest& request) {
         return mock_id;
     }
 
-    std::string host = parseHost(config_.base_url);
-    int port = parsePort(config_.base_url);
-
     // The host/port overload is HTTP-only. Preserve HTTPS so credentials and
     // order operations use TLS with httplib's default certificate verification.
-    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
+    httplib::Client cli(broker_origin_);
     cli.set_connection_timeout(5, 0); // 5 sec timeout
 
     httplib::Headers headers = {
@@ -198,10 +190,7 @@ bool AlpacaExecution::cancelOrder(const std::string& order_id) {
         return true;
     }
 
-    std::string host = parseHost(config_.base_url);
-    int port = parsePort(config_.base_url);
-
-    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
+    httplib::Client cli(broker_origin_);
     httplib::Headers headers = {
         {"APCA-API-KEY-ID", config_.api_key_id},
         {"APCA-API-SECRET-KEY", config_.secret_key}
@@ -221,10 +210,7 @@ bool AlpacaExecution::flattenPosition(const std::string& symbol) {
         return true;
     }
 
-    std::string host = parseHost(config_.base_url);
-    int port = parsePort(config_.base_url);
-
-    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
+    httplib::Client cli(broker_origin_);
     httplib::Headers headers = {
         {"APCA-API-KEY-ID", config_.api_key_id},
         {"APCA-API-SECRET-KEY", config_.secret_key}
@@ -243,10 +229,7 @@ float AlpacaExecution::getAccountEquity() {
         return 100000.0f; // Mock 100k equity
     }
 
-    std::string host = parseHost(config_.base_url);
-    int port = parsePort(config_.base_url);
-
-    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
+    httplib::Client cli(broker_origin_);
     httplib::Headers headers = {
         {"APCA-API-KEY-ID", config_.api_key_id},
         {"APCA-API-SECRET-KEY", config_.secret_key}

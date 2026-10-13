@@ -46,7 +46,7 @@ def certificates(tmp_path_factory):
 
 
 @contextmanager
-def adapter(certificate=None, status=200):
+def adapter(certificate=None, status=200, connections=None, location=None):
     requests = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -56,6 +56,8 @@ def adapter(certificate=None, status=200):
             requests.append((self.command, self.path, dict(self.headers), body))
             payload = b'{"equity":"75000"}' if self.path == "/v2/account" else b'{"id":"local-order"}'
             self.send_response(status)
+            if location:
+                self.send_header("Location", location)
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
@@ -65,7 +67,14 @@ def adapter(certificate=None, status=200):
         def log_message(self, *args):
             pass
 
-    server = HTTPServer(("127.0.0.1", 0), Handler)
+    class ObservedServer(HTTPServer):
+        def get_request(self):
+            accepted = super().get_request()
+            if connections is not None:
+                connections.append(accepted[1])
+            return accepted
+
+    server = ObservedServer(("127.0.0.1", 0), Handler)
     if certificate:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(*map(str, certificate))
