@@ -87,7 +87,6 @@ std::string AlpacaExecution::parseHost(const std::string& url) const {
 }
 
 int AlpacaExecution::parsePort(const std::string& url) const {
-    if (isHttps(url)) return 443;
     size_t pos = url.find("://");
     std::string rest = (pos != std::string::npos) ? url.substr(pos + 3) : url;
     size_t slash = rest.find('/');
@@ -96,7 +95,7 @@ int AlpacaExecution::parsePort(const std::string& url) const {
     if (colon != std::string::npos) {
         return std::atoi(rest.substr(colon + 1).c_str());
     }
-    return 80;
+    return isHttps(url) ? 443 : 80;
 }
 
 bool AlpacaExecution::isHttps(const std::string& url) const {
@@ -150,7 +149,9 @@ std::string AlpacaExecution::submitOrder(const OrderRequest& request) {
     std::string host = parseHost(config_.base_url);
     int port = parsePort(config_.base_url);
 
-    httplib::Client cli(host, port);
+    // The host/port overload is HTTP-only. Preserve HTTPS so credentials and
+    // order operations use TLS with httplib's default certificate verification.
+    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
     cli.set_connection_timeout(5, 0); // 5 sec timeout
 
     httplib::Headers headers = {
@@ -200,7 +201,7 @@ bool AlpacaExecution::cancelOrder(const std::string& order_id) {
     std::string host = parseHost(config_.base_url);
     int port = parsePort(config_.base_url);
 
-    httplib::Client cli(host, port);
+    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
     httplib::Headers headers = {
         {"APCA-API-KEY-ID", config_.api_key_id},
         {"APCA-API-SECRET-KEY", config_.secret_key}
@@ -223,7 +224,7 @@ bool AlpacaExecution::flattenPosition(const std::string& symbol) {
     std::string host = parseHost(config_.base_url);
     int port = parsePort(config_.base_url);
 
-    httplib::Client cli(host, port);
+    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
     httplib::Headers headers = {
         {"APCA-API-KEY-ID", config_.api_key_id},
         {"APCA-API-SECRET-KEY", config_.secret_key}
@@ -245,7 +246,7 @@ float AlpacaExecution::getAccountEquity() {
     std::string host = parseHost(config_.base_url);
     int port = parsePort(config_.base_url);
 
-    httplib::Client cli(host, port);
+    httplib::Client cli((isHttps(config_.base_url) ? "https://" : "http://") + host + ":" + std::to_string(port));
     httplib::Headers headers = {
         {"APCA-API-KEY-ID", config_.api_key_id},
         {"APCA-API-SECRET-KEY", config_.secret_key}

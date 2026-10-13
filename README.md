@@ -36,6 +36,15 @@ and the compiled C++ regression suite. See the
 [24.0.0 BEDROCK release contract](docs/releases/24.0.0-bedrock.md) for compatibility,
 failure semantics, and real-world validation boundaries.
 
+[Post-BEDROCK Pass C](docs/releases/24.0.0-post-bedrock-pass-c.md) corrects the
+Alpaca adapter's HTTPS transport and verifies certificate rejection using local
+simulated adapters. This does not certify live execution: Python volume execution
+currently produces mock IDs in every mode, broker response/replay semantics still
+need independent validation, and audit integrity covers in-memory records rather
+than durable recovery. The installed CMake SDK requires C++20; some networking
+components retain C++17 builds. Historical compliance and production-readiness
+statements below are not evidence of regulatory approval.
+
 ---
 
 ## Table of Contents
