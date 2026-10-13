@@ -21,11 +21,12 @@ namespace Alpaca {
 struct AlpacaConfig {
     std::string api_key_id;
     std::string secret_key;
-    std::string base_url;      ///< Default: https://paper-api.alpaca.markets
+    std::string base_url;      ///< Broker origin: official HTTPS or explicit loopback HTTP/HTTPS.
     bool is_live;              ///< Default: false (paper mode)
     bool mock_mode;            ///< If true, simulates network calls (for testing/offline)
     float max_position_usd;    ///< Max dollar exposure allowed per symbol
     float max_daily_drawdown;  ///< Max daily drawdown fraction before locking execution
+    bool live_authorized{false}; ///< Explicit operator consent; never inferred from environment/URL.
 
     AlpacaConfig()
         : base_url("https://paper-api.alpaca.markets"),
@@ -43,7 +44,8 @@ public:
     std::string name() const override { return "alpaca"; }
 
     /// Read credentials from environment variables ALPACA_API_KEY_ID, ALPACA_SECRET_KEY, ALPACA_BASE_URL.
-    /// If fail_closed is true and keys are missing/empty, marks the instance as disabled.
+    /// Does not grant live mode or consent. Construction validates the destination
+    /// and disables non-mock instances with missing keys or incompatible authorization.
     static AlpacaConfig loadConfigFromEnv(bool fail_closed = true);
 
     /// Submit an order to Alpaca REST API (/v2/orders).
@@ -58,7 +60,7 @@ public:
     /// Query account buying power / equity (/v2/account). Returns equity in USD, or -1.0f on error.
     float getAccountEquity();
 
-    /// Check if execution is enabled and healthy (credentials present, not locked out).
+    /// Check whether configuration permits operations. Lockout is reported separately.
     bool isEnabled() const { return is_enabled_; }
 
     /// Force lockout / disable execution (e.g., kill switch or drawdown breach).
@@ -78,10 +80,9 @@ private:
     bool locked_out_{false};
     std::string lockout_reason_;
     std::atomic<uint64_t> order_counter_{1};
+    std::string broker_origin_; // Validated once before any network client is constructed.
 
-    std::string parseHost(const std::string& url) const;
-    int parsePort(const std::string& url) const;
-    bool isHttps(const std::string& url) const;
+    bool validateDestination();
     std::string sideToString(OrderSide side) const;
 };
 
