@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_routing.hpp"
 #include <cstring>
 #include <cstdio>
@@ -14,6 +15,21 @@ DetailedRoutingResult route_liquidity(
     const RoutingTable& table,
     const ShockBounds& bounds
 ) {
+    validation::count(decisions.count, decisions.decisions);
+    validation::count(states.count, states.states);
+    validation::count(caps.count, caps.caps);
+    validation::count(table.count, table.rules);
+    validation::unit(bounds.max_portfolio_liquidity_shift_per_step);
+    validation::unit(bounds.max_asset_liquidity_shift_per_step);
+    for (std::size_t i=0; i<states.count; ++i) {
+        validation::nonnegative(states.states[i].current_liquidity_value);
+        validation::unit(states.states[i].current_allocation_ratio);
+    }
+    for (std::size_t i=0; i<decisions.count; ++i) validation::unit(decisions.decisions[i].target_allocation_ratio);
+    for (std::size_t i=0; i<caps.count; ++i) {
+        validation::unit(caps.caps[i].max_outflow_ratio); validation::unit(caps.caps[i].max_inflow_ratio);
+    }
+    for (std::size_t i=0; i<table.count; ++i) validation::unit(table.rules[i].preferred_flow_ratio);
     DetailedRoutingResult result{};
 
     if (states.count == 0) {
@@ -26,6 +42,7 @@ DetailedRoutingResult route_liquidity(
         total_portfolio_value += states.states[i].current_liquidity_value;
     }
 
+    validation::finite({total_portfolio_value});
     if (total_portfolio_value <= 0.0) {
         return result;
     }
@@ -336,6 +353,8 @@ DetailedRoutingResult route_liquidity(
         }
     }
 
+    validation::finite({result.summary.total_shift_value});
+    for (std::size_t i=0; i<result.flow_count; ++i) validation::finite({result.flows[i].amount});
     return result;
 }
 

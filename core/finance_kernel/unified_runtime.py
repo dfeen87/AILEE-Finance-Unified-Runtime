@@ -9,6 +9,7 @@ and fail-closed multi-layer fault escalation.
 
 import math
 import time
+import threading
 from typing import Dict, Any, List, Optional
 
 from core.finance_kernel.kernel_context import FinanceKernelContext
@@ -76,39 +77,80 @@ class UnifiedRuntimeAdvisory:
 class UnifiedRuntimeOperator(BaseOperator):
     """Deterministic Operator orchestrating and validating all 18 layers in a cohesive master execution loop."""
 
+    def __init__(self, context=None, config=None):
+        super().__init__(context, config)
+        self._runtime_lock = threading.RLock()
+        self._last_input_sequence = None
+        self._last_timestamp = None
+
     def validate(self, input_data: dict) -> dict:
         """Validates master runtime input frame."""
+        self.preprocess(input_data)
         return input_data
 
     def preprocess(self, input_data: dict) -> dict:
-        """Preprocesses multi-layer signals and provides safe default baselines."""
-        def _safe_float(val, default=0.0):
+        """Validate supplied evidence; defaults apply only to omitted fields."""
+        if not isinstance(input_data, dict):
+            raise ValueError("unified runtime input must be a dictionary")
+
+        def number(name, default, maximum):
             try:
-                f = float(val)
-                return default if (math.isnan(f) or math.isinf(f)) else f
-            except (TypeError, ValueError):
-                return default
+                value = input_data.get(name, default)
+                if isinstance(value, (bool, str, bytes, bytearray)):
+                    raise ValueError
+                value = float(value)
+            except (TypeError, ValueError, OverflowError) as error:
+                raise ValueError(f"{name} must be finite in [0, {maximum}]") from error
+            if not math.isfinite(value) or not 0.0 <= value <= maximum:
+                raise ValueError(f"{name} must be finite in [0, {maximum}]")
+            return value
+
+        def integer(name, default, maximum=None):
+            value = input_data.get(name, default)
+            if type(value) is not int or value < 0 or (maximum is not None and value > maximum):
+                raise ValueError(f"{name} must be a non-negative integer within its domain")
+            return value
+
+        def flag(name, default):
+            value = input_data.get(name, default)
+            if type(value) is not bool:
+                raise ValueError(f"{name} must be a boolean")
+            return value
 
         processed = {
-            "cycle_sequence_id": int(input_data.get("cycle_sequence_id", 0)),
-            "timestamp_ns": int(input_data.get("timestamp_ns", int(time.time_ns()))),
-            "stream_degraded": bool(input_data.get("stream_degraded", False)),
-            "trigger_stress_escalation": bool(input_data.get("trigger_stress_escalation", False)),
-            "anomaly_active": bool(input_data.get("anomaly_active", False)),
-            "anomaly_severity": _safe_float(input_data.get("anomaly_severity", 0.0)),
-            "msgam_risk_elevated": bool(input_data.get("msgam_risk_elevated", False)),
-            "msgam_clamp_limit": _safe_float(input_data.get("msgam_clamp_limit", 1.0), default=1.0),
-            "msgam_stabilization_factor": _safe_float(input_data.get("msgam_stabilization_factor", 1.0), default=1.0),
-            "stress_level": int(input_data.get("stress_level", 0)),
-            "meta_execution_ready": bool(input_data.get("meta_execution_ready", True)),
-            "max_allowed_risk": _safe_float(input_data.get("max_allowed_risk", 0.75), default=0.75),
-            "enforce_strict_lock": bool(input_data.get("enforce_strict_lock", True)),
-            "auto_escalate_faults": bool(input_data.get("auto_escalate_faults", True)),
+            "cycle_sequence_id": integer("cycle_sequence_id", 0 if self._last_input_sequence is None else self._last_input_sequence + 1),
+            "timestamp_ns": integer("timestamp_ns", time.time_ns()),
+            "stream_degraded": flag("stream_degraded", False),
+            "trigger_stress_escalation": flag("trigger_stress_escalation", False),
+            "anomaly_active": flag("anomaly_active", False),
+            "anomaly_severity": number("anomaly_severity", 0.0, 100.0),
+            "msgam_risk_elevated": flag("msgam_risk_elevated", False),
+            "msgam_clamp_limit": number("msgam_clamp_limit", 1.0, 1.0),
+            "msgam_stabilization_factor": number("msgam_stabilization_factor", 1.0, 1.0),
+            "stress_level": integer("stress_level", 0, 2),
+            "meta_execution_ready": flag("meta_execution_ready", True),
+            "max_allowed_risk": number("max_allowed_risk", 0.75, 1.0),
+            "enforce_strict_lock": flag("enforce_strict_lock", True),
+            "auto_escalate_faults": flag("auto_escalate_faults", True),
         }
         return processed
 
     def execute(self, input_data: dict) -> dict:
         """Master deterministic cycle evaluation."""
+        with self._runtime_lock:
+            return self._execute_cycle(input_data)
+
+    def _execute_cycle(self, input_data):
+        input_data = self.preprocess(input_data)
+        if self._last_input_sequence is not None and input_data["cycle_sequence_id"] <= self._last_input_sequence:
+            raise ValueError("cycle_sequence_id replay or out-of-order evidence")
+        if self._last_timestamp is not None and input_data["timestamp_ns"] <= self._last_timestamp:
+            raise ValueError("timestamp_ns replay or out-of-order evidence")
+
+        def finish(result):
+            self._last_input_sequence = input_data["cycle_sequence_id"]
+            self._last_timestamp = input_data["timestamp_ns"]
+            return result
         kill_switch = False
         hardware_fault = False
         if self.context:
@@ -140,7 +182,7 @@ class UnifiedRuntimeOperator(BaseOperator):
             advisory.hft_freeze_active = True
             advisory.messages.append("Master Runtime: System locked due to hardware fault, kill switch, or sequence violation.")
 
-            return {
+            return finish({
                 "cycle_sequence_id": cycle_seq,
                 "system_status": system_status,
                 "resiliency_mode": resiliency_mode,
@@ -154,7 +196,7 @@ class UnifiedRuntimeOperator(BaseOperator):
                 "aggregate_risk_score": 1.0,
                 "systemic_stability_index": 0.0,
                 "messages": advisory.messages
-            }
+            })
 
         # 2. Evaluate WNFS Stream
         wnfs_fault = input_data["trigger_stress_escalation"]
@@ -225,7 +267,7 @@ class UnifiedRuntimeOperator(BaseOperator):
         advisory.execution_permitted = (execution_ready == 1 and system_status != UNIFIED_STATUS_META_LOCKED and advisory.recommended_execution_scale > 0.0)
         advisory.resilience_factor = 1.0 if system_status == UNIFIED_STATUS_NOMINAL else 0.5
 
-        return {
+        return finish({
             "cycle_sequence_id": cycle_seq,
             "system_status": system_status,
             "resiliency_mode": resiliency_mode,
@@ -239,7 +281,7 @@ class UnifiedRuntimeOperator(BaseOperator):
             "aggregate_risk_score": aggregate_risk,
             "systemic_stability_index": stability_index,
             "messages": advisory.messages
-        }
+        })
 
     def postprocess(self, result_data: dict) -> dict:
         return result_data

@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_arbitration.hpp"
 #include <cstring>
 #include <cstdio>
@@ -10,6 +11,10 @@ ArbitrationResult arbitrate(
     const Ladder& ladder,
     const ScalingRules& rules
 ) {
+    for (const auto& advisory : advisories) {
+        validation::finite({advisory.risk_score, advisory.safety_level, advisory.liquidity_level,
+                            advisory.regulatory_level, advisory.return_score, advisory.confidence});
+    }
     ArbitrationResult result{};
     if (advisories.empty()) {
         return result;

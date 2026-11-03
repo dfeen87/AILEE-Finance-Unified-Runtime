@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_stress_regime_override.hpp"
 #include <cmath>
 #include <cstring>
@@ -5,7 +6,7 @@
 
 namespace AILLE {
 
-void apply_stress_regime_override(
+static void apply_stress_regime_override_impl(
     const StressOverrideRules& rules,
     const StressPortfolioState& state,
     const AssetAllocations& prev_allocations,
@@ -111,6 +112,28 @@ void apply_stress_regime_override(
             std::memset(step.reserved, 0, sizeof(step.reserved));
         }
     }
+}
+
+void apply_stress_regime_override(const StressOverrideRules& rules, const StressPortfolioState& state,
+    const AssetAllocations& prev_allocations, AssetAllocations& allocations,
+    const SafeBaselineContainer& baselines, StressTraceSteps& trace, bool normal_safety_failed) {
+    validation::count(prev_allocations.count, prev_allocations.allocations);
+    validation::count(allocations.count, allocations.allocations);
+    validation::count(baselines.count, baselines.baselines);
+    validation::nonnegative(rules.volatility_threshold); validation::nonnegative(rules.drawdown_threshold);
+    validation::nonnegative(rules.correlation_threshold); validation::nonnegative(rules.residual_threshold);
+    validation::unit(rules.crash_dampening_factor); validation::unit(rules.fallback_lambda);
+    validation::finite({state.portfolio_risk, state.stress_index, state.volatility_index, state.drawdown_index,
+                        state.correlation_index, state.temporal_residual_sum});
+    if (rules.mode>2 || state.stress_level>2) throw std::invalid_argument("unknown stress mode");
+    for (std::size_t i=0; i<prev_allocations.count; ++i) validation::finite({prev_allocations.allocations[i].allocation, prev_allocations.allocations[i].risk_score});
+    for (std::size_t i=0; i<allocations.count; ++i) validation::finite({allocations.allocations[i].allocation, allocations.allocations[i].risk_score});
+    for (std::size_t i=0; i<baselines.count; ++i) validation::finite({baselines.baselines[i].baseline_allocation});
+    auto staged_allocations=allocations;
+    StressTraceSteps staged_trace{};
+    apply_stress_regime_override_impl(rules, state, prev_allocations, staged_allocations, baselines, staged_trace, normal_safety_failed);
+    for (std::size_t i=0; i<staged_allocations.count; ++i) validation::finite({staged_allocations.allocations[i].allocation});
+    allocations=staged_allocations; trace=staged_trace;
 }
 
 } // namespace AILLE

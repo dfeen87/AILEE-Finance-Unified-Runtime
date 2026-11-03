@@ -103,33 +103,37 @@ struct HFTSampleTick {
  * Allocator-free and branch-minimal for execution speed through the AILEE Governance pipeline.
  */
 [[nodiscard]] inline float calculate_hft_delta_v(
-    float isp,
-    float efficiency,
-    float alpha,
-    float v0,
-    const HFTSampleTick* ticks,
-    size_t count,
-    float min_mass_floor = 1e-6f
+    float isp, float efficiency, float alpha, float v0,
+    const HFTSampleTick* ticks, size_t count, float min_mass_floor = 1e-6f,
+    bool* numeric_valid = nullptr
 ) noexcept {
-    if (count == 0 || ticks == nullptr || efficiency <= 0.0f) {
-        return 0.0f;
+    if (numeric_valid) *numeric_valid=false;
+    if (!ticks || count==0 || count>100000 || !std::isfinite(isp) || isp<=0 ||
+        !std::isfinite(efficiency) || efficiency<0 || efficiency>1 || !std::isfinite(alpha) || alpha<0 ||
+        !std::isfinite(v0) || !std::isfinite(min_mass_floor) || min_mass_floor<=0) return 0;
+    const double velocity_exponent=2.0*alpha*v0;
+    const double initial_exponent=-static_cast<double>(alpha)*v0*v0;
+    if (!std::isfinite(velocity_exponent) || !std::isfinite(initial_exponent)) return 0;
+    const double velocity_factor=std::exp(velocity_exponent);
+    const double initial_damping=std::exp(initial_exponent);
+    if (!std::isfinite(velocity_factor) || !std::isfinite(initial_damping)) return 0;
+    double integral=0;
+    for (size_t i=0; i<count; ++i) {
+        const auto& tick=ticks[i];
+        if (!std::isfinite(tick.p_input) || !std::isfinite(tick.w) || !std::isfinite(tick.v) ||
+            !std::isfinite(tick.M) || tick.M<=0 || !std::isfinite(tick.dt) || tick.dt<=0) return 0;
+        const double exponent=-static_cast<double>(alpha)*tick.w*tick.w;
+        if (!std::isfinite(exponent)) return 0;
+        const double term=tick.p_input*std::exp(exponent)*velocity_factor*tick.v /
+                          std::max(tick.M,min_mass_floor)*tick.dt;
+        if (!std::isfinite(term) || !std::isfinite(integral+term)) return 0;
+        integral+=term;
     }
-
-    float integral_sum = 0.0f;
-    float exp_2_alpha_v0 = std::exp(2.0f * alpha * v0);
-    float mass_floor = (min_mass_floor > 1e-9f) ? min_mass_floor : 1e-6f;
-
-    for (size_t i = 0; i < count; ++i) {
-        float m_safe = (ticks[i].M > mass_floor) ? ticks[i].M : mass_floor;
-        float exp_neg_alpha_w2 = std::exp(-alpha * ticks[i].w * ticks[i].w);
-        float dt_val = (ticks[i].dt > 0.0f) ? ticks[i].dt : 0.001f;
-
-        float integrand = (ticks[i].p_input * exp_neg_alpha_w2 * exp_2_alpha_v0 * ticks[i].v) / m_safe;
-        integral_sum += integrand * dt_val;
-    }
-
-    float exp_neg_alpha_v02 = std::exp(-alpha * v0 * v0);
-    return isp * efficiency * exp_neg_alpha_v02 * integral_sum;
+    const double result=isp*static_cast<double>(efficiency)*initial_damping*integral;
+    const float narrowed=static_cast<float>(result);
+    if (!std::isfinite(result) || !std::isfinite(narrowed)) return 0;
+    if (numeric_valid) *numeric_valid=true;
+    return narrowed;
 }
 
 /**
@@ -141,9 +145,10 @@ struct HFTSampleTick {
     float alpha,
     float v0,
     const HFTSampleTick& tick,
-    float min_mass_floor = 1e-6f
+    float min_mass_floor = 1e-6f,
+    bool* numeric_valid = nullptr
 ) noexcept {
-    return calculate_hft_delta_v(isp, efficiency, alpha, v0, &tick, 1, min_mass_floor);
+    return calculate_hft_delta_v(isp, efficiency, alpha, v0, &tick, 1, min_mass_floor, numeric_valid);
 }
 
 } // namespace Math

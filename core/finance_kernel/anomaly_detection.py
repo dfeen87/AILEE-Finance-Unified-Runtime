@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import BaseOperator
+from core.finance_kernel.advisory_validation import finite, integer, boolean, mapping, finite_output
 
 
 DEFAULT_UNIVERSE = ["SPY", "QQQ", "DIA", "XLK", "XLF", "XLE", "AAPL", "MSFT", "GOOGL", "AMZN"]
@@ -77,18 +78,30 @@ class AnomalyDetectionOperator(BaseOperator):
 
     def validate(self, input_data: dict) -> dict:
         """Validates input market condition metrics."""
+        mapping(input_data)
         required_fields = ["last_price", "ewma_volatility", "baseline_volatility"]
         for field in required_fields:
             if field not in input_data:
                 raise ValueError(f"Missing required anomaly metric field: {field}")
-            try:
-                float(input_data[field])
-            except (TypeError, ValueError) as e:
-                raise TypeError(f"Field '{field}' must be a float-compatible numeric value: {e}")
+        self.preprocess(input_data)
         return input_data
 
     def preprocess(self, input_data: dict) -> dict:
         """Preprocesses inputs, sets defaults, and applies safety bounds."""
+        mapping(input_data)
+        for field, value in input_data.items():
+            if field in ("symbol", "pair_symbol"):
+                continue
+            if field in ("vol_debounce_count", "liq_debounce_count", "corr_debounce_count"):
+                integer(value, field)
+            elif field in ("vol_debounce_target", "liq_debounce_target", "corr_debounce_target"):
+                integer(value, field, minimum=1)
+            elif field in ("rolling_correlation", "expected_correlation"):
+                finite(value, field, -1.0, 1.0)
+            elif field in ("depth_thinning_threshold", "min_expected_correlation"):
+                finite(value, field, 0.0, 1.0)
+            elif field in ("last_price", "volume", "bid_size", "ask_size", "ewma_volatility", "baseline_volatility", "baseline_depth", "pair_last_price", "volatility_threshold"):
+                finite(value, field, 0.0)
         symbol = str(input_data.get("symbol", "SPY")).upper()
         pair_symbol = str(input_data.get("pair_symbol", DEFAULT_CORRELATION_PAIRS.get(symbol, "QQQ"))).upper()
 
@@ -131,6 +144,7 @@ class AnomalyDetectionOperator(BaseOperator):
 
     def execute(self, input_data: dict) -> dict:
         """Evaluates volatility expansion, liquidity displacement, and correlation breaks."""
+        input_data = self.preprocess(input_data)
         kill_switch = False
         hardware_fault = False
         if self.context:
@@ -219,7 +233,7 @@ class AnomalyDetectionOperator(BaseOperator):
         advisory.anomaly_severity = max(0.0, min(100.0, vol_score + liq_score + corr_score))
         advisory.advisory_active = advisory.volatility_anomaly or advisory.liquidity_anomaly or advisory.correlation_break
 
-        return {
+        return finite_output({
             "symbol": state.symbol,
             "pair_symbol": state.pair_symbol,
             "advisory_active": advisory.advisory_active,
@@ -231,7 +245,7 @@ class AnomalyDetectionOperator(BaseOperator):
             "depth_thinning_pct": advisory.depth_thinning_pct,
             "rolling_correlation": advisory.rolling_correlation,
             "messages": advisory.messages
-        }
+        })
 
     def postprocess(self, result_data: dict) -> dict:
         """Postprocesses the result for output formats."""

@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 10 — Multi‑Governor Reconciliation Engine (Finance Runtime Kernel) with Lyapunov Stability."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 import math
 
 # ============================================================================
@@ -101,6 +103,7 @@ def get_governor_phase_angle(gov_type: int) -> float:
     }
     return phase_indices.get(gov_type, 0.0) * TWO_PI_5
 
+@finite_governance(mutating=False)
 def reconcile_governors(proposals: list, asset_id: int) -> ReconciledResult:
     """Pure functional Multi-Governor Reconciliation matching C++ exactly, with Lyapunov-style stability."""
     result = ReconciledResult()

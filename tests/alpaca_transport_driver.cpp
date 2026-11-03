@@ -1,9 +1,14 @@
 // Loopback-only integration driver. Never reads credentials from the environment.
 #include "../ailee_plugins/plugins/execution/alpaca/AlpacaExecution.hpp"
 #include <iostream>
+#include <filesystem>
 #include <string>
 
 int main(int argc, char** argv) {
+    const auto journal_path=std::filesystem::temp_directory_path() / ("ailee-loopback-intent-"+
+        std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    struct Cleanup { std::filesystem::path path; ~Cleanup(){std::error_code error;std::filesystem::remove(path,error);} } cleanup{journal_path};
+    setenv("ALPACA_INTENT_JOURNAL",journal_path.c_str(),1);
     if (argc != 4) return 2;
     using namespace AILLE::Plugins;
     using namespace AILLE::Plugins::Alpaca;
@@ -18,6 +23,7 @@ int main(int argc, char** argv) {
         cfg.secret_key = "synthetic-pass-c-secret";
     }
     cfg.mock_mode = mode == "mock";
+    cfg.intent_journal_path=journal_path.string();
     AlpacaExecution exec(cfg);
     if (mode == "lockout") exec.triggerLockout("local regression");
     const std::string action = argv[2];
@@ -27,6 +33,8 @@ int main(int argc, char** argv) {
         req.symbol = "SPY";
         req.side = OrderSide::BUY;
         req.quantity = 2.0f;
+        req.limit_price = 100.0f;
+        req.client_ref = "synthetic-transport-intent";
         result = exec.submitOrder(req);
     } else if (action == "cancel") {
         result = exec.cancelOrder("local-order") ? "1" : "0";

@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 15 — Deterministic Deformable Membrane & Compute-Aware Governor (UFO Integration)."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 import math
 
 # ============================================================================
@@ -74,6 +76,7 @@ class MembraneResult:
 def get_string_angle(index: int) -> float:
     return float(index) * (math.pi / 6.0)
 
+@finite_governance(mutating=False)
 def evaluate_membrane_governance(current_state: MembraneState, env_inputs: ComputeEnvelopeState, timestep: int) -> MembraneResult:
     """Pure functional Membrane Evaluation matching C++ exactly."""
     result = MembraneResult()

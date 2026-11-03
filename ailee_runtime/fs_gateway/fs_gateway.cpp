@@ -1,6 +1,6 @@
 /*
  * AILEE Framework - FS-Gateway Networking Module Implementation
- * AILEE Finance Unified Runtime Version 24.0.0
+ * AILEE Finance Unified Runtime Version 25.0.0
  *
  * Copyright (c) Don Michael Feeney Jr.
  * Licensed under the MIT License.
@@ -97,7 +97,8 @@ bool FsGateway::startAsync() {
     FsGatewayImpl* impl = static_cast<FsGatewayImpl*>(server_ptr_);
     try {
         websocketpp::lib::error_code ec;
-        impl->server.listen(websocketpp::lib::asio::ip::tcp::v4(), port_, ec);
+        impl->server.listen(websocketpp::lib::asio::ip::tcp::endpoint(
+            websocketpp::lib::asio::ip::address_v4::loopback(), port_), ec);
         if (ec) {
             std::cerr << "[FS-Gateway] Listen failed: " << ec.message() << "\n";
             return false;

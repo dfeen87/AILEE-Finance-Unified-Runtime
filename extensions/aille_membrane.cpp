@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_membrane.hpp"
 #include <cmath>
 #include <cstring>
@@ -33,6 +34,9 @@ MembraneResult evaluate_membrane_governance(
     const ComputeEnvelopeState& env_inputs,
     uint32_t timestep
 ) {
+    validation::finite({current_state.base_radius, env_inputs.api_latency, env_inputs.rest_ws_load,
+                        env_inputs.model_eval_cost, env_inputs.runtime_stress});
+    for (float activation : current_state.activations) validation::finite({activation});
     MembraneResult result{};
     result.state = current_state;
 
@@ -170,6 +174,9 @@ MembraneResult evaluate_membrane_governance(
     result.trace.step_count = 1;
 
     // Save to the global storage for telemetry/APIs
+    validation::finite({result.metrics.asymmetry_index, result.metrics.max_curvature, result.metrics.mean_curvature,
+                        result.metrics.lyapunov_energy, result.metrics.tension, result.envelope.clamp_exposure});
+    for (float activation : result.state.activations) validation::finite({activation});
     set_latest_membrane_result(result);
 
     return result;

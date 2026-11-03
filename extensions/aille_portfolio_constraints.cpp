@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_portfolio_constraints.hpp"
 #include <cmath>
 #include <cstring>
@@ -29,6 +30,24 @@ PortfolioConstraintResult apply_portfolio_constraints(
     const CorrelationProfiles& correlations,
     const RiskBudget& budget
 ) {
+    validation::count(proposed.count, proposed.allocations);
+    validation::count(rules.count, rules.rules);
+    validation::count(sectors.count, sectors.sectors);
+    validation::count(correlations.count, correlations.profiles);
+    validation::nonnegative(budget.max_portfolio_risk);
+    for (std::size_t i=0; i<proposed.count; ++i) {
+        validation::finite({proposed.allocations[i].allocation});
+        validation::nonnegative(proposed.allocations[i].risk_score);
+    }
+    for (std::size_t i=0; i<rules.count; ++i) {
+        validation::nonnegative(rules.rules[i].max_long_exposure);
+        validation::nonnegative(rules.rules[i].max_short_exposure);
+    }
+    for (std::size_t i=0; i<sectors.count; ++i) validation::nonnegative(sectors.sectors[i].max_sector_exposure);
+    for (std::size_t i=0; i<correlations.count; ++i) {
+        validation::finite({correlations.profiles[i].correlation_score});
+        if (std::abs(correlations.profiles[i].correlation_score) > 1) throw std::invalid_argument("invalid correlation");
+    }
     PortfolioConstraintResult result;
     result.allocations = proposed;
     result.summary.initial_portfolio_risk = 0.0;
@@ -56,6 +75,7 @@ PortfolioConstraintResult apply_portfolio_constraints(
         const auto& alloc = result.allocations.allocations[i];
         initial_risk += std::abs(alloc.allocation) * alloc.risk_score;
     }
+    validation::finite({initial_risk});
     result.summary.initial_portfolio_risk = initial_risk;
 
     // Stage 1: Max-Exposure Clamping (Per Asset, Per Direction)
@@ -213,7 +233,7 @@ PortfolioConstraintResult apply_portfolio_constraints(
         double scale = budget.max_portfolio_risk / current_risk;
         for (size_t i = 0; i < result.allocations.count; ++i) {
             auto& alloc = result.allocations.allocations[i];
-            if (alloc.asset_id != AssetId::CASH) {
+            if (alloc.risk_score > 0.0) {
                 double before = alloc.allocation;
                 alloc.allocation *= scale;
                 add_trace_step(alloc.asset_id, ConstraintStage::RISK_BUDGET_ENFORCE, ConstraintAction::SCALED, before, alloc.allocation, "Risk budget scaling applied");
@@ -239,6 +259,8 @@ PortfolioConstraintResult apply_portfolio_constraints(
     result.summary.max_risk_budget = budget.is_active ? budget.max_portfolio_risk : 999999.0;
     result.summary.remaining_violations = (budget.is_active && final_risk > budget.max_portfolio_risk) ? 1 : 0;
 
+    validation::finite({result.summary.initial_portfolio_risk, result.summary.final_portfolio_risk});
+    for (std::size_t i=0; i<result.allocations.count; ++i) validation::finite({result.allocations.allocations[i].allocation});
     return result;
 }
 

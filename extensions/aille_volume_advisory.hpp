@@ -100,6 +100,16 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
     const FibAdvisory* fib_adv = nullptr
 ) noexcept {
     VolumeAdvisory advisory{};
+    bool malformed = state.avg_volume <= 0 || state.current_volume < 0;
+    for (float value : {state.current_volume, state.avg_volume, state.volume_anomaly_ratio,
+                        state.price_change, state.vwap_deviation, state.prev_volume_anomaly_ratio,
+                        state.prev_recommended_weight, state.hft_p_input, state.hft_mass, state.hft_v0})
+        malformed = malformed || !std::isfinite(value);
+    if (malformed) {
+        advisory.recommended_weight=0; advisory.risk_score=100; advisory.risk_elevated=true;
+        advisory.growth_favorable=false; advisory.contrarian_buy_signal=false;
+        return advisory;
+    }
 
     // 1. Safety precedence: Hardware faults or kill switches immediately override and yield zero weight
     if (safety && (safety->hardware_fault || safety->kill_switch)) {
@@ -222,7 +232,7 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
         advisory.hft_active = true;
 
         float p_input = (state.hft_p_input != 0.0f) ? state.hft_p_input : state.price_change * 10.0f;
-        float mass_input = (state.hft_mass > 1e-6f) ? state.hft_mass : 1.0f;
+        float mass_input = state.hft_mass;
 
         ailee::HFTBiasConfig default_cfg{};
         const ailee::HFTBiasConfig& cfg = (hft_bias_cfg != nullptr) ? *hft_bias_cfg : default_cfg;
@@ -241,14 +251,25 @@ static_assert(sizeof(VolumeObservabilityMetrics) == 64, "VolumeObservabilityMetr
         tick.M = mass_input;
         tick.dt = 0.001f; // 1 ms micro-tick integration interval
 
+        bool numeric_valid = false;
         advisory.hft_delta_v = Math::calculate_hft_tick_delta_v(
             /*isp=*/1.0f,
             /*efficiency=*/0.95f,
             /*alpha=*/0.1f,
             /*v0=*/state.hft_v0,
             tick,
-            /*min_mass_floor=*/1e-6f
+            /*min_mass_floor=*/1e-6f,
+            &numeric_valid
         );
+        if (!numeric_valid) {
+            advisory.recommended_weight = 0;
+            advisory.risk_score = 100;
+            advisory.risk_elevated = true;
+            advisory.growth_favorable = false;
+            advisory.contrarian_buy_signal = false;
+            advisory.hft_active = false;
+            return advisory;
+        }
 
         // Modulate recommended weight based on high-frequency impulse Δv
         float impulse_factor = 1.0f + std::clamp(advisory.hft_delta_v, -0.5f, 0.5f);

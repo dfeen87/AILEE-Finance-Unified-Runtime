@@ -20,6 +20,14 @@
 #include <ctime>
 #include <cstring>   // Required for std::memcpy, std::memset, strnlen
 #include <algorithm> // Required for std::min
+#include <filesystem>
+#include <locale>
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace AILLE {
 
@@ -218,7 +226,16 @@ std::string AuditLogger::sha256(const std::string& input) {
 }
 
 std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
+    const auto safe_text = [](const char* text, std::size_t size) {
+        for (std::size_t i=0; i<strnlen(text,size); ++i) {
+            const auto value=static_cast<unsigned char>(text[i]);
+            if (value<32 || value==127) throw std::invalid_argument("Control character in canonical audit evidence");
+        }
+    };
+    safe_text(record.reasoning,sizeof(record.reasoning)); safe_text(record.symbol,sizeof(record.symbol));
+    safe_text(record.strategy_id,sizeof(record.strategy_id)); safe_text(record.user_id,sizeof(record.user_id));
     std::ostringstream ss;
+    ss.imbue(std::locale::classic());
     ss << "timestamp_ns=" << record.timestamp_ns << '\x1f'
        << "decision_id=" << record.decision_id << '\x1f'
        << "status=" << static_cast<int>(record.status) << '\x1f'
@@ -226,10 +243,10 @@ std::string AuditLogger::serializeRecord(const AuditRecord& record) const {
        << "confidence=" << std::setprecision(10) << record.confidence << '\x1f'
        << "models_agreed=" << record.models_agreed << '\x1f'
        << "fallback_used=" << (record.fallback_used ? "1" : "0") << '\x1f'
-       << "reasoning=" << record.reasoning << '\x1f'
-       << "symbol=" << record.symbol << '\x1f'
-       << "strategy_id=" << record.strategy_id << '\x1f'
-       << "user_id=" << record.user_id << '\x1f'
+       << "reasoning=" << std::string(record.reasoning, strnlen(record.reasoning, sizeof(record.reasoning))) << '\x1f'
+       << "symbol=" << std::string(record.symbol, strnlen(record.symbol, sizeof(record.symbol))) << '\x1f'
+       << "strategy_id=" << std::string(record.strategy_id, strnlen(record.strategy_id, sizeof(record.strategy_id))) << '\x1f'
+       << "user_id=" << std::string(record.user_id, strnlen(record.user_id, sizeof(record.user_id))) << '\x1f'
        << "prev_hash=" << previousDigestToString(record) << '\x1f'
        << "contributing_models=";
        
@@ -290,7 +307,7 @@ AuditLogger::AuditLogger() : next_decision_id(1) {
 AuditLogger::AuditLogger(const std::string& log_filename) 
     : next_decision_id(1) {
     std::memset(last_hash, 0, sizeof(last_hash));
-    open(log_filename);
+    if (!open(log_filename)) throw std::runtime_error("Cannot open verified durable audit journal");
 }
 
 AuditLogger::~AuditLogger() {
@@ -298,28 +315,91 @@ AuditLogger::~AuditLogger() {
 }
 
 bool AuditLogger::open(const std::string& filename) {
-    log_file.open(filename, std::ios::app);
-    if (!log_file.is_open()) {
-        return false;
+    std::lock_guard<std::recursive_mutex> lock(audit_mtx_);
+    persistence_required_ = true;
+    if (log_file.is_open() || audit_fd_ >= 0 || !audit_trail.empty()) return false;
+#if defined(_WIN32)
+    (void)filename;
+    return false;
+#else
+    const auto path = filename + ".journal";
+    const bool existed = std::filesystem::exists(path);
+    if (std::filesystem::is_symlink(filename) ||
+        (std::filesystem::exists(filename) && !std::filesystem::is_regular_file(filename))) return false;
+    int fd = ::open(path.c_str(), O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW, 0600);
+    if (fd < 0) return false;
+    struct Descriptor { int fd; ~Descriptor() { if(fd>=0) ::close(fd); } } owned{fd};
+    struct stat info{};
+    const auto fail = [&]() { audit_trail.clear(); next_decision_id=1; std::memset(last_hash,0,sizeof(last_hash)); return false; };
+    if (::fstat(fd,&info) || !S_ISREG(info.st_mode) || info.st_uid != ::geteuid() ||
+        (info.st_mode & 0077) || info.st_nlink != 1 || ::flock(fd,LOCK_EX|LOCK_NB)) return fail();
+    if (info.st_size > 64*1024*1024) return fail();
+    constexpr char header[] = "AILEE-AUDIT-256-V1\n";
+    if (info.st_size == 0) {
+        // Legacy CSV is lossy and cannot reconstruct canonical evidence.
+        if (std::filesystem::exists(filename) && std::filesystem::file_size(filename)) return fail();
+        if (::write(fd,header,sizeof(header)-1) != sizeof(header)-1 || ::fsync(fd)) return fail();
+        if (!existed) {
+            auto parent=std::filesystem::path(path).parent_path();
+            int dir=::open((parent.empty()?std::filesystem::path("."):parent).c_str(),O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+            if (dir<0) return fail();
+            const int result=::fsync(dir); ::close(dir);
+            if (result) return fail();
+        }
+    } else {
+        char actual[sizeof(header)-1];
+        if (::read(fd,actual,sizeof(actual)) != sizeof(actual) || std::memcmp(actual,header,sizeof(actual))) return fail();
+        while (true) {
+            AuditRecord record;
+            const auto bytes=::read(fd,&record,sizeof(record));
+            if (bytes==0) break;
+            if (bytes!=sizeof(record)) return fail();
+            const auto* raw=reinterpret_cast<const unsigned char*>(&record);
+            int status=0; std::memcpy(&status,raw+offsetof(AuditRecord,status),sizeof(status));
+            if (status<DECISION_VALID || status>ERROR_NO_MODELS || raw[offsetof(AuditRecord,fallback_used)]>1 ||
+                !std::isfinite(record.final_value) || !std::isfinite(record.confidence) ||
+                record.decision_id!=audit_trail.size()+1) return fail();
+            audit_trail.push_back(record);
+        }
+        if (!verifyIntegrity()) return fail();
+        next_decision_id=audit_trail.size()+1;
+        if (!audit_trail.empty()) copyBufferToBuffer(last_hash,audit_trail.back().hash);
     }
-    
-    if (log_file.tellp() == 0) {
-        log_file << "timestamp,decision_id,status,final_value,confidence,"
-                << "models_agreed,fallback_used,reasoning,contributing_models,"
-                << "symbol,strategy_id,user_id,hash,prev_hash\n";
-    }
-    
+    log_file.open(filename,std::ios::app);
+    if (!log_file.is_open()) return fail();
+    if (log_file.tellp()==0) log_file << "timestamp,decision_id,status,final_value,confidence,models_agreed,fallback_used,reasoning,contributing_models,symbol,strategy_id,user_id,hash,prev_hash\n";
+    audit_fd_=fd;
+    owned.fd=-1;
     return true;
+#endif
+}
+
+void AuditLogger::close() {
+    std::lock_guard<std::recursive_mutex> lock(audit_mtx_);
+    if (log_file.is_open()) log_file.close();
+#if !defined(_WIN32)
+    if (audit_fd_>=0) ::close(audit_fd_);
+#endif
+    audit_fd_=-1;
 }
 
 void AuditLogger::logDecision(const Decision& decision,
                              const std::string& symbol,
                              const std::string& strategy_id,
                              const std::string& user_id) {
+    std::lock_guard<std::recursive_mutex> lock(audit_mtx_);
+    if (persistence_required_ && audit_fd_ < 0) throw std::runtime_error("Durable audit unavailable");
+    if (!std::isfinite(decision.final_value) || !std::isfinite(decision.confidence) ||
+        decision.confidence < 0 || decision.confidence > 1 || decision.models_agreed < 0 ||
+        decision.models_agreed > AILLE_MAX_MODELS || decision.num_contributing_models > 10 ||
+        decision.status < DECISION_VALID || decision.status > ERROR_NO_MODELS)
+        throw std::invalid_argument("Invalid numeric audit evidence");
+    if (audit_fd_ >= 0 && next_decision_id > (64*1024*1024-32)/sizeof(AuditRecord))
+        throw std::runtime_error("Audit journal capacity reached; archive and rotate explicitly");
     
     AuditRecord record;
     record.timestamp_ns = decision.timestamp_ns;
-    record.decision_id = next_decision_id++;
+    record.decision_id = next_decision_id;
     record.status = decision.status;
     record.final_value = decision.final_value;
     record.confidence = decision.confidence;
@@ -327,7 +407,7 @@ void AuditLogger::logDecision(const Decision& decision,
     record.fallback_used = decision.fallback_used;
     
     std::memset(record.reasoning, 0, sizeof(record.reasoning));
-    std::memcpy(record.reasoning, decision.reasoning, std::min(std::strlen(decision.reasoning), sizeof(record.reasoning) - 1));
+    std::memcpy(record.reasoning, decision.reasoning, std::min(strnlen(decision.reasoning, sizeof(decision.reasoning)), sizeof(record.reasoning) - 1));
 
     std::memset(record.symbol, 0, sizeof(record.symbol));
     std::memcpy(record.symbol, symbol.c_str(), std::min(symbol.size(), sizeof(record.symbol) - 1));
@@ -342,9 +422,16 @@ void AuditLogger::logDecision(const Decision& decision,
     
     copyBufferToBuffer(record.prev_hash, last_hash);
     copyDigestToBuffer(record.hash, computeHash(record));
-    copyBufferToBuffer(last_hash, record.hash);
-    
+    audit_trail.reserve(audit_trail.size()+1);
+#if !defined(_WIN32)
+    if (audit_fd_ >= 0 && (::write(audit_fd_, &record, sizeof(record)) != sizeof(record) || ::fsync(audit_fd_) != 0)) {
+        close();
+        throw std::runtime_error("Audit persistence failed; reopen and reconcile");
+    }
+#endif
     audit_trail.push_back(record);
+    ++next_decision_id;
+    copyBufferToBuffer(last_hash, record.hash);
     
     if (log_file.is_open()) {
         std::ostringstream model_list;
@@ -373,10 +460,12 @@ void AuditLogger::logDecision(const Decision& decision,
                 << previousDigestToString(record) << "\n";
         
         log_file.flush();
+        if (!log_file) throw std::runtime_error("Audit CSV export failed; journal is authoritative");
     }
 }
 
 bool AuditLogger::verifyIntegrity() const {
+    std::lock_guard<std::recursive_mutex> lock(audit_mtx_);
     if (audit_trail.empty()) return true;
 
     std::string expected_prev_hash = "0000000000000000";
@@ -385,9 +474,9 @@ bool AuditLogger::verifyIntegrity() const {
         if (previousDigestToString(record) != expected_prev_hash) {
             return false;
         }
-        if (digestToHex(record.hash) != computeHash(record)) {
-            return false;
-        }
+        try {
+            if (digestToHex(record.hash) != computeHash(record)) return false;
+        } catch (const std::exception&) { return false; }
         expected_prev_hash = digestToHex(record.hash);
     }
 
@@ -396,6 +485,7 @@ bool AuditLogger::verifyIntegrity() const {
 
 void AuditLogger::generateReport(const std::string& output_file,
                                 uint64_t start_ns, uint64_t end_ns) const {
+    std::lock_guard<std::recursive_mutex> lock(audit_mtx_);
     
     std::ofstream report(output_file);
     if (!report.is_open()) return;
@@ -452,6 +542,7 @@ void AuditLogger::generateReport(const std::string& output_file,
 }
 
 size_t AuditLogger::getAuditTrailSize() const {
+    std::lock_guard<std::recursive_mutex> lock(audit_mtx_);
     return audit_trail.size();
 }
 

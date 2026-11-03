@@ -9,7 +9,7 @@ mkdir -p "$scratch_dir/consumer"
 cat > "$scratch_dir/consumer/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.15)
 project(ExternalConsumer LANGUAGES CXX)
-find_package(AILLE 24.0.0 CONFIG REQUIRED)
+find_package(AILLE 25.0.0 CONFIG REQUIRED)
 add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE AILLE::aille)
 EOF

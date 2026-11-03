@@ -22,6 +22,7 @@
 #include <iomanip>
 #include <ctime>
 #include <mutex>
+#include <stdexcept>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -40,8 +41,8 @@ namespace AILLE {
 // VERSION
 // ============================================================================
 
-constexpr const char* AILLE_VERSION = "24.0.0";
-constexpr int AILLE_VERSION_MAJOR = 24;
+constexpr const char* AILLE_VERSION = "25.0.0";
+constexpr int AILLE_VERSION_MAJOR = 25;
 constexpr int AILLE_VERSION_MINOR = 0;
 constexpr int AILLE_VERSION_PATCH = 0;
 
@@ -634,22 +635,25 @@ private:
     }
 
     bool validateConfig(const AILLEConfig& cfg, Decision& decision) const {
-        if (cfg.min_confidence_threshold <= 0.0f || cfg.min_confidence_threshold > 1.0f) {
+        if (!std::isfinite(cfg.min_confidence_threshold) ||
+            cfg.min_confidence_threshold <= 0.0f || cfg.min_confidence_threshold > 1.0f) {
             decision.status = ERROR_NO_MODELS;
             decision.num_contributing_models = 0;
             decision.setReasoning("Invalid config: min_confidence_threshold must be in (0, 1]");
             return false;
         }
-        if (cfg.grace_confidence_threshold < 0.0f || cfg.grace_confidence_threshold > cfg.min_confidence_threshold) {
+        if (!std::isfinite(cfg.grace_confidence_threshold) ||
+            cfg.grace_confidence_threshold < 0.0f || cfg.grace_confidence_threshold > cfg.min_confidence_threshold) {
             decision.status = ERROR_NO_MODELS;
             decision.num_contributing_models = 0;
             decision.setReasoning("Invalid config: grace_confidence_threshold must be in [0, min_confidence_threshold]");
             return false;
         }
-        if (cfg.min_models_required < 1) {
+        if (cfg.min_models_required < 1 ||
+            cfg.min_models_required > std::min(cfg.max_model_count, static_cast<int>(AILLE_MAX_MODELS))) {
             decision.status = ERROR_NO_MODELS;
             decision.num_contributing_models = 0;
-            decision.setReasoning("Invalid config: min_models_required must be >= 1");
+            decision.setReasoning("Invalid config: min_models_required must be positive and reachable");
             return false;
         }
         if (cfg.fallback_window_size < 1) {
@@ -658,7 +662,8 @@ private:
             decision.setReasoning("Invalid config: fallback_window_size must be >= 1");
             return false;
         }
-        if (cfg.sign_agreement_threshold <= 0.0f || cfg.sign_agreement_threshold > 1.0f) {
+        if (!std::isfinite(cfg.sign_agreement_threshold) ||
+            cfg.sign_agreement_threshold <= 0.0f || cfg.sign_agreement_threshold > 1.0f) {
             decision.status = ERROR_NO_MODELS;
             decision.num_contributing_models = 0;
             decision.setReasoning("Invalid config: sign_agreement_threshold must be in (0, 1]");
@@ -677,6 +682,16 @@ private:
             decision.setReasoning("Invalid config: max_position_abs must be in (0, 1]");
             return false;
         }
+        if (!std::isfinite(cfg.fallback_position_scale) || cfg.fallback_position_scale < 0.0f ||
+            cfg.fallback_position_scale > 1.0f ||
+            !std::isfinite(cfg.fallback_alpha) || cfg.fallback_alpha < 0.0f ||
+            !std::isfinite(cfg.fallback_beta) || cfg.fallback_beta < 0.0f ||
+            !std::isfinite(cfg.contrarian_oversold_aggressiveness) || cfg.contrarian_oversold_aggressiveness < 0.0f) {
+            decision.status = ERROR_NO_MODELS;
+            decision.num_contributing_models = 0;
+            decision.setReasoning("Invalid config: fallback scale in [0,1], coefficients/aggressiveness finite and non-negative");
+            return false;
+        }
         return true;
     }
 
@@ -692,11 +707,13 @@ private:
                 sum_conf += confidence_buffer[i];
             }
             float ma_conf = sum_conf / static_cast<float>(fallback_count_);
-            scale = config.fallback_alpha * ma_conf + config.fallback_beta;
-            if (scale < 0.1f) scale = 0.1f;
-            if (scale > 0.5f) scale = 0.5f;
+            // Float inputs can have a finite bounded result despite an
+            // overflowing float intermediate. Clamp in the wider domain.
+            const double candidate = static_cast<double>(config.fallback_alpha) * ma_conf + config.fallback_beta;
+            scale = static_cast<float>(std::clamp(candidate, 0.1, 0.5));
         }
-        return sign * scale;
+        // The hard envelope is authoritative on every rejection path too.
+        return std::clamp(sign * scale, -config.max_position_abs, config.max_position_abs);
     }
     
     SafetyState* safety_state_ = nullptr;
@@ -738,6 +755,7 @@ private:
     UnifiedRuntimeMetrics* unified_metrics_ = nullptr;
     UnifiedRuntimeAdvisory* unified_advisory_ = nullptr;
     const UnifiedRuntimeConfig* unified_config_ = nullptr;
+    bool unifiedExecutionPermitted() const noexcept;
 
     const StressOverrideRules* stress_rules_ = nullptr;
     const StressPortfolioState* stress_state_ = nullptr;
@@ -863,16 +881,34 @@ public:
             return decision;
         }
 
+        if (!unifiedExecutionPermitted()) {
+            decision.status = FALLBACK_ACTIVATED;
+            decision.fallback_used = true;
+            decision.setReasoning("Unified runtime denied execution - fallback to zero");
+            return decision;
+        }
+
         std::lock_guard<std::mutex> lock(engine_mtx_);
 
         if (!validateConfig(config, decision)) {
             decision.num_contributing_models = 0;
             return decision;
         }
+
+        if (stabilizer_advisory_ &&
+            (!std::isfinite(stabilizer_advisory_->stabilization_risk_score) ||
+             !std::isfinite(stabilizer_advisory_->dynamic_clamp_limit) ||
+             stabilizer_advisory_->dynamic_clamp_limit < 0.0f ||
+             stabilizer_advisory_->dynamic_clamp_limit > 1.0f)) {
+            decision.status = FALLBACK_ACTIVATED;
+            decision.fallback_used = true;
+            decision.setReasoning("Invalid stabilizer envelope - fallback to zero");
+            return decision;
+        }
         
         const uint64_t decision_time_ns = decision.timestamp_ns;
 
-        if (count == 0) {
+        if (count == 0 || model_signals == nullptr) {
             decision.status = ERROR_NO_MODELS;
             decision.num_contributing_models = 0;
             decision.setReasoning("No model inputs");
@@ -1017,9 +1053,36 @@ public:
         std::memset(fallback_buffer, 0, sizeof(fallback_buffer));
         std::memset(confidence_buffer, 0, sizeof(confidence_buffer));
     }
-    AILLEConfig getConfig() const noexcept { return config; }
+    AILLEConfig getConfig() const noexcept {
+        std::lock_guard<std::mutex> lock(engine_mtx_);
+        return config;
+    }
     void setConfig(const AILLEConfig& cfg) {
         std::lock_guard<std::mutex> lock(engine_mtx_);
+        Decision validation;
+        if (!validateConfig(cfg, validation)) {
+            throw std::invalid_argument(validation.getReasoningString());
+        }
+        // Repack the ring before changing its modulus. Retain the newest
+        // accepted samples, including when a shorter window is selected.
+        const size_t old_window = std::min(static_cast<size_t>(std::max(1, config.fallback_window_size)),
+                                          static_cast<size_t>(AILLE_MAX_FALLBACK_WINDOW));
+        const size_t new_window = std::min(static_cast<size_t>(cfg.fallback_window_size),
+                                          static_cast<size_t>(AILLE_MAX_FALLBACK_WINDOW));
+        if (new_window != old_window) {
+            const size_t retained = std::min(fallback_count_, new_window);
+            float values[AILLE_MAX_FALLBACK_WINDOW]{};
+            float confidences[AILLE_MAX_FALLBACK_WINDOW]{};
+            for (size_t i = 0; i < retained; ++i) {
+                const size_t source = (fallback_head_ + old_window - retained + i) % old_window;
+                values[i] = fallback_buffer[source];
+                confidences[i] = confidence_buffer[source];
+            }
+            std::memcpy(fallback_buffer, values, sizeof(values));
+            std::memcpy(confidence_buffer, confidences, sizeof(confidences));
+            fallback_count_ = retained;
+            fallback_head_ = retained % new_window;
+        }
         config = cfg;
     }
 };
@@ -1034,6 +1097,9 @@ private:
     uint64_t next_decision_id;
     std::uint8_t last_hash[32];
     std::vector<AuditRecord> audit_trail;
+    mutable std::recursive_mutex audit_mtx_;
+    int audit_fd_ = -1;
+    bool persistence_required_ = false;
 
     // Helper functions for internal cryptographic tracking
     uint32_t rotateRight(uint32_t value, uint32_t bits);
@@ -1050,11 +1116,7 @@ public:
     ~AuditLogger();
 
     bool open(const std::string& filename);
-    void close() {
-        if (log_file.is_open()) {
-            log_file.close();
-        }
-    }
+    void close();
 
     void logDecision(const Decision& decision,
                      const std::string& symbol,

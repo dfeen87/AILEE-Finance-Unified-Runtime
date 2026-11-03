@@ -1,3 +1,4 @@
+#include <limits>
 /*
  * AILLE Framework - Unified Cohesive Runtime & Resiliency Engine (Layer 19) Implementation
  * AI-Load Integrity and Layered Evaluation
@@ -34,23 +35,46 @@ namespace AILLE {
 ) noexcept {
     UnifiedRuntimeAdvisory advisory;
 
+    // Supplied malformed evidence is a fault, never a healthy default. Check
+    // before arithmetic and before a bad upper bound can reach std::clamp.
+    const auto bounded = [](float value, float maximum) {
+        return std::isfinite(value) && value >= 0.0f && value <= maximum;
+    };
+    const bool invalid_evidence =
+        !bounded(config.max_allowed_risk, 1.0f) || !bounded(config.min_stability_threshold, 1.0f) ||
+        config.enforce_strict_lock > 1 || config.auto_escalate_faults > 1 ||
+        (anomaly_adv && (!bounded(anomaly_adv->anomaly_severity, 100.0f) || anomaly_adv->advisory_active > 1)) ||
+        (MSGAM_adv && (!bounded(MSGAM_adv->dynamic_clamp_limit, 1.0f) ||
+                       !bounded(MSGAM_adv->stabilization_factor, 1.0f))) ||
+        (stress_state && stress_state->stress_level > static_cast<std::uint8_t>(StressMode::CRISIS)) ||
+        (meta_state && meta_state->execution_ready > 1);
+
     // 0. Strict Monotonic Sequence & Order Validation
-    bool sequence_violation = false;
+    const auto max_sequence = std::numeric_limits<std::uint64_t>::max();
+    bool sequence_violation = state.cycle_sequence_id == max_sequence || metrics.total_cycles_processed == max_sequence;
     if (metrics.total_cycles_processed > 0 && state.cycle_sequence_id < metrics.total_cycles_processed) {
         sequence_violation = true;
     }
-    std::uint64_t next_sequence = std::max(state.cycle_sequence_id + 1, metrics.total_cycles_processed + 1);
+    if (metrics.total_cycles_processed > 0 && sync_tick &&
+        ((sync_tick->tick_index > 0 && sync_tick->tick_index <= state.cycle_sequence_id) ||
+         (sync_tick->timestamp_ns > 0 && sync_tick->timestamp_ns <= state.timestamp_ns))) {
+        sequence_violation = true;
+    }
+    std::uint64_t next_sequence = sequence_violation ? state.cycle_sequence_id :
+        std::max(state.cycle_sequence_id + 1, metrics.total_cycles_processed + 1);
     state.cycle_sequence_id = (sync_tick && sync_tick->tick_index > 0) ? sync_tick->tick_index : next_sequence;
     state.timestamp_ns = (sync_tick && sync_tick->timestamp_ns > 0) ? sync_tick->timestamp_ns : std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::high_resolution_clock::now().time_since_epoch()
     ).count();
 
     // 1. Hardware / Safety State Check
-    if ((safety && (safety->kill_switch || safety->hardware_fault)) || sequence_violation) {
+    if ((safety && (safety->kill_switch || safety->hardware_fault)) || sequence_violation || invalid_evidence) {
         state.system_status = UNIFIED_STATUS_META_LOCKED;
         state.resiliency_mode = UNIFIED_RESILIENCY_FAIL_CLOSED;
         state.execution_ready = 0;
         state.fault_escalated = 1;
+        state.aggregate_risk_score = 1.0f;
+        state.systemic_stability_index = 0.0f;
 
         advisory.system_confidence = 0.0f;
         advisory.recommended_execution_scale = 0.0f;
@@ -60,8 +84,10 @@ namespace AILLE {
         advisory.hft_freeze_active = 1;
 
         metrics.meta_lock_active = 1;
+        metrics.max_observed_risk = 1.0f;
+        metrics.min_observed_stability = 0.0f;
         metrics.total_fault_escalations++;
-        metrics.total_cycles_processed++;
+        if (metrics.total_cycles_processed != max_sequence) metrics.total_cycles_processed++;
         return advisory;
     }
 
@@ -171,6 +197,10 @@ namespace AILLE {
     metrics.min_observed_stability = std::min(metrics.min_observed_stability, state.systemic_stability_index);
 
     return advisory;
+}
+
+bool AILLEEngine::unifiedExecutionPermitted() const noexcept {
+    return !unified_advisory_ || unified_advisory_->execution_permitted == 1;
 }
 
 void AILLEEngine::evaluate_unified_runtime() {

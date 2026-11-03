@@ -62,12 +62,9 @@ def test_nan_inf_inputs_handling():
         "expected_correlation": float("inf"),
         "timestamp_ns": 100
     }
-    preprocessed = op.preprocess(input_data)
-    result = op.execute(preprocessed)
-
-    assert result["symbol"] == "SPY"
-    assert not math.isnan(result["payloads"][0]["score"])
-    assert not math.isinf(result["payloads"][0]["score"])
+    with pytest.raises(ValueError, match="last_price"):
+        op.preprocess(input_data)
+    assert op._prev_modifier is None
 
 
 def test_zero_baselines_handling():

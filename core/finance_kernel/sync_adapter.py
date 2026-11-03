@@ -12,6 +12,8 @@ Licensed under the MIT License.
 
 from dataclasses import dataclass
 import time
+import math
+from core.finance_kernel.governance_validation import finite_governance
 
 SYNC_ADAPTER_VERSION = "SYNC_ADAPTER_V1"
 
@@ -76,12 +78,26 @@ class SyncAdapter:
         self.state = SyncAdapterState(expected_cadence_ns=self.config.target_cadence_ns)
         self.metrics = SyncAdapterObservabilityMetrics()
         self.current_tick = SyncTick()
+        self._validate_config()
+
+    def _validate_config(self):
+        for name in ("target_cadence_ns", "max_drift_threshold_ns"):
+            value = getattr(self.config, name)
+            if type(value) is not int or value < (1 if name == "target_cadence_ns" else 0):
+                raise ValueError(f"{name} outside its integer domain")
+        value = self.config.min_confidence_threshold
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError("min_confidence_threshold must be finite in [0,1]")
+        for name in ("auto_escalate_stress", "auto_escalate_meta_lock"):
+            if type(getattr(self.config, name)) not in (bool, int) or getattr(self.config, name) not in (0, 1):
+                raise ValueError(f"{name} must be a boolean flag")
 
     def reset(self):
         self.state = SyncAdapterState(expected_cadence_ns=self.config.target_cadence_ns)
         self.metrics = SyncAdapterObservabilityMetrics()
         self.current_tick = SyncTick()
 
+    @finite_governance(mutating=True)
     def ingest_protocol_clock(
         self,
         tick_index: int,
@@ -89,6 +105,15 @@ class SyncAdapter:
         wave_phase: float,
         confidence: float = 1.0
     ) -> SyncTick:
+        self._validate_config()
+        for name, value in (("tick_index", tick_index), ("timestamp_ns", timestamp_ns)):
+            if type(value) is not int or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if self.metrics.total_ticks_processed and (tick_index <= self.state.current_tick_index or timestamp_ns <= self.state.last_timestamp_ns):
+            raise ValueError("replayed or out-of-order protocol clock")
+        for name, value, maximum in (("wave_phase", wave_phase, 2 * math.pi), ("confidence", confidence, 1.0)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= maximum:
+                raise ValueError(f"{name} outside its finite domain")
         tick = SyncTick()
         tick.tick_index = tick_index
         tick.timestamp_ns = timestamp_ns
@@ -150,7 +175,9 @@ class SyncAdapter:
         self.current_tick = tick
         return self.current_tick
 
+    @finite_governance(mutating=True)
     def advance_tick(self) -> SyncTick:
+        self._validate_config()
         tick = SyncTick()
         tick.tick_index = self.state.current_tick_index + 1
 

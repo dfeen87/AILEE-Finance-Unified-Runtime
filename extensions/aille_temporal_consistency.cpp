@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_temporal_consistency.hpp"
 #include <cmath>
 #include <cstring>
@@ -6,7 +7,7 @@
 
 namespace AILLE {
 
-void enforce_temporal_consistency(
+static void enforce_temporal_consistency_impl(
     const TemporalStates& prev_states,
     TemporalStates& curr_states,
     const TemporalPortfolioState& prev_portfolio,
@@ -126,6 +127,33 @@ void enforce_temporal_consistency(
     curr_portfolio.residual_sum = total_residual;
     curr_portfolio.portfolio_risk = current_portfolio_risk;
     std::memset(curr_portfolio.reserved, 0, sizeof(curr_portfolio.reserved));
+}
+
+void enforce_temporal_consistency(const TemporalStates& prev_states, TemporalStates& curr_states,
+    const TemporalPortfolioState& prev_portfolio, TemporalPortfolioState& curr_portfolio,
+    TemporalResiduals& residuals, TemporalTraceSteps& trace, double max_drift_threshold) {
+    validation::count(prev_states.count, prev_states.states);
+    validation::count(curr_states.count, curr_states.states);
+    validation::nonnegative(max_drift_threshold);
+    validation::finite({prev_portfolio.portfolio_risk, prev_portfolio.residual_sum});
+    for (std::size_t i=0; i<prev_states.count; ++i) {
+        const auto& a=prev_states.states[i];
+        validation::finite({a.prev_allocation, a.prev_prev_allocation, a.prev_risk_score});
+    }
+    for (std::size_t i=0; i<curr_states.count; ++i) {
+        const auto& a=curr_states.states[i];
+        validation::finite({a.prev_allocation, a.prev_prev_allocation}); validation::nonnegative(a.prev_risk_score);
+    }
+    auto staged_states=curr_states;
+    auto staged_portfolio=curr_portfolio;
+    TemporalResiduals staged_residuals{};
+    TemporalTraceSteps staged_trace{};
+    enforce_temporal_consistency_impl(prev_states, staged_states, prev_portfolio, staged_portfolio,
+                                     staged_residuals, staged_trace, max_drift_threshold);
+    validation::finite({staged_portfolio.portfolio_risk, staged_portfolio.residual_sum});
+    for (std::size_t i=0; i<staged_states.count; ++i) validation::finite({staged_states.states[i].prev_allocation});
+    for (std::size_t i=0; i<staged_residuals.count; ++i) validation::finite({staged_residuals.residuals[i].residual});
+    curr_states=staged_states; curr_portfolio=staged_portfolio; residuals=staged_residuals; trace=staged_trace;
 }
 
 } // namespace AILLE

@@ -5,6 +5,20 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [25.0.0] - Unreleased (PR #108)
+### Changed — breaking contracts
+- Hardened numerical evidence, bounded SELL ceilings and fallback behavior across Python and native governance.
+- Required durable, private intent journaling and bounded BUY LIMIT evidence for non-mock broker requests. Unknown outcomes stay reserved; broker acceptance does not imply a fill.
+- Added recoverable native audit chains, strict evidence validation, and replay-cursor preservation.
+- Introduced the versioned canonical `ailee-delta-v/v1` mathematical evidence contract in Python and C++; math evidence does not confer execution authority.
+- Strengthened dependency auditing, immutable third-party downloads, pinned CI actions, and loopback telemetry defaults.
+- Synchronized active Python, C++, CMake, container, gateway, dashboard, diagnostic, packaging, updater and validation metadata at 25.0.0.
+
+### Migration / release status
+- Breaking restrictions intentionally reject previously tolerated malformed or unsupported execution inputs and legacy lossy audit recovery; see `docs/releases/execution-integrity-hardening.md`.
+- The version bump stages source metadata only: **no v25 tag, updater artifact, public release, production approval or live-broker certification is created**.
+- Hosted CI and independent integration/deployment checks must complete before publication.
+
 ## [24.0.0] - 2026-10-03
 ### Changed
 - Established the BEDROCK engineering baseline while preserving the layered runtime architecture.

@@ -70,7 +70,8 @@ void LiveAdvisoryObserver::on_close(websocketpp::connection_hdl hdl) {
 void LiveAdvisoryObserver::startServer() {
     if (running_) return;
 
-    ws_server_.listen(port_);
+    ws_server_.listen(websocketpp::lib::asio::ip::tcp::endpoint(
+        websocketpp::lib::asio::ip::address_v4::loopback(), port_));
     ws_server_.start_accept();
 
     running_ = true;

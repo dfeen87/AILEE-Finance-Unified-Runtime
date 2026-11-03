@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(AILLE VERSION 24.0.0 LANGUAGES CXX)
+project(AILLE VERSION 25.0.0 LANGUAGES CXX)
 
 # The public engine calls out-of-line advisory methods even when no advisory is
 # bound. Export their implementations rather than an unusable header-only target.
@@ -47,6 +47,18 @@ target_include_directories(aille PUBLIC
 )
 find_package(Threads REQUIRED)
 target_link_libraries(aille PUBLIC Threads::Threads)
+
+option(AILLE_BUILD_TESTS "Build the native trust-boundary regression suite" OFF)
+if(AILLE_BUILD_TESTS)
+    enable_testing()
+    # No Python include path: exercise the actual standalone native SELL path.
+    add_executable(trust_boundary_hardening tests/trust_boundary_hardening.cpp src/ailee_finance_governor.cpp)
+    target_include_directories(trust_boundary_hardening PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(trust_boundary_hardening PRIVATE AILLE::aille)
+    foreach(case engine_config engine_fallback engine_reconfigure sell_governor unified_evidence bound_governance native_governance unified_replay durable_audit canonical_math)
+        add_test(NAME trust_${case} COMMAND trust_boundary_hardening ${case})
+    endforeach()
+endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstring>
 #include <iomanip>
+#include <limits>
 
 #include "../aille.hpp"
 #include "../extensions/aille_volume_advisory.hpp"
@@ -45,10 +46,27 @@ struct DaemonConfig {
     bool live_authorized{false};
 };
 
+static bool validDaemonConfig(const DaemonConfig& cfg) {
+    auto bias=cfg.hft_bias_cfg; bias.enabled=true;
+    const bool valid_bias=ailee::is_bullish_mode_allowed(1.0f,0.0f,false,bias) &&
+        (bias.bullishness_mode=="STANDARD" || bias.bullishness_mode=="CONSERVATIVE" || bias.bullishness_mode=="HYPER" || bias.bullishness_mode=="CONTRARIAN") &&
+        std::isfinite(bias.contrarian_oversold_weight_mult) && bias.contrarian_oversold_weight_mult>=0 &&
+        std::isfinite(bias.contrarian_oversold_threshold) && bias.contrarian_oversold_threshold>=0 && bias.contrarian_oversold_threshold<=1 &&
+        std::isfinite(bias.contrarian_hf_impulse_scale) && bias.contrarian_hf_impulse_scale>=0 &&
+        std::isfinite(bias.contrarian_sell_ceiling_factor) && bias.contrarian_sell_ceiling_factor>=0 && bias.contrarian_sell_ceiling_factor<=1;
+    return valid_bias && std::isfinite(cfg.max_position_usd) && cfg.max_position_usd>0 &&
+        std::isfinite(cfg.max_daily_drawdown_pct) && cfg.max_daily_drawdown_pct>0 && cfg.max_daily_drawdown_pct<=1 &&
+        std::isfinite(cfg.risk_reduce_factor) && cfg.risk_reduce_factor>=0 && cfg.risk_reduce_factor<=1 &&
+        cfg.hysteresis_bars>0 && cfg.hft_frequency_hz>=1 && cfg.hft_frequency_hz<=1000 &&
+        !cfg.symbol.empty() && cfg.symbol.size()<=32 && std::all_of(cfg.symbol.begin(),cfg.symbol.end(),[](unsigned char c){ return (c>='A'&&c<='Z') || (c>='0'&&c<='9') || c=='.' || c=='-' || c=='_'; }) &&
+        cfg.symbol.find("..") == std::string::npos;
+}
+
 class VolumeTraderDaemon {
 public:
     explicit VolumeTraderDaemon(const DaemonConfig& cfg)
         : config_(cfg) {
+        if(!validDaemonConfig(config_)) throw std::invalid_argument("Invalid daemon safety configuration");
         AlpacaConfig alpaca_cfg = AlpacaExecution::loadConfigFromEnv(/*fail_closed=*/false);
         alpaca_cfg.mock_mode = config_.mock_mode;
         alpaca_cfg.is_live = config_.is_live;
@@ -58,7 +76,7 @@ public:
         executor_ = std::make_unique<AlpacaExecution>(alpaca_cfg);
 
         peak_equity_ = executor_->getAccountEquity();
-        if (peak_equity_ <= 0.0f) peak_equity_ = 100000.0f; // Default baseline
+        if (!std::isfinite(peak_equity_) || peak_equity_ <= 0.0f) { peak_equity_=0; executor_->triggerLockout("Initial account equity unavailable; reconciliation required"); }
         current_equity_ = peak_equity_;
     }
 
@@ -69,7 +87,7 @@ public:
         auto in_time_t = system_clock::to_time_t(now);
 
         std::ostringstream ss;
-        ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%dT%H:%M:%SZ");
+        ss << std::put_time(std::gmtime(&in_time_t), "%Y-%m-%dT%H:%M:%SZ");
         std::string ts = ss.str();
 
         std::ostringstream json;
@@ -110,12 +128,28 @@ public:
     }
 
     void processTick(const VolumeState& state, float current_price, const SafetyState* safety = nullptr) {
+        const float evidence[] = {state.current_volume,state.avg_volume,state.volume_anomaly_ratio,state.price_change,
+            state.vwap_deviation,state.prev_volume_anomaly_ratio,state.prev_recommended_weight,state.hft_p_input,state.hft_mass,state.hft_v0,current_price};
+        if(!std::all_of(std::begin(evidence),std::end(evidence),[](float value){ return std::isfinite(value); }) ||
+           current_price<=0 || state.current_volume<0 || state.avg_volume<0 || state.volume_anomaly_ratio<0 ||
+           state.hft_mass<=0 || state.contrarian_override < -1 || state.contrarian_override > 1) {
+            executor_->triggerLockout("Invalid market evidence; execution suspended"); return;
+        }
+        if(broker_pending_) {
+            if(safety && (safety->kill_switch || safety->hardware_fault)) {
+                executor_->triggerLockout("Safety fault with pending broker outcome");
+                if(!pending_order_id_.empty()) (void)executor_->cancelOrder(pending_order_id_);
+            }
+            std::cerr << "[VolumeTrader] Pending broker outcome requires reconciliation; no new execution.\n";
+            return;
+        }
         // 1. Safety & Drawdown Check
         if (safety && (safety->kill_switch || safety->hardware_fault)) {
             executor_->triggerLockout("Hardware fault or kill switch triggered in SafetyState");
         }
 
         float equity = executor_->getAccountEquity();
+        if(!std::isfinite(equity) || equity<=0) { executor_->triggerLockout("Account equity unavailable; execution suspended"); return; }
         if (equity > 0.0f) {
             current_equity_ = equity;
             if (current_equity_ > peak_equity_) peak_equity_ = current_equity_;
@@ -143,6 +177,10 @@ public:
             &config_.hft_bias_cfg, trust_score, manipulation_score, drawdown_near_breach
         );
 
+        if(!std::isfinite(adv.recommended_weight) || adv.recommended_weight<0 ||
+           !std::isfinite(adv.risk_score) || !std::isfinite(adv.hft_delta_v) || !std::isfinite(adv.oversold_score)) {
+            executor_->triggerLockout("Invalid advisory evidence; execution suspended"); return;
+        }
         // 3. Translate signal to order intent
         OrderSide desired_side = OrderSide::FLAT;
         std::string signal_type = "NEUTRAL";
@@ -163,7 +201,7 @@ public:
 
         // 4. Hysteresis / Debounce filter
         if (desired_side == pending_side_) {
-            consecutive_bars_++;
+            if(consecutive_bars_<config_.hysteresis_bars) ++consecutive_bars_;
         } else {
             pending_side_ = desired_side;
             consecutive_bars_ = 1;
@@ -189,29 +227,36 @@ public:
         if (desired_side == OrderSide::FLAT) {
             if (current_position_side_ != OrderSide::FLAT) {
                 bool ok = executor_->flattenPosition(config_.symbol);
-                current_position_side_ = OrderSide::FLAT;
-                logAudit("FLAT_POSITION", ok ? "Position flattened successfully" : "Flatten failed", adv, current_price, trust_score, manipulation_score, bullish_active);
+                if(ok && config_.mock_mode) current_position_side_=OrderSide::FLAT;
+                if(!config_.mock_mode) broker_pending_=true;
+                logAudit(ok ? (config_.mock_mode ? "FLAT_POSITION" : "FLATTEN_ACCEPTED_PENDING") : "FLATTEN_FAILED",
+                    ok ? (config_.mock_mode ? "Mock position flattened" : "Close request accepted; filled position remains unconfirmed") : "Flatten failed; previous position retained",
+                    adv,current_price,trust_score,manipulation_score,bullish_active);
             }
         } else if (desired_side == OrderSide::BUY) {
-            float alloc_usd = config_.max_position_usd * adv.recommended_weight;
+            double alloc_usd = static_cast<double>(config_.max_position_usd) * std::min(1.0f,adv.recommended_weight);
             if (adv.risk_elevated) {
                 alloc_usd *= config_.risk_reduce_factor;
             }
 
-            float qty = (current_price > 0.0f) ? std::floor(alloc_usd / current_price) : 0.0f;
+            float qty = static_cast<float>(std::floor(alloc_usd / current_price));
             if (qty > 0.0f) {
                 OrderRequest req;
                 req.symbol = config_.symbol;
                 req.side = OrderSide::BUY;
                 req.quantity = qty;
-                req.limit_price = 0.0f;
+                req.limit_price = current_price; // Explicit bounded BUY limit, never an inferred market quote.
+                req.timestamp_ns=static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+                req.client_ref="ailee-"+std::to_string(req.timestamp_ns);
 
                 std::string order_id = executor_->submitOrder(req);
                 if (!order_id.empty()) {
-                    current_position_side_ = OrderSide::BUY;
+                    if(config_.mock_mode) current_position_side_=OrderSide::BUY;
+                    else { broker_pending_=true; pending_order_id_=order_id; } // An accepted ID is not evidence of a fill.
                     logAudit("ORDER_SUBMITTED", "Order ID: " + order_id + " Qty: " + std::to_string(qty), adv, current_price, trust_score, manipulation_score, bullish_active);
                 } else {
-                    logAudit("ORDER_FAILED", "Broker rejected order submission", adv, current_price, trust_score, manipulation_score, bullish_active);
+                    if(!config_.mock_mode && executor_->isLockedOut()) broker_pending_=true;
+                    logAudit("ORDER_FAILED", "Order unconfirmed or locally rejected; no filled position assumed", adv, current_price, trust_score, manipulation_score, bullish_active);
                 }
             } else {
                 logAudit("SKIPPED_QTY_ZERO", "Calculated order quantity is 0", adv, current_price, trust_score, manipulation_score, bullish_active);
@@ -220,10 +265,14 @@ public:
     }
 
     const AlpacaExecution* executor() const { return executor_.get(); }
+    bool brokerPending() const { return broker_pending_; }
+    OrderSide confirmedPositionSide() const { return current_position_side_; }
 
 private:
     DaemonConfig config_;
     std::unique_ptr<AlpacaExecution> executor_;
+    bool broker_pending_{false};
+    std::string pending_order_id_;
     OrderSide current_position_side_{OrderSide::FLAT};
     OrderSide pending_side_{OrderSide::FLAT};
     int consecutive_bars_{0};
@@ -254,6 +303,15 @@ void printUsage(const char* prog) {
               << "  --help                     Show this help message\n";
 }
 
+static bool parseFloatOption(const std::string& text,float& output) {
+    char* end=nullptr; output=std::strtof(text.c_str(),&end);
+    return !text.empty() && end==text.c_str()+text.size() && std::isfinite(output);
+}
+static bool parseIntOption(const std::string& text,int& output) {
+    char* end=nullptr; const long value=std::strtol(text.c_str(),&end,10);
+    if(text.empty() || end!=text.c_str()+text.size() || value<std::numeric_limits<int>::min() || value>std::numeric_limits<int>::max()) return false;
+    output=static_cast<int>(value); return true;
+}
 int main(int argc, char* argv[]) {
     DaemonConfig cfg;
     bool confirm_live = false;
@@ -265,7 +323,7 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--enable-hft") {
             cfg.enable_hft = true;
         } else if (arg.rfind("--hft-frequency-hz=", 0) == 0) {
-            int freq = std::atoi(arg.substr(19).c_str());
+            int freq=0; if(!parseIntOption(arg.substr(19),freq)) { std::cerr<<"Invalid HFT frequency\n"; return 1; }
             cfg.hft_frequency_hz = (freq > 1000) ? 1000 : ((freq < 1) ? 1 : freq);
         } else if (arg == "--disable-bullish" || arg == "--disable-bullish-bias") {
             cfg.hft_bias_cfg.enabled = false;
@@ -284,15 +342,15 @@ int main(int argc, char* argv[]) {
         } else if (arg.rfind("--symbol=", 0) == 0) {
             cfg.symbol = arg.substr(9);
         } else if (arg.rfind("--max-position-usd=", 0) == 0) {
-            cfg.max_position_usd = std::strtof(arg.substr(19).c_str(), nullptr);
+            if(!parseFloatOption(arg.substr(19),cfg.max_position_usd)) { std::cerr<<"Invalid position limit\n"; return 1; }
         } else if (arg.rfind("--max-drawdown-pct=", 0) == 0) {
-            cfg.max_daily_drawdown_pct = std::strtof(arg.substr(19).c_str(), nullptr);
+            if(!parseFloatOption(arg.substr(19),cfg.max_daily_drawdown_pct)) { std::cerr<<"Invalid drawdown limit\n"; return 1; }
         } else if (arg.rfind("--hysteresis=", 0) == 0) {
-            cfg.hysteresis_bars = std::atoi(arg.substr(13).c_str());
+            if(!parseIntOption(arg.substr(13),cfg.hysteresis_bars)) { std::cerr<<"Invalid hysteresis\n"; return 1; }
         } else if (arg == "--help") {
             printUsage(argv[0]);
             return 0;
-        }
+        } else { std::cerr<<"Unknown option: "<<arg<<'\n'; return 1; }
     }
 
     if (cfg.is_live && !confirm_live) {
@@ -314,9 +372,10 @@ int main(int argc, char* argv[]) {
               << " Hysteresis Bars:     " << cfg.hysteresis_bars << "\n"
               << "========================================================\n";
 
+    if(!validDaemonConfig(cfg)) { std::cerr<<"ERROR: Invalid daemon risk configuration.\n"; return 1; }
     VolumeTraderDaemon daemon(cfg);
-    if (!daemon.executor()->isEnabled()) {
-        std::cerr << "ERROR: Broker configuration disabled; check credentials, destination, and mode authorization.\n";
+    if (!daemon.executor()->isEnabled() || (cfg.enable_auto_execute && !daemon.executor()->canSubmit())) {
+        std::cerr << "ERROR: Broker execution unavailable; check credentials, destination, mode authorization, and durable journal.\n";
         return 1;
     }
 

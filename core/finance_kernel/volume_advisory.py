@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig, validate_hft_bias_config
 from core.finance_kernel.kernel_registry import BaseOperator
+from core.finance_kernel.advisory_validation import finite, integer, boolean, mapping, finite_output
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 
 
@@ -24,15 +25,35 @@ def calculate_hft_delta_v(
     min_mass_floor: float = 1e-6
 ) -> float:
     """
-    Calculates high-frequency impulse velocity Δv across micro-tick price action & volume stream.
+    Legacy rectangle-rule HFT heuristic; canonical sampled evidence lives in
+    ailee_finance.math_engine. This value is not an authorization result.
     Δv = Isp * η * e^(-α * v0^2) * ∫0^tf [P_input(t) * e^(-α * w(t)^2) * e^(2 * α * v0) * v(t)] / M(t) dt
     """
+    isp = finite(isp, "isp", 0.0)
+    efficiency = finite(efficiency, "efficiency", 0.0, 1.0)
+    alpha = finite(alpha, "alpha", 0.0)
+    v0 = finite(v0, "v0")
+    min_mass_floor = finite(min_mass_floor, "min_mass_floor", 0.0)
+    if isp <= 0 or min_mass_floor <= 0:
+        raise ValueError("isp and min_mass_floor must be positive")
+    if not isinstance(ticks, (list, tuple)) or len(ticks) > 100_000:
+        raise ValueError("ticks must be a sequence of numeric mappings")
+    ticks = [dict(mapping(tick)) for tick in ticks]
+    for tick in ticks:
+        for field, default in (("p_input", 0.0), ("w", 0.0), ("v", 0.0), ("M", 1.0), ("dt", 0.001)):
+            tick[field] = finite(tick.get(field, default), field, 0.0 if field in ("M", "dt") else None)
+        if tick["M"] <= 0 or tick["dt"] <= 0:
+            raise ValueError("tick mass and duration must be positive")
     if not ticks or efficiency <= 0.0:
         return 0.0
 
     integral_sum = 0.0
-    exp_2_alpha_v0 = math.exp(2.0 * alpha * v0)
-    mass_floor = max(min_mass_floor, 1e-6)
+    try:
+        exp_2_alpha_v0 = math.exp(2.0 * alpha * v0)
+    except OverflowError as error:
+        raise ValueError("HFT exponential overflow") from error
+    finite(exp_2_alpha_v0, "HFT initial-velocity factor")
+    mass_floor = min_mass_floor
 
     for tick in ticks:
         p_input = tick.get("p_input", 0.0)
@@ -42,14 +63,14 @@ def calculate_hft_delta_v(
         dt = tick.get("dt", 0.001)
 
         m_safe = max(M, mass_floor)
-        exp_neg_alpha_w2 = math.exp(-alpha * w * w)
-        dt_val = max(dt, 0.001)
+        exp_neg_alpha_w2 = math.exp(finite(-alpha * w * w, "HFT workload exponent"))
+        dt_val = dt
 
         integrand = (p_input * exp_neg_alpha_w2 * exp_2_alpha_v0 * v) / m_safe
         integral_sum += integrand * dt_val
 
-    exp_neg_alpha_v02 = math.exp(-alpha * v0 * v0)
-    return isp * efficiency * exp_neg_alpha_v02 * integral_sum
+    exp_neg_alpha_v02 = math.exp(finite(-alpha * v0 * v0, "HFT initial-velocity damping exponent"))
+    return finite(isp * efficiency * exp_neg_alpha_v02 * integral_sum, "hft_delta_v")
 
 
 class VolumeState:
@@ -123,18 +144,32 @@ class IntradayVolumeAdvisory(BaseOperator):
 
     def validate(self, input_data: dict) -> dict:
         """Validates input parameters for stock index volume assessment."""
+        mapping(input_data)
         required_fields = ["current_volume", "avg_volume", "price_change", "vwap_deviation"]
         for field in required_fields:
             if field not in input_data:
                 raise ValueError(f"Missing required volume metric field: {field}")
-            try:
-                float(input_data[field])
-            except (TypeError, ValueError) as e:
-                raise TypeError(f"Field '{field}' must be a float-compatible numeric value: {e}")
+        self.preprocess(input_data)
         return input_data
 
     def preprocess(self, input_data: dict) -> dict:
         """Preprocesses input volume data and sets bounds."""
+        mapping(input_data)
+        for field in ("current_volume", "avg_volume", "prev_volume_anomaly_ratio", "hft_mass", "stabilizer_risk_score", "contrarian_oversold_aggressiveness"):
+            if field in input_data:
+                finite(input_data[field], field, 0.0)
+        for field in ("price_change", "vwap_deviation", "hft_p_input", "hft_v0", "trust_score", "manipulation_score"):
+            if field in input_data:
+                finite(input_data[field], field)
+        if "prev_recommended_weight" in input_data:
+            finite(input_data["prev_recommended_weight"], "prev_recommended_weight", -1.0, 1.0)
+        if "stabilizer_factor" in input_data:
+            finite(input_data["stabilizer_factor"], "stabilizer_factor", 0.0, 1.0)
+        for field in ("is_index_etf", "enable_hft", "enable_hft_calc", "stabilizer_risk_elevated", "enable_contrarian_oversold"):
+            if field in input_data:
+                boolean(input_data[field], field)
+        if "contrarian_override" in input_data:
+            integer(input_data["contrarian_override"], "contrarian_override", -1, 1)
         current_vol = max(0.0, float(input_data["current_volume"]))
         avg_vol = max(1.0, float(input_data["avg_volume"])) # Prevent division by zero
         price_change = float(input_data["price_change"])
@@ -184,6 +219,7 @@ class IntradayVolumeAdvisory(BaseOperator):
 
     def execute(self, input_data: dict) -> dict:
         """Evaluates volume anomalies, VWAP deviations, and trends to output deterministic advice."""
+        input_data = self.preprocess(input_data)
         kill_switch = False
         hardware_fault = False
         if self.context:
@@ -236,8 +272,8 @@ class IntradayVolumeAdvisory(BaseOperator):
             enable_contrarian = getattr(cfg, "enable_contrarian_oversold", False)
             aggressiveness = getattr(cfg, "contrarian_oversold_aggressiveness", 1.0)
 
-        enable_contrarian = bool(input_data.get("enable_contrarian_oversold", enable_contrarian))
-        aggressiveness = float(input_data.get("contrarian_oversold_aggressiveness", aggressiveness))
+        enable_contrarian = boolean(input_data.get("enable_contrarian_oversold", enable_contrarian), "enable_contrarian_oversold")
+        aggressiveness = finite(input_data.get("contrarian_oversold_aggressiveness", aggressiveness), "contrarian_oversold_aggressiveness", 0.0)
 
         # Exponential smoothing on anomaly ratio
         smoothed_ratio = state.volume_anomaly_ratio
@@ -286,7 +322,13 @@ class IntradayVolumeAdvisory(BaseOperator):
             }
         bias_dict = {**bias_dict, **validate_hft_bias_config(bias_dict)}
 
+        for field in ("contrarian_oversold_weight_mult", "contrarian_oversold_threshold", "contrarian_hf_impulse_scale"):
+            if field in bias_dict:
+                finite(bias_dict[field], field, 0.0)
+
         mode = str(bias_dict.get("bullishness_mode", "STANDARD")).upper()
+        if mode not in ("STANDARD", "CONSERVATIVE", "CONTRARIAN", "HYPER"):
+            raise ValueError("bullishness_mode is unsupported")
         if mode in ("CONTRARIAN", "HYPER"):
             enable_contrarian = True
 
@@ -408,7 +450,7 @@ class IntradayVolumeAdvisory(BaseOperator):
 
         advisory.recommended_weight = max(0.0, min(1.0, advisory.recommended_weight))
 
-        return {
+        return finite_output({
             "recommended_weight": advisory.recommended_weight,
             "risk_score": advisory.risk_score,
             "oversold_score": advisory.oversold_score,
@@ -418,7 +460,7 @@ class IntradayVolumeAdvisory(BaseOperator):
             "oversold_state": advisory.oversold_state,
             "contrarian_buy_signal": advisory.contrarian_buy_signal,
             "hft_active": advisory.hft_active
-        }
+        })
 
     def postprocess(self, result_data: dict) -> dict:
         """Postprocesses the execution result for output formats."""

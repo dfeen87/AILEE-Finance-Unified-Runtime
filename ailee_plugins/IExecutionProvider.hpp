@@ -11,7 +11,7 @@
  *
  * Decision Routing pattern (implementors must follow):
  *   DECISION_VALID          → submitOrder() at full confidence
- *   FALLBACK_ACTIVATED      → submitOrder() at reduced confidence (× 0.5)
+ *   FALLBACK_ACTIVATED      → do not trade; fallback is not authorization
  *   REJECTED_LOW_CONFIDENCE → cancelOrder() / do not trade
  *   REJECTED_NO_CONSENSUS   → cancelOrder() / do not trade
  *
@@ -46,11 +46,11 @@ enum class OrderSide {
 /// A fully-specified order ready for submission.
 struct OrderRequest {
     std::string  symbol;        ///< Ticker to trade
-    OrderSide    side;          ///< BUY, SELL, or FLAT
-    float        quantity;      ///< Quantity in base units (shares, contracts, …)
-    float        limit_price;   ///< 0.0 = market order; > 0 = limit order
+    OrderSide    side{OrderSide::FLAT};          ///< BUY, SELL, or FLAT
+    float        quantity{0.0f};      ///< Quantity in base units (shares, contracts, …)
+    float        limit_price{0.0f};   ///< 0.0 = market order; > 0 = limit order
     std::string  client_ref;    ///< Caller-assigned idempotency key
-    uint64_t     timestamp_ns;  ///< Time of order construction
+    uint64_t     timestamp_ns{0};  ///< Time of order construction
 };
 
 // ============================================================================
@@ -78,7 +78,7 @@ public:
     ///
     /// Implementors should apply the Decision Routing pattern:
     ///   - DECISION_VALID:        submit at full size
-    ///   - FALLBACK_ACTIVATED:    submit at reduced size (confidence × 0.5)
+    ///   - FALLBACK_ACTIVATED:    do not trade; require a new valid decision
     ///   - REJECTED_*:            do not call submitOrder; call cancelOrder
     ///
     /// @param request  Fully-specified order (see OrderRequest).
@@ -104,23 +104,15 @@ public:
     virtual std::string routeDecision(const Decision& decision,
                                       const std::string& symbol,
                                       float base_qty) {
-        switch (decision.status) {
-            case DECISION_VALID: {
-                OrderRequest req = buildRequest(decision, symbol,
-                                                base_qty, /*scale=*/1.0f);
-                return submitOrder(req);
-            }
-            case FALLBACK_ACTIVATED: {
-                OrderRequest req = buildRequest(decision, symbol,
-                                                base_qty, /*scale=*/0.5f);
-                return submitOrder(req);
-            }
-            case REJECTED_LOW_CONFIDENCE:
-            case REJECTED_NO_CONSENSUS:
-            case ERROR_NO_MODELS:
-            default:
-                return {};   // do not trade
-        }
+        // A fallback/unknown result is not execution authorization. Zero
+        // direction is a no-op, never an implicit instruction to liquidate.
+        if (decision.status != DECISION_VALID || !std::isfinite(decision.final_value) ||
+            decision.final_value == 0.0f || std::abs(decision.final_value) > 1.0f ||
+            !std::isfinite(decision.confidence) || decision.confidence <= 0.0f || decision.confidence > 1.0f ||
+            !std::isfinite(base_qty) || base_qty <= 0.0f) return {};
+        auto request = buildRequest(decision, symbol, base_qty, 1.0f);
+        if (!std::isfinite(request.quantity) || request.quantity <= 0.0f) return {};
+        return submitOrder(request);
     }
 
 protected:

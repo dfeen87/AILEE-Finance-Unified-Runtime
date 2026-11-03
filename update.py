@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
 # Copyright (c) Don Michael Feeney Jr.
 # Licensed under the MIT License.
-"""AILLE framework update coordinator.
+"""AILLE framework update metadata preview.
 
-Fetches configuration payload and executes local updates to version 24.0.0.
+Version 25.0.0 is staged on a pull request and has no published update artifact.
+This utility reports status; it does not download or install updates.
 """
 
-import sys
-import json
-import urllib.request
+VERSION = "25.0.0"
+FALLBACK_URL = None
 
-VERSION = "24.0.0"
-FALLBACK_URL = "https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/download/v24.0.0/aille_runtime_v24.0.0.tar.gz"
 
 def main():
     print(f"--- AILLE Framework Update Service v{VERSION} ---")
-    print(f"Fallback Payload URL: {FALLBACK_URL}")
-    print("Checking update registry... Registry matches target version 24.0.0.")
-    print("No further updates required.")
+    print("Release status: unreleased candidate; no fallback payload is published.")
+    print("No updates downloaded or applied.")
+
 
 if __name__ == "__main__":
     main()

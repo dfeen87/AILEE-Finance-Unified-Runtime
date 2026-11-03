@@ -1,5 +1,5 @@
 """
-AILEE Finance Domain Module - Version 24.0.0
+AILEE Finance Domain Module - Version 25.0.0
 Implements SELL Governance evaluation pipeline, decision structure, governance level thresholds,
 and audit logging.
 """
@@ -8,12 +8,15 @@ import os
 import json
 import datetime
 import math
+from copy import deepcopy
+from ailee_finance.math_engine.evidence import validate_delta_v_evidence
 from ailee_finance.domains.finance.sell_governance import (
     validate_sell_intent,
     compute_sell_ceiling,
     _validated_sell_manipulation,
     grace_layer_sell_adjustment,
     consensus_validation,
+    _finite_nonnegative,
 )
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 from core.finance_kernel.kernel_config import validate_hft_bias_config
@@ -27,7 +30,7 @@ class SellGovernanceDecision:
                  manipulation_score, consensus_score, reason,
                  bullish_mode_active=False, bullish_multiplier_price=1.05,
                  bullish_multiplier_volume=1.05, bullish_execution_scale=1.10,
-                 bullish_sell_ceiling_factor=0.80):
+                 bullish_sell_ceiling_factor=0.80, mathematical_evidence=None):
         self.level = int(level)
         self.allowed_sell_amount = float(allowed_sell_amount)
         self.trust_score = float(trust_score)
@@ -39,9 +42,25 @@ class SellGovernanceDecision:
         self.bullish_multiplier_volume = float(bullish_multiplier_volume)
         self.bullish_execution_scale = float(bullish_execution_scale)
         self.bullish_sell_ceiling_factor = float(bullish_sell_ceiling_factor)
+        self.mathematical_evidence = (None if mathematical_evidence is None else
+                                      deepcopy(validate_delta_v_evidence(mathematical_evidence)))
+        self.validate()
+
+    def validate(self):
+        """Recheck mutable decisions at the final pipeline boundary."""
+        numeric_evidence = (self.allowed_sell_amount, self.trust_score, self.manipulation_score,
+                            self.consensus_score, self.bullish_multiplier_price,
+                            self.bullish_multiplier_volume, self.bullish_execution_scale,
+                            self.bullish_sell_ceiling_factor)
+        if not all(math.isfinite(value) for value in numeric_evidence) or self.allowed_sell_amount < 0.0:
+            raise ValueError("SELL decision must contain finite evidence and a non-negative quantity")
+        if type(self.level) is not int or self.level not in (0, 1, 2, 3):
+            raise ValueError("SELL governance level must be in [0, 3]")
+        if self.mathematical_evidence is not None:
+            validate_delta_v_evidence(self.mathematical_evidence)
 
     def to_dict(self):
-        return {
+        result = {
             "level": self.level,
             "allowed_sell_amount": self.allowed_sell_amount,
             "trust_score": self.trust_score,
@@ -54,6 +73,9 @@ class SellGovernanceDecision:
             "bullish_execution_scale": self.bullish_execution_scale,
             "bullish_sell_ceiling_factor": self.bullish_sell_ceiling_factor
         }
+        if self.mathematical_evidence is not None:
+            result["mathematical_evidence"] = deepcopy(self.mathematical_evidence)
+        return result
 
     def __repr__(self):
         return (f"<SellGovernanceDecision level={self.level} "
@@ -68,7 +90,7 @@ class AileeFinanceDomain:
     """
     AILEE Finance Domain logic evaluator
     """
-    VERSION = "24.0.0"
+    VERSION = "25.0.0"
 
     def __init__(self, log_path="logs/ailee_finance_sell_audit.log", hft_bias_config=None):
         self.log_path = log_path
@@ -146,13 +168,15 @@ class AileeFinanceDomain:
                 "bullish_sell_ceiling_factor": decision.bullish_sell_ceiling_factor,
                 "reason": decision.reason
             }
+            if decision.mathematical_evidence is not None:
+                log_entry["mathematical_evidence"] = deepcopy(decision.mathematical_evidence)
 
             with open(self.log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_entry) + "\n")
+                f.write(json.dumps(log_entry, allow_nan=False) + "\n")
         except Exception:
             pass  # Ensure audit logging never crashes evaluation pipeline
 
-    def evaluate_sell(self, signals):
+    def evaluate_sell(self, signals, *, mathematical_evidence=None):
         """
         Main SELL evaluation pipeline:
         1. Validate SELL intent
@@ -167,10 +191,17 @@ class AileeFinanceDomain:
         if not isinstance(signals, dict):
             signals = {}
 
+        # Malformed market context cannot be normalized into a healthy market.
+        # The outer pipeline supplies the bounded protective fallback on error.
+        position_size = _finite_nonnegative(signals.get("position_size", 0.0), "position_size")
+        volatility = _finite_nonnegative(signals.get("volatility", 0.0), "volatility")
+        market = signals.get("market", {})
+        if not isinstance(market, dict):
+            raise ValueError("market must be a dictionary")
+        _finite_nonnegative(market.get("liquidity", signals.get("liquidity", 1.0)), "liquidity")
         intent = validate_sell_intent(signals)
         trust_evidence = self._validated_trust_score(signals)
         trust_score = 0.0 if trust_evidence is None else trust_evidence
-        market = signals.get("market", {})
         feeds = signals.get("feeds", []) if isinstance(signals.get("feeds"), (list, tuple)) else []
 
         manipulation_evidence = _validated_sell_manipulation(market)
@@ -190,7 +221,7 @@ class AileeFinanceDomain:
         hft_cfg = signals.get("hft_bias_config", self.hft_bias_config)
         hft_cfg = validate_hft_bias_config({} if hft_cfg is None else hft_cfg)
 
-        bullish_active = is_bullish_mode_allowed(
+        bullish_active = intent["intent_valid"] and is_bullish_mode_allowed(
             trust_score=trust_evidence,
             manipulation_score=manipulation_evidence,
             drawdown_state=drawdown_state,
@@ -199,12 +230,10 @@ class AileeFinanceDomain:
 
         sell_ceiling_factor = float(hft_cfg.get("bullish_sell_ceiling_factor", 0.80)) if hft_cfg else 0.80
 
-        position_size = float(signals.get("position_size", 0.0))
         allowed_sell_amount = compute_sell_ceiling(
             level, position_size, bullish_active=bullish_active, bullish_sell_ceiling_factor=sell_ceiling_factor
         )
 
-        volatility = float(signals.get("volatility", 0.0))
         allowed_sell_amount = grace_layer_sell_adjustment(
             volatility, allowed_sell_amount
         )
@@ -215,7 +244,7 @@ class AileeFinanceDomain:
             if allowed_sell_amount > (position_size * 0.3) and consensus_score < 0.70:
                 allowed_sell_amount *= max(0.1, consensus_score)
 
-        allowed_sell_amount = max(0.0, allowed_sell_amount)
+        allowed_sell_amount = max(0.0, min(position_size, allowed_sell_amount))
 
         p_mult = float(hft_cfg.get("bullish_multiplier_price", 1.05)) if hft_cfg else 1.05
         v_mult = float(hft_cfg.get("bullish_multiplier_volume", 1.05)) if hft_cfg else 1.05
@@ -232,7 +261,8 @@ class AileeFinanceDomain:
             bullish_multiplier_price=p_mult,
             bullish_multiplier_volume=v_mult,
             bullish_execution_scale=e_scale,
-            bullish_sell_ceiling_factor=sell_ceiling_factor
+            bullish_sell_ceiling_factor=sell_ceiling_factor,
+            mathematical_evidence=mathematical_evidence
         )
 
         self.log_sell_audit(decision)

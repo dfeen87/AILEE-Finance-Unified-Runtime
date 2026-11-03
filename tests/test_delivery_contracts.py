@@ -49,7 +49,7 @@ import ailee_finance
 from ailee_finance.core_min import AileeFinanceTrustPipeline
 from core.finance_kernel import FinanceKernelConfig
 from core.finance_kernel.kernel_errors import KernelConfigurationError
-if ailee_finance.__version__ != '24.0.0':
+if ailee_finance.__version__ != '25.0.0':
     raise RuntimeError('incorrect wheel version')
 FinanceKernelConfig()
 pipeline = AileeFinanceTrustPipeline()
@@ -61,11 +61,26 @@ signals = {
 decision = pipeline.process_sell(signals)
 if decision.level != 0 or not decision.bullish_mode_active or decision.allowed_sell_amount != 800.0:
     raise RuntimeError('installed wheel cannot execute a valid SELL advisory')
+from ailee_finance.math_engine import DeltaVParameters, DeltaVSample
+enriched = pipeline.process_sell(signals, math_parameters=DeltaVParameters(1, 1, 0, 0),
+    math_samples=[DeltaVSample(0, 10, 0, 2, 1), DeltaVSample(1, 10, 0, 2, 1)])
+if enriched.allowed_sell_amount != decision.allowed_sell_amount or enriched.mathematical_evidence['delta_v'] != 20.0:
+    raise RuntimeError('installed mathematical evidence changed governance or equation')
 signals['trust_score'] = float('nan')
 protected = pipeline.process_sell(signals)
 if protected.level != 3 or protected.bullish_mode_active:
     raise RuntimeError('installed wheel promotes invalid trust evidence')
 json.dumps(protected.to_dict(), allow_nan=False)
+for field, value in [('position_size', float('inf')), ('position_size', 10**400),
+                     ('volatility', float('nan'))]:
+    malformed = dict(signals, trust_score=0.9)
+    malformed[field] = value
+    protected = pipeline.process_sell(malformed)
+    if protected.level != 3 or protected.bullish_mode_active:
+        raise RuntimeError('installed wheel promotes malformed quantity/context')
+    if field == 'position_size' and protected.allowed_sell_amount != 0.0:
+        raise RuntimeError('installed wheel returns unbounded protective quantity')
+    json.dumps(protected.to_dict(), allow_nan=False)
 try:
     FinanceKernelConfig(operator_timeout=float('nan'))
 except KernelConfigurationError:
@@ -95,6 +110,13 @@ def test_docker_context_excludes_nested_secrets_and_keeps_build_inputs(tmp_path)
         path.write_text("synthetic build-context probe\n")
     output = tmp_path / "export"
     env = dict(os.environ, DOCKER_CONFIG=str(tmp_path / "docker-config"))
+    # Isolate credentials without hiding a PATH-installed Docker Desktop
+    # Buildx plugin. System-wide CLI plugins remain discoverable on Linux.
+    buildx = shutil.which("docker-buildx")
+    if buildx is not None:
+        plugins = Path(env["DOCKER_CONFIG"]) / "cli-plugins"
+        plugins.mkdir(parents=True)
+        (plugins / "docker-buildx").symlink_to(buildx)
     subprocess.run(
         [docker, "buildx", "build", "--output", f"type=local,dest={output}", "-f", "-", str(source)],
         input="FROM scratch\nCOPY . /\n", env=env, check=True, capture_output=True, text=True,

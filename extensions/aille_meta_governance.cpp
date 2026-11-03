@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_meta_governance.hpp"
 #include <cstring>
 #include <algorithm>
@@ -12,6 +13,13 @@ MetaGovernanceState apply_meta_governance_lock(
     const TemporalPortfolioState& temporal_state,
     MetaGovernanceTraceSteps& trace
 ) {
+    validation::nonnegative(decision.summary.total_residual);
+    validation::nonnegative(constraints.summary.final_portfolio_risk);
+    validation::nonnegative(constraints.summary.max_risk_budget);
+    validation::nonnegative(temporal_state.residual_sum);
+    validation::count(stress_trace.count, stress_trace.steps);
+    if (stress_state.stress_level > 2) throw std::invalid_argument("unknown stress level");
+    validation::finite({decision.summary.total_residual + temporal_state.residual_sum});
     trace.count = 0;
 
     auto add_step = [&](uint32_t reason, const char* msg) {

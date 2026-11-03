@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 9 — Deterministic Liquidity Routing (Finance Runtime Kernel)."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 import math
 from core.finance_kernel.arbitration_layer import AssetId
 
@@ -98,6 +100,7 @@ class DetailedRoutingResult:
 # CORE ROUTING FUNCTION
 # ============================================================================
 
+@finite_governance(mutating=False)
 def route_liquidity(
     decisions: list,
     stress: StressProfile,
@@ -107,6 +110,13 @@ def route_liquidity(
     bounds: ShockBounds
 ) -> DetailedRoutingResult:
     """Pure functional deterministic liquidity routing matching the C++ equivalent."""
+    bounded(bounds.max_portfolio_liquidity_shift_per_step, "portfolio_shift", maximum=1.0)
+    bounded(bounds.max_asset_liquidity_shift_per_step, "asset_shift", maximum=1.0)
+    for cap in caps:
+        bounded(cap.max_outflow_ratio, "max_outflow_ratio", maximum=1.0)
+        bounded(cap.max_inflow_ratio, "max_inflow_ratio", maximum=1.0)
+    for rule in table:
+        bounded(rule.preferred_flow_ratio, "preferred_flow_ratio", maximum=1.0)
     result = DetailedRoutingResult()
 
     if not states:

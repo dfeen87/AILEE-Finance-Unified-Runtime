@@ -233,10 +233,13 @@ def test_volume_operator_contrarian_safety_precedence():
 def test_volume_operator_hft_math_delta_v():
     ticks = [
         {"p_input": 0.05, "w": 0.2, "v": 1.5, "M": 1.0, "dt": 0.001},
-        {"p_input": 0.10, "w": 0.1, "v": 2.0, "M": 0.0, "dt": 0.001} # Mass floor M >= 1e-6
+        {"p_input": 0.10, "w": 0.1, "v": 2.0, "M": 1e-12, "dt": 0.001} # Positive mass below the legacy floor
     ]
     dv = calculate_hft_delta_v(isp=1.0, efficiency=0.95, alpha=0.1, v0=0.0, ticks=ticks)
     assert dv > 0.0
+
+    with pytest.raises(ValueError, match="mass"):
+        calculate_hft_delta_v(1.0, 0.95, 0.1, 0.0, [dict(ticks[1], M=0.0)])
 
     zero_eff_dv = calculate_hft_delta_v(isp=1.0, efficiency=0.0, alpha=0.1, v0=0.0, ticks=ticks)
     assert zero_eff_dv == 0.0

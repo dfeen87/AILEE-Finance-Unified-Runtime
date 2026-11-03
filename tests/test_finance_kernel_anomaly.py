@@ -109,9 +109,5 @@ def test_anomaly_operator_nan_input_hardening():
         "baseline_volatility": 0.01,
         "rolling_correlation": float("nan"),
     }
-    validated = operator.validate(input_data)
-    processed = operator.preprocess(validated)
-    result = operator.execute(processed)
-
-    assert result["advisory_active"] is False
-    assert result["rolling_correlation"] == 1.0
+    with pytest.raises(ValueError, match="ewma_volatility"):
+        operator.validate(input_data)
