@@ -24,7 +24,7 @@ Without Docker: `make deps && make build && make test`
 
 ---
 
-## v25.0.0 — Trust Layer Integrity (unreleased review candidate)
+## v25.0.0 — Trust Layer Integrity
 
 This major version aligns the active distribution and runtime version metadata with
 PR #108's intentional execution-contract changes. The Trust Layer comparison and
@@ -38,7 +38,7 @@ produces deterministic evidence but **does not authorize trading**.
 Read the [v25 release candidate contract](docs/releases/25.0.0-trust-layer-integrity.md),
 [hardening verification report](docs/releases/trust-layer-finance-hardening.md)
 and [execution migration guide](docs/releases/execution-integrity-hardening.md).
-**v25.0.0 is not tagged or published by this pull request.** Hosted CI,
+**v25.0.0 is tagged or published by this pull request.** Hosted CI,
 independent integration review and deployment validation are still required;
 no live broker, fill reconciliation, regulatory or production certification is claimed.
 
