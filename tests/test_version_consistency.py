@@ -25,7 +25,7 @@ def test_active_release_metadata_is_consistent():
 
     header = (ROOT / "aille.hpp").read_text()
     assert f'AILLE_VERSION = "{EXPECTED_VERSION}"' in header
-    assert re.search(r"AILLE_VERSION_MAJOR\s*=\s*24;", header)
+    assert re.search(r"AILLE_VERSION_MAJOR\s*=\s*25;", header)
     assert re.search(r"AILLE_VERSION_MINOR\s*=\s*0;", header)
     assert re.search(r"AILLE_VERSION_PATCH\s*=\s*0;", header)
 
