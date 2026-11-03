@@ -83,6 +83,7 @@ statements below are not evidence of regulatory approval.
 - [Optional Performance Layer](#optional-performance-layer)
 - [Use Cases](#use-cases)
 - [Integration Options](#integration-options)
+- [Trading Platforms and Paper Trading](#trading-platforms-and-paper-trading)
 - [Integration Example](#integration-example)
 - [Plugin Ecosystem](#plugin-ecosystem)
 - [Why AILLE Works: The Science](#why-aille-works-the-science)
@@ -660,6 +661,32 @@ decision = response.json()
 
 ---
 
+## Trading Platforms and Paper Trading
+
+AILEE keeps data access, strategy decisions, simulation, and broker execution
+separate. Connecting a brokerage account does not turn on automated trading.
+
+| Platform / path | Available integration | Paper-trading behavior |
+| --- | --- | --- |
+| **Robinhood** | Bundled passive alert example; authenticated MCP data needs a separate host/adapter | A separate local simulator can use Robinhood data with virtual funds. Its fills stay local; the documented MCP exposes previews and real-account orders, not a paper-account mode. |
+| **Alpaca** | Bundled C++ execution adapter, subject to the hardened execution contract | Broker-hosted paper trading uses separate credentials and the paper endpoint. Mock simulation and a broker paper account are different modes. |
+| **Other trading platforms** | Market-data and execution interfaces for custom adapters | Confirm the provider's sandbox, authentication, data and fill semantics; compatibility is not automatic. |
+
+For an AILEE-controlled simulator, the flow is **validated market data → selected
+AILEE strategy and governance → virtual order intent → local fills and audit**.
+Manual virtual orders do not demonstrate that AILEE controls the strategy.
+The canonical mathematical engine supplies evidence, not execution permission.
+
+Authenticated Robinhood MCP access and an AILEE-controlled paper runner require
+a separately configured host, adapter and simulator; they are **not bundled
+installers in this repository**. The bundled robinhood-alerts example emits
+passive notifications only.
+
+See the [platform flow and integration guide](docs/integrations/trading-platforms.md)
+for diagrams, current availability, mode selection and governance boundaries.
+
+---
+
 ## Integration Example
 
 ### Step 1: Initialize AILLE Engine
@@ -707,16 +734,17 @@ Decision decision = engine.makeDecision(signals);
 // Log for compliance
 logger.logDecision(decision, "AAPL", "momentum_v2", "trader_001");
 
-// Execute based on validated output
+// Application hooks below are illustrative, not broker submission methods.
 switch (decision.status) {
     case DECISION_VALID:
-        // High confidence - execute full position
-        execute_trade(decision.final_value);
+        // Apply downstream sizing, account, consent and durable-intent checks.
+        // final_value is a normalized direction, not a dollar amount.
+        queue_for_execution_review(decision);
         break;
         
     case FALLBACK_ACTIVATED:
-        // Low confidence - use conservative fallback
-        execute_trade(decision.final_value * 0.5f);
+        // Fallback is advisory evidence, not execution authorization.
+        skip_trade();
         log_warning("Fallback activated: " + decision.reasoning);
         break;
         
@@ -733,15 +761,21 @@ switch (decision.status) {
 
 ## Plugin Ecosystem
 
-AILLE is designed to be extended without modifying its core. Three categories of plugin integrate cleanly with the framework:
+AILLE is designed to be extended without modifying its core. Four categories of plugin integrate cleanly with the framework:
 
 | Plugin Type | Hook Point | Contract Type |
 |-------------|------------|---------------|
 | **Market-Data** | Supply signals before `makeDecision()` | `ModelSignal` |
 | **Execution** | Consume decisions after `makeDecision()` | `Decision` |
 | **Analytics** | Observe decisions passively | `Decision` (read-only) |
+| **Trading Alerts** | Emit passive notifications after a decision | `TradingAlert` |
 
-The built-in `extensions/aille_metrics.hpp` (`MetricsCollector`) is the reference analytics plugin. The `extensions/aille_rest_api.hpp` is the reference execution transport. Stable C++ base classes for all three plugin categories live in `ailee_plugins/` (`IMarketDataSource`, `IExecutionProvider`, `IAnalyticsObserver`), together with the thread-safe `PluginRegistry` singleton and bundled example implementations.
+The built-in `extensions/aille_metrics.hpp` (`MetricsCollector`) is a reference
+analytics component. Stable C++ interfaces for all four plugin categories live
+in `ailee_plugins/`: `IMarketDataSource`, `IExecutionProvider`,
+`IAnalyticsObserver` and `ITradingAlertAdapter`, together with the thread-safe
+`PluginRegistry` and bundled examples. The REST API provides a separate
+integration path for decision evaluation.
 
 **See [docs/api/plugin_guide.md](docs/api/plugin_guide.md) for the complete plugin authoring reference**, including the stable API contract, per-plugin interface requirements, and configuration guidance.
 
