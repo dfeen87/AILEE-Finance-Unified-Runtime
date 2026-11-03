@@ -79,6 +79,13 @@ fresh declared-dependency scan reports no known vulnerabilities. CI now repeats
 the audit, uses a read-only token, immutable action revisions and a job timeout;
 Dependabot configuration covers Python and Actions updates.
 
+The initial hosted Python 3.10 run caught another platform-resolution issue:
+its supported Pillow version was vulnerable, while the local Python 3.12
+resolver selected patched Pillow 13. CI now uses the tested Python 3.12 and
+declares `pillow>=13.0.0`; development dependencies require Python >=3.11.
+The pure standard-library SDK is separate from those development dependencies.
+The security gate remains strict; no vulnerability was ignored to pass it.
+
 The vendored cpp-httplib 0.14.3 was replaced with upstream 0.64.0 at immutable
 commit `24e58ce5b25d55045af4cd6f463e83a8082fbe6b`. Its setup script verifies
 SHA-256 `805169049e6a6e9ba7729d7e01d14ced825029c88a277586602a6b38df4d5357`
