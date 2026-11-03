@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 12 — Deterministic Temporal Consistency Guard."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 # ============================================================================
 # VERSIONING & REGISTRY TAGS
 # ============================================================================
@@ -83,6 +85,7 @@ class TemporalTraceSteps:
 # CORE ALGORITHM
 # ============================================================================
 
+@finite_governance(mutating=True)
 def enforce_temporal_consistency(
     prev_states: TemporalStates,
     curr_states: TemporalStates,
@@ -93,6 +96,7 @@ def enforce_temporal_consistency(
     max_drift_threshold: float = 0.05
 ) -> None:
     """Pure functional deterministic temporal consistency guard matching C++ exactly."""
+    bounded(max_drift_threshold, "max_drift_threshold")
     prev_list = prev_states.states if hasattr(prev_states, "states") else prev_states
     curr_list = curr_states.states if hasattr(curr_states, "states") else curr_states
 

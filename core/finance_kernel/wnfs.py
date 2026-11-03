@@ -7,11 +7,13 @@ sequence gap detection, and escalation to Layer 13 Stress Override and Layer 14 
 """
 
 import math
+import threading
 from typing import Dict, Any, List, Optional
 
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import BaseOperator
+from core.finance_kernel.advisory_validation import finite, integer, boolean, mapping, finite_output
 
 WNFS_VERSION = "WAVE_NATIVE_FINANCE_STREAM_V1"
 
@@ -81,14 +83,33 @@ class WNFSAdvisory:
 class WNFSOperator(BaseOperator):
     """Deterministic Operator assessing real-time WNFS stream integrity and wave sync."""
 
+    def __init__(self, context=None, config=None):
+        super().__init__(context, config)
+        self._channels = {}
+        self._channel_lock = threading.RLock()
+
     def validate(self, input_data: dict) -> dict:
         """Validates input streaming frame data."""
+        mapping(input_data)
         if "sequence_id" not in input_data:
             raise ValueError("Missing required field 'sequence_id'")
+        self.preprocess(input_data)
         return input_data
 
     def preprocess(self, input_data: dict) -> dict:
         """Preprocesses frame input fields and sets fallback defaults."""
+        mapping(input_data)
+        for field in ("bid_price", "ask_price", "bid_size", "ask_size", "last_price", "last_size", "vwap_delta"):
+            if field in input_data:
+                finite(input_data[field], field, None if field == "vwap_delta" else 0.0)
+        limits = {"sequence_id": 2**64-2, "timestamp_ns": 2**64-1,
+                  "symbol_id": 2**32-1, "wave_channel_id": 255, "frame_flags": 7,
+                  "expected_sequence": 2**64-1, "processed_frames": 2**64-2,
+                  "gap_count": 2**64-1, "clone_status_mask": 2**32-1,
+                  "degraded_clone_count": 255, "channel_status": 3, "max_sequence_gaps": 2**64-1}
+        for field, maximum in limits.items():
+            if field in input_data:
+                integer(input_data[field], field, 1 if field == "max_sequence_gaps" else 0, maximum)
         def _safe_float(val, default=0.0):
             try:
                 f = float(val)
@@ -121,6 +142,22 @@ class WNFSOperator(BaseOperator):
 
     def execute(self, input_data: dict) -> dict:
         """Evaluates sequence alignment, gaps, wave phase, and escalation flags."""
+        with self._channel_lock:
+            return self._execute_frame(input_data)
+
+    def _execute_frame(self, input_data):
+        input_data = self.preprocess(input_data)
+        channel = input_data["wave_channel_id"]
+        previous = self._channels.get(channel)
+        if previous:
+            input_data["expected_sequence"] = max(input_data["expected_sequence"], previous["expected_sequence"])
+            input_data["processed_frames"] = max(input_data["processed_frames"], previous["processed_frames"])
+            input_data["gap_count"] = max(input_data["gap_count"], previous["gap_count"])
+            input_data["channel_status"] = max(input_data["channel_status"], previous["channel_status"])
+            if input_data["timestamp_ns"] and previous["timestamp_ns"] and input_data["timestamp_ns"] <= previous["timestamp_ns"]:
+                input_data["frame_flags"] |= WNFS_FLAG_CORRUPTED
+        elif len(self._channels) >= 256:
+            raise ValueError("WNFS channel capacity exceeded")
         kill_switch = False
         hardware_fault = False
         if self.context:
@@ -206,6 +243,7 @@ class WNFSOperator(BaseOperator):
         two_pi = 6.283185307179586
         wave_phase = math.fmod(seq_id * 0.1, two_pi)
         depth_sum = input_data["bid_size"] + input_data["ask_size"]
+        finite(depth_sum, "depth_sum", 0.0)
         wave_amplitude = (input_data["last_size"] / depth_sum) if depth_sum > 0.0 else 1.0
 
         if is_out_of_order or (flags & (WNFS_FLAG_GAP | WNFS_FLAG_CORRUPTED | WNFS_FLAG_OUT_OF_ORDER)) or channel_status != WNFS_STATUS_HEALTHY:
@@ -230,7 +268,7 @@ class WNFSOperator(BaseOperator):
 
         advisory.tick_acceleration = input_data["vwap_delta"]
 
-        return {
+        result = finite_output({
             "channel_id": advisory.channel_id,
             "ingestion_confidence": advisory.ingestion_confidence,
             "wave_energy_factor": advisory.wave_energy_factor,
@@ -245,7 +283,11 @@ class WNFSOperator(BaseOperator):
             "wave_phase": wave_phase,
             "wave_amplitude": wave_amplitude,
             "messages": advisory.messages
-        }
+        })
+        if not is_out_of_order:
+            self._channels[channel] = {key: result[key] for key in ("expected_sequence", "processed_frames", "gap_count", "channel_status")}
+            self._channels[channel]["timestamp_ns"] = input_data["timestamp_ns"]
+        return result
 
     def postprocess(self, result_data: dict) -> dict:
         return result_data

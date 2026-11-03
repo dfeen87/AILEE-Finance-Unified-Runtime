@@ -5,6 +5,7 @@
 import time
 import logging
 import copy
+import threading
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import KernelRegistry
@@ -89,12 +90,19 @@ class FinanceRuntimeKernel:
         self.context = context
         self.config = config
         self.registry = registry
+        self._operator_instances = {}
+        self._execution_lock = threading.RLock()
 
         # Configure dynamic logging level
         level = getattr(logging, self.config.logging_level.upper(), logging.INFO)
         logger.setLevel(level)
 
     def execute_operator(self, name: str, input_data: dict) -> OperatorResult:
+        # Keep history, replay cursors and audit chains for this kernel session.
+        with self._execution_lock:
+            return self._execute_operator(name, input_data)
+
+    def _execute_operator(self, name: str, input_data: dict) -> OperatorResult:
         """Executes an operator with deterministic sequencing: validate -> preprocess -> execute -> postprocess -> finalize."""
         logger.debug(f"Initiating operator: '{name}'")
 
@@ -112,7 +120,10 @@ class FinanceRuntimeKernel:
                 raise DeterminismViolationError(f"Strict determinism violation: input contains non-serializable state: {e}")
             copied_input = input_data
 
-        op_instance = op_class(context=self.context, config=self.config)
+        op_instance = self._operator_instances.get(name)
+        if op_instance is None:
+            op_instance = op_class(context=self.context, config=self.config)
+            self._operator_instances[name] = op_instance
 
         start_time = time.perf_counter()
         status = "SUCCESS"

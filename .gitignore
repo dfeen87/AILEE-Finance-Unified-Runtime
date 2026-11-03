@@ -19,6 +19,7 @@ demo_audit.csv
 rest_api_audit.csv
 *.csv
 *.log
+*.journal
 
 # Python cache
 __pycache__/

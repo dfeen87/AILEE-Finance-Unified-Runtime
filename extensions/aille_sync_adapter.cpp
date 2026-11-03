@@ -11,6 +11,7 @@
  */
 
 #include "aille_sync_adapter.hpp"
+#include <limits>
 
 namespace AILLE {
 
@@ -37,6 +38,23 @@ SyncTick SyncAdapter::ingest_protocol_clock(
     float wave_phase,
     float confidence
 ) noexcept {
+    const auto max_signed = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+    if (config_.target_cadence_ns == 0 || config_.target_cadence_ns > max_signed / 2 ||
+        config_.max_drift_threshold_ns > max_signed / 2 ||
+        !std::isfinite(config_.min_confidence_threshold) || config_.min_confidence_threshold < 0 || config_.min_confidence_threshold > 1 ||
+        !std::isfinite(wave_phase) || wave_phase < 0 || wave_phase > 6.283185307179586f ||
+        !std::isfinite(confidence) || confidence < 0 || confidence > 1 || tick_index == 0 || timestamp_ns == 0 || timestamp_ns > max_signed ||
+        (metrics_.total_ticks_processed && (tick_index <= state_.current_tick_index || timestamp_ns <= state_.last_timestamp_ns))) {
+        SyncTick rejected;
+        rejected.tick_index = state_.current_tick_index;
+        rejected.timestamp_ns = state_.last_timestamp_ns;
+        rejected.confidence = 0;
+        rejected.degraded = rejected.escalate_stress = rejected.escalate_meta_lock = 1;
+        state_.sync_degraded = metrics_.sync_degraded = 1;
+        state_.clock_confidence = metrics_.current_confidence = 0;
+        current_tick_ = rejected;
+        return rejected;
+    }
     SyncTick tick;
     tick.tick_index = tick_index;
     tick.timestamp_ns = timestamp_ns;
@@ -109,6 +127,15 @@ SyncTick SyncAdapter::ingest_protocol_clock(
 }
 
 SyncTick SyncAdapter::advance_tick() noexcept {
+    const auto maximum = std::numeric_limits<std::uint64_t>::max();
+    if (config_.target_cadence_ns == 0 || state_.current_tick_index == maximum ||
+        state_.last_timestamp_ns > maximum - config_.target_cadence_ns || !std::isfinite(state_.current_wave_phase) ||
+        !std::isfinite(config_.min_confidence_threshold) || config_.min_confidence_threshold < 0 || config_.min_confidence_threshold > 1) {
+        current_tick_ = SyncTick();
+        current_tick_.confidence = 0;
+        current_tick_.degraded = current_tick_.escalate_stress = current_tick_.escalate_meta_lock = 1;
+        return current_tick_;
+    }
     SyncTick tick;
     tick.tick_index = state_.current_tick_index + 1;
 

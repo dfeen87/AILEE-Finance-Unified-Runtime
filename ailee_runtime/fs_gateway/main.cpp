@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "=======================================================\n";
     std::cout << "  AILEE Finance Unified Runtime v24.0.0 - FS-Gateway\n";
-    std::cout << "  Endpoint: ws://0.0.0.0:" << port << AILEE::FS_GATEWAY_DEFAULT_PATH << "\n";
+    std::cout << "  Endpoint: ws://127.0.0.1:" << port << AILEE::FS_GATEWAY_DEFAULT_PATH << "\n";
     std::cout << "=======================================================\n";
 
     AILEE::FsGateway gateway(port, AILEE::FS_GATEWAY_DEFAULT_PATH);

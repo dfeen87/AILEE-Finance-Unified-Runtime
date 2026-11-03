@@ -1,33 +1,19 @@
 #!/bin/bash
-# AILLE Framework - Setup Script
-# Downloads external dependencies required for REST API
-
-set -e
-
-echo "=== AILLE Framework Setup ==="
-echo ""
-echo "Downloading external dependencies..."
-echo ""
-
-# Create external directory if it doesn't exist
+# Fetch an immutable, checksum-verified HTTP dependency.
+set -euo pipefail
 mkdir -p external
-
-# Download cpp-httplib
-echo "Downloading cpp-httplib..."
-curl -L -o external/httplib.h "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h"
-
-# Verify download
-if [ -f external/httplib.h ]; then
-    SIZE=$(stat -f%z external/httplib.h 2>/dev/null || stat -c%s external/httplib.h 2>/dev/null)
-    echo "✓ cpp-httplib downloaded successfully (${SIZE} bytes)"
-else
-    echo "✗ Failed to download cpp-httplib"
-    exit 1
-fi
-
-echo ""
-echo "=== Setup Complete ==="
-echo ""
-echo "You can now build the REST API server:"
-echo "  make rest_api_server"
-echo ""
+http_temp=$(mktemp external/httplib.XXXXXX)
+trap 'rm -f "$http_temp"' EXIT
+curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
+  https://raw.githubusercontent.com/yhirose/cpp-httplib/24e58ce5b25d55045af4cd6f463e83a8082fbe6b/httplib.h \
+  -o "$http_temp"
+python3 - "$http_temp" <<'PYTHON'
+import hashlib
+from pathlib import Path
+import sys
+expected = "805169049e6a6e9ba7729d7e01d14ced825029c88a277586602a6b38df4d5357"
+if hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest() != expected:
+    raise SystemExit("cpp-httplib checksum mismatch")
+PYTHON
+mv "$http_temp" external/httplib.h
+printf 'Verified cpp-httplib v0.64.0 installed\n'

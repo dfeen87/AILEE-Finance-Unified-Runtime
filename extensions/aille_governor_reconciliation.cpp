@@ -1,3 +1,4 @@
+#include "aille_validation.hpp"
 #include "aille_governor_reconciliation.hpp"
 #include <cmath>
 #include <cstring>
@@ -35,6 +36,10 @@ ReconciledResult reconcile_governors(
     const std::vector<GovernorProposal>& proposals,
     AssetId asset_id
 ) {
+    for (const auto& proposal : proposals) {
+        validation::finite({proposal.proposed_value, proposal.risk_score});
+        if (static_cast<unsigned>(proposal.governor_type) > 4) throw std::invalid_argument("unknown governor type");
+    }
     ReconciledResult result{};
     result.decision.asset_id = asset_id;
     result.residual.asset_id = asset_id;
@@ -270,6 +275,8 @@ ReconciledResult reconcile_governors(
     result.summary.lyapunov_energy = lyapunov_energy;
     result.summary.tension = tension;
 
+    validation::finite({result.decision.final_value, result.summary.total_residual,
+                        result.summary.lyapunov_energy, result.summary.tension});
     return result;
 }
 

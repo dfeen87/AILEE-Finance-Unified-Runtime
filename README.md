@@ -11,12 +11,11 @@ Without Docker: `make deps && make build && make test`
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
-[![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
+[![Status](https://img.shields.io/badge/status-deployment%20validation%20required-yellow.svg)]()
 [![Version](https://img.shields.io/badge/version-24.0.0-blue.svg)]()
-[![CI](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Mitigating-Risk-and-Sustaining-Growth-Software/actions/workflows/ci.yml)
+[![CI](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
 
@@ -26,6 +25,15 @@ Without Docker: `make deps && make build && make test`
 ---
 
 ## v24.0.0: BEDROCK Engineering Baseline
+
+The unreleased [Trust Layer comparison and hardening pass](docs/releases/trust-layer-finance-hardening.md)
+strengthens numeric evidence, replay state, audit recovery, bounded broker execution
+and dependency checks. Non-mock execution now requires explicit bounded BUY LIMIT
+orders and a durable journal; unknown or unsupported execution fails closed.
+The new [sampled mathematical engine](docs/MATHEMATICAL_ENGINE.md) implements the
+canonical Δv equation as audited evidence, with no independent trading authority.
+Read the migration requirements before enabling execution. Local regression
+evidence does not establish production or regulatory approval.
 
 Version 24.0.0 preserves the existing layered architecture while making foundational
 configuration, atomicity, and trust-evidence guarantees explicit. Configuration

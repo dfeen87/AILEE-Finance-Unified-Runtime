@@ -18,14 +18,18 @@ namespace AILLE {
 namespace Plugins {
 namespace Alpaca {
 
+class IntentJournal;
+
+
 struct AlpacaConfig {
     std::string api_key_id;
     std::string secret_key;
     std::string base_url;      ///< Broker origin: official HTTPS or explicit loopback HTTP/HTTPS.
     bool is_live;              ///< Default: false (paper mode)
     bool mock_mode;            ///< If true, simulates network calls (for testing/offline)
-    float max_position_usd;    ///< Max dollar exposure allowed per symbol
+    float max_position_usd;    ///< BUY limit notional cap; reserved symbol blocks further orders until reconciliation
     float max_daily_drawdown;  ///< Max daily drawdown fraction before locking execution
+    std::string intent_journal_path; ///< Required durable reservation store for non-mock directional submission.
     bool live_authorized{false}; ///< Explicit operator consent; never inferred from environment/URL.
 
     AlpacaConfig()
@@ -39,7 +43,7 @@ struct AlpacaConfig {
 class AlpacaExecution : public IExecutionProvider {
 public:
     explicit AlpacaExecution(const AlpacaConfig& config = AlpacaConfig());
-    ~AlpacaExecution() override = default;
+    ~AlpacaExecution() override;
 
     std::string name() const override { return "alpaca"; }
 
@@ -48,13 +52,14 @@ public:
     /// and disables non-mock instances with missing keys or incompatible authorization.
     static AlpacaConfig loadConfigFromEnv(bool fail_closed = true);
 
-    /// Submit an order to Alpaca REST API (/v2/orders).
+    /// Non-mock: explicit bounded LIMIT + client_ref + private durable journal required.
+    /// Returns an acknowledged ID, never proof of a fill.
     std::string submitOrder(const OrderRequest& request) override;
 
     /// Cancel an order by ID via Alpaca REST API (/v2/orders/{id}).
     bool cancelOrder(const std::string& order_id) override;
 
-    /// Close / flatten position for a symbol (/v2/positions/{symbol}).
+    /// Request a close for a symbol (/v2/positions/{symbol}). True means accepted, not confirmed FLAT.
     bool flattenPosition(const std::string& symbol);
 
     /// Query account buying power / equity (/v2/account). Returns equity in USD, or -1.0f on error.
@@ -62,6 +67,7 @@ public:
 
     /// Check whether configuration permits operations. Lockout is reported separately.
     bool isEnabled() const { return is_enabled_; }
+    bool canSubmit() const { return is_enabled_ && !locked_out_ && (config_.mock_mode || bool(journal_)); }
 
     /// Force lockout / disable execution (e.g., kill switch or drawdown breach).
     void triggerLockout(const std::string& reason);
@@ -80,6 +86,7 @@ private:
     bool locked_out_{false};
     std::string lockout_reason_;
     std::atomic<uint64_t> order_counter_{1};
+    std::unique_ptr<IntentJournal> journal_;
     std::string broker_origin_; // Validated once before any network client is constructed.
 
     bool validateDestination();

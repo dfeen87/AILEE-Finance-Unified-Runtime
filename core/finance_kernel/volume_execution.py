@@ -10,6 +10,9 @@ import json
 import logging
 import os
 import time
+import math
+import re
+import threading
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger("AILLE.FinanceKernel.VolumeExecution")
@@ -43,10 +46,10 @@ class VolumeExecutionOperator(BaseOperator):
         hft_bias_config: Optional[Dict[str, Any]] = None
     ):
         self.enable_auto_execute = enable_auto_execute
-        self.mode = mode.lower()
+        self.mode = mode.lower() if isinstance(mode, str) else mode
         self.mock_mode = mock_mode
         self.enable_hft = enable_hft
-        self.hft_frequency_hz = min(max(1, hft_frequency_hz), 1000)
+        self.hft_frequency_hz = hft_frequency_hz
         self.max_position_usd = max_position_usd
         self.max_daily_drawdown_pct = max_daily_drawdown_pct
         self.risk_reduce_factor = risk_reduce_factor
@@ -78,6 +81,39 @@ class VolumeExecutionOperator(BaseOperator):
         self.peak_equity = 100000.0
         self.current_equity = 100000.0
         self.order_counter = 1
+        self._tick_lock = threading.RLock()
+        self._validate_configuration()
+
+    @staticmethod
+    def _number(value, name, minimum=0.0, maximum=None, positive=False):
+        if isinstance(value, (bool, str, bytes)):
+            raise ValueError(f"{name} must be a finite number")
+        try:
+            result = float(value)
+        except (ValueError, TypeError, OverflowError) as error:
+            raise ValueError(f"{name} must be a finite number") from error
+        if not math.isfinite(result) or result < minimum or (positive and result <= minimum) or (maximum is not None and result > maximum):
+            raise ValueError(f"{name} outside its finite safety domain")
+        return result
+
+    def _validate_configuration(self):
+        for name in ("enable_auto_execute", "mock_mode", "enable_hft"):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError(f"{name} must be a boolean")
+        if not self.mock_mode:
+            raise ValueError("Python execution has no broker provider; mock_mode must be True")
+        if self.mode not in ("paper", "live"):
+            raise ValueError("mode must be paper or live (simulated backend only)")
+        for name, maximum in (("hysteresis_bars", None), ("hft_frequency_hz", 1000)):
+            value = getattr(self, name)
+            if type(value) is not int or value < 1 or (maximum and value > maximum):
+                raise ValueError(f"{name} must be a positive integer within its domain")
+        self._number(self.max_position_usd, "max_position_usd", positive=True)
+        self._number(self.max_daily_drawdown_pct, "max_daily_drawdown_pct", maximum=1.0, positive=True)
+        self._number(self.risk_reduce_factor, "risk_reduce_factor", maximum=1.0)
+        if not isinstance(self.symbol, str) or re.fullmatch(r"[A-Za-z0-9._-]{1,16}", self.symbol) is None:
+            raise ValueError("symbol must be a nonempty ticker token")
+        validate_hft_bias_config(self.hft_bias_config)
 
     def trigger_lockout(self, reason: str):
         self.locked_out = True
@@ -115,17 +151,49 @@ class VolumeExecutionOperator(BaseOperator):
             "details": details,
             "reason": details
         }
-        log_line = json.dumps(record)
+        log_line = json.dumps(record, allow_nan=False)
         logger.info(f"[AUDIT] {log_line}")
 
-        try:
-            with open(self.audit_log_file, "a") as f:
-                f.write(log_line + "\n")
-        except Exception as e:
-            logger.error(f"Failed to write to audit log file: {e}")
+        with open(self.audit_log_file, "a", encoding="utf-8") as f:
+            f.write(log_line + "\n")
+            f.flush()
+            os.fsync(f.fileno())
 
     def process_tick(self, advisory_data: Dict[str, Any], current_price: float, safety_state: Optional[Dict[str, Any]] = None,
                      trust_score: float = 0.85, manipulation_score: float = 0.0):
+        with self._tick_lock:
+            self._validate_configuration()
+            if not isinstance(advisory_data, dict) or (safety_state is not None and not isinstance(safety_state, dict)):
+                raise ValueError("advisory and safety evidence must be dictionaries")
+            current_price = self._number(current_price, "current_price", positive=True)
+            self._number(self.current_equity, "current_equity")
+            self._number(self.peak_equity, "peak_equity", positive=True)
+            trust_score = self._number(trust_score, "trust_score", maximum=1.0)
+            manipulation_score = self._number(manipulation_score, "manipulation_score", maximum=1.0)
+            advisory_data = dict(advisory_data)
+            # Weight may express an advisory boost; the hard dollar cap is
+            # applied after it. Malformed or negative evidence is rejected.
+            advisory_data["recommended_weight"] = self._number(advisory_data.get("recommended_weight", 1.0), "recommended_weight")
+            self._number(advisory_data.get("risk_score", 0.0), "risk_score", maximum=100.0)
+            for name in ("risk_elevated", "growth_favorable", "contrarian_buy_signal", "hft_active"):
+                if type(advisory_data.get(name, False)) is not bool:
+                    raise ValueError(f"{name} must be a boolean")
+            for name in ("kill_switch", "hardware_fault"):
+                if safety_state is not None and type(safety_state.get(name, False)) is not bool:
+                    raise ValueError(f"{name} must be a boolean")
+            # Stage simulated state. Audit failure cannot advance a mock order,
+            # hysteresis or position; it locks further execution explicitly.
+            names = ("current_position_side", "pending_side", "consecutive_bars", "locked_out", "lockout_reason", "peak_equity", "order_counter")
+            before = {name: getattr(self, name) for name in names}
+            try:
+                return self._process_validated_tick(advisory_data, current_price, safety_state, trust_score, manipulation_score)
+            except Exception:
+                for name, value in before.items():
+                    setattr(self, name, value)
+                self.trigger_lockout("Execution/audit failure; simulated state unchanged")
+                raise
+
+    def _process_validated_tick(self, advisory_data, current_price, safety_state, trust_score, manipulation_score):
         validated_bias = validate_hft_bias_config(self.hft_bias_config)
         self.hft_bias_config.update(validated_bias)
         # 1. Safety & Drawdown Check
@@ -191,11 +259,17 @@ class VolumeExecutionOperator(BaseOperator):
                 self.current_position_side = "FLAT"
                 self.log_audit("FLAT_POSITION", "Position flattened successfully", advisory_data, current_price, trust_score, manipulation_score, bullish_active)
         elif desired_side == "BUY":
-            alloc_usd = self.max_position_usd * advisory_data.get("recommended_weight", 1.0)
+            alloc_usd = self.max_position_usd * min(1.0, advisory_data.get("recommended_weight", 1.0))
             if advisory_data.get("risk_elevated"):
                 alloc_usd *= self.risk_reduce_factor
 
-            qty = int(alloc_usd // current_price) if current_price > 0 else 0
+            # Exact ratio division avoids float overflow for subnormal prices
+            # and never rounds an order over its hard dollar allocation.
+            alloc_n, alloc_d = float(alloc_usd).as_integer_ratio()
+            price_n, price_d = current_price.as_integer_ratio()
+            qty = (alloc_n * price_d) // (alloc_d * price_n)
+            if qty > 2**53 - 1:
+                raise ValueError("quantity exceeds the exact integer execution domain")
             if qty > 0:
                 order_id = f"MOCK-PY-ALPACA-{self.order_counter}"
                 self.order_counter += 1

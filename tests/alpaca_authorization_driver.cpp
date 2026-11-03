@@ -2,6 +2,7 @@
 #define main volume_daemon_cli_main
 #include "../examples/volume_auto_trader.cpp"
 #undef main
+#include <filesystem>
 #include "../ailee_plugins/PluginRegistry.hpp"
 
 // Allows the same regression source to reproduce the pre-fix baseline.
@@ -12,6 +13,10 @@ auto authorize(T& cfg, bool consent, int) -> decltype(cfg.live_authorized = cons
 template<class T> void authorize(T&, bool, long) {}
 
 int main(int argc, char** argv) {
+    const auto journal_path=std::filesystem::temp_directory_path() / ("ailee-loopback-intent-"+
+        std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    struct Cleanup { std::filesystem::path path; ~Cleanup(){std::error_code error;std::filesystem::remove(path,error);} } cleanup{journal_path};
+    setenv("ALPACA_INTENT_JOURNAL",journal_path.c_str(),1);
     if (argc > 1 && std::string(argv[1]) == "cli") {
         const char* url = std::getenv("ALPACA_BASE_URL");
         if (!url || (std::string(url).rfind("http://localhost:", 0) != 0 &&
@@ -61,6 +66,7 @@ int main(int argc, char** argv) {
         cfg.api_key_id = std::getenv("ALPACA_API_KEY_ID");
         cfg.secret_key = std::getenv("ALPACA_SECRET_KEY");
         authorize(cfg, consent, 0);
+        cfg.intent_journal_path=journal_path.string();
         owner = std::make_unique<AlpacaExecution>(cfg);
         exec = static_cast<AlpacaExecution*>(owner.get());
     }
@@ -72,6 +78,8 @@ int main(int argc, char** argv) {
         req.symbol = "SPY";
         req.side = OrderSide::BUY;
         req.quantity = 2;
+        req.limit_price = 100.0f;
+        req.client_ref = "synthetic-authorization-intent";
         result = exec->submitOrder(req);
     } else if (action == "cancel") result = exec->cancelOrder("local-order") ? "1" : "0";
     else if (action == "flatten") result = exec->flattenPosition("SPY") ? "1" : "0";

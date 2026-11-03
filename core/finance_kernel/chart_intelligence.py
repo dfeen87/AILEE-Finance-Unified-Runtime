@@ -16,6 +16,7 @@ from typing import List, Dict, Any, Optional
 from core.finance_kernel.kernel_context import FinanceKernelContext
 from core.finance_kernel.kernel_config import FinanceKernelConfig
 from core.finance_kernel.kernel_registry import BaseOperator
+from core.finance_kernel.advisory_validation import finite, integer, boolean, mapping, finite_output
 from core.finance_kernel.fibonacci import compute_retracements, compute_extensions
 
 
@@ -296,20 +297,44 @@ class PatternConditionPayload:
 class ChartIntelligenceOperator(BaseOperator):
     """Deterministic Operator deriving environment technical indicators and pattern diagnostics."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, context=None, config=None):
+        super().__init__(context, config)
         self._prev_modifier: Optional[RegimeModifier] = None
 
     def validate(self, input_data: dict) -> dict:
         """Validates input metrics for chart indicator calculation."""
+        mapping(input_data)
         required = ["last_price", "ewma_volatility", "baseline_volatility"]
         for field in required:
             if field not in input_data:
                 raise ValueError(f"Missing required chart intelligence metric field: {field}")
+        self.preprocess(input_data)
         return input_data
 
     def preprocess(self, input_data: dict) -> dict:
         """Sanitizes inputs and ensures multi-horizon baseline integrity."""
+        mapping(input_data)
+        input_data = dict(input_data)
+        baseline = input_data.get("baseline")
+        if baseline is not None:
+            if not isinstance(baseline, BaselineState):
+                raise ValueError("baseline must be a BaselineState")
+            for field in ("vol_5m", "vol_1h", "vol_30d", "liq_5m", "liq_1h", "liq_30d", "vol_corr_5m", "vol_corr_1h", "vol_corr_30d"):
+                input_data.setdefault(field, getattr(baseline, field))
+        numeric_fields = ("last_price", "ewma_volatility", "baseline_volatility", "bid_size", "ask_size", "baseline_depth", "volume_anomaly_ratio", "vol_5m", "vol_1h", "vol_30d", "liq_5m", "liq_1h", "liq_30d")
+        for field in numeric_fields:
+            if field in input_data:
+                finite(input_data[field], field, 0.0)
+        for field in ("rolling_correlation", "expected_correlation", "vol_corr_5m", "vol_corr_1h", "vol_corr_30d"):
+            if field in input_data:
+                finite(input_data[field], field, -1.0, 1.0)
+        for field in ("trust_score", "manipulation_score"):
+            if field in input_data:
+                finite(input_data[field], field)
+        if "timestamp_ns" in input_data:
+            integer(input_data["timestamp_ns"], "timestamp_ns")
+        if "layer_locks_engaged" in input_data:
+            boolean(input_data["layer_locks_engaged"], "layer_locks_engaged")
         def _safe_float(val, default=0.0):
             try:
                 f = float(val)
@@ -346,6 +371,7 @@ class ChartIntelligenceOperator(BaseOperator):
         corr_30d = max(-1.0, min(1.0, _safe_float(input_data.get("vol_corr_30d", exp_corr))))
 
         return {
+            "last_price": input_data.get("last_price", 0.0),
             "symbol": symbol,
             "pair_symbol": pair_symbol,
             "ewma_volatility": ewma_vol,
@@ -456,11 +482,11 @@ class ChartIntelligenceOperator(BaseOperator):
             liquidity_regime=l_regime,
             correlation_regime=c_regime
         )
-        self._prev_modifier = modifier
         return modifier
 
     def execute(self, input_data: dict) -> dict:
         """Evaluates structural chart indicators, structural stress indicators, and pattern diagnostics."""
+        input_data = self.preprocess(input_data)
         baseline: BaselineState = input_data["baseline"]
         timestamp_ns = input_data["timestamp_ns"]
 
@@ -701,11 +727,13 @@ class ChartIntelligenceOperator(BaseOperator):
         hft_bias_cfg = input_data.get("hft_bias_config", {})
         trust_score = float(input_data.get("trust_score", 0.85))
         manip_score = float(input_data.get("manipulation_score", 0.0))
-        locks_unlocked = not bool(input_data.get("layer_locks_engaged", False))
+        locks_unlocked = not input_data.get("layer_locks_engaged", False)
         mode = str(hft_bias_cfg.get("bullishness_mode", "STANDARD")).upper() if isinstance(hft_bias_cfg, dict) else "STANDARD"
 
         contrarian_buy_zone = False
-        if mode in ("CONTRARIAN", "HYPER") and pattern_group == PatternHintGroup.StressGroup:
+        if isinstance(hft_bias_cfg, dict) and type(hft_bias_cfg.get("enabled", True)) is not bool:
+            raise ValueError("hft_bias_config.enabled must be a boolean")
+        if mode in ("CONTRARIAN", "HYPER") and hft_bias_cfg.get("enabled", True) and pattern_group == PatternHintGroup.StressGroup:
             if trust_score >= 0.70 and manip_score <= 0.30 and locks_unlocked:
                 contrarian_buy_zone = True
 
@@ -725,7 +753,7 @@ class ChartIntelligenceOperator(BaseOperator):
             payload_vi, payload_le, payload_cb, payload_bd, payload_sf
         ]
 
-        return {
+        result = finite_output({
             "symbol": input_data["symbol"],
             "pair_symbol": input_data["pair_symbol"],
             "payloads": [p.to_dict() for p in payloads],
@@ -734,7 +762,9 @@ class ChartIntelligenceOperator(BaseOperator):
             "volatility_regime": VOLATILITY_REGIME_MAP[modifier.volatility_regime],
             "liquidity_regime": LIQUIDITY_REGIME_MAP[modifier.liquidity_regime],
             "correlation_regime": CORRELATION_REGIME_MAP[modifier.correlation_regime]
-        }
+        })
+        self._prev_modifier = modifier
+        return result
 
 
 class FibAdvisory:

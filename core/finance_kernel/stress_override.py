@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 13 — Deterministic Stress‑Regime Override."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 from core.finance_kernel.arbitration_layer import AssetId
 from core.finance_kernel.portfolio_constraints import AssetAllocation
 
@@ -105,6 +107,7 @@ class StressTraceSteps:
 # CORE ALGORITHM
 # ============================================================================
 
+@finite_governance(mutating=True)
 def apply_stress_regime_override(
     rules: StressOverrideRules,
     state: StressPortfolioState,
@@ -115,6 +118,14 @@ def apply_stress_regime_override(
     normal_safety_failed: bool
 ) -> None:
     """Pure functional deterministic stress‑regime override matching C++ exactly."""
+    for name in ("volatility_threshold", "drawdown_threshold", "correlation_threshold", "residual_threshold"):
+        bounded(getattr(rules, name), name)
+    bounded(rules.crash_dampening_factor, "crash_dampening_factor", maximum=1.0)
+    bounded(rules.fallback_lambda, "fallback_lambda", maximum=1.0)
+    if rules.mode not in (0, 1, 2) or state.stress_level not in (0, 1, 2):
+        raise ValueError("unsupported stress mode")
+    if type(normal_safety_failed) is not bool:
+        raise ValueError("normal_safety_failed must be a boolean")
 
     # 1. Stress Regime Evaluation
     effective_mode = rules.mode

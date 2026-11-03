@@ -13,6 +13,7 @@
 #include <memory>
 #include <limits>
 #include <utility>
+#include <filesystem>
 
 // Include the library to test
 #include "../aille.hpp"
@@ -369,7 +370,9 @@ TEST(TestConsensusFailure) {
 }
 
 TEST(TestAuditLogger) {
-    AILLE::AuditLogger logger("test_audit.csv");
+    const auto audit_path = (std::filesystem::temp_directory_path() /
+        ("ailee-audit-test-" + std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count()) + ".csv")).string();
+    AILLE::AuditLogger logger(audit_path);
 
     AILLE::Decision d;
     d.status = AILLE::DECISION_VALID;
@@ -385,7 +388,7 @@ TEST(TestAuditLogger) {
     logger.logDecision(d, "AAPL", "strat_1");
     logger.logDecision(d, "MSFT", "strat_2");
 
-    std::ifstream file("test_audit.csv");
+    std::ifstream file(audit_path);
     ASSERT_TRUE(file.is_open());
 
     std::string line;
@@ -3691,7 +3694,7 @@ int main() {
         ticks[1].p_input = 0.10f;
         ticks[1].w = 0.1f;
         ticks[1].v = 2.0f;
-        ticks[1].M = 0.0f; // Tests mass floor clamping M >= 1e-6
+        ticks[1].M = 1e-12f; // Positive mass below the legacy floor; zero mass is rejected separately.
         ticks[1].dt = 0.001f;
 
         float delta_v = AILLE::Math::calculate_hft_delta_v(1.0f, 0.95f, 0.1f, 0.0f, ticks, 2);

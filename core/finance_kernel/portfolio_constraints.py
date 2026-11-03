@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 11 — Deterministic Portfolio-Wide Constraint Engine."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 from core.finance_kernel.arbitration_layer import AssetId
 
 # ============================================================================
@@ -115,6 +117,7 @@ def map_asset_to_sector(asset_id: int) -> int:
 # CORE ALGORITHM
 # ============================================================================
 
+@finite_governance(mutating=False)
 def apply_portfolio_constraints(
     proposed_allocs: list,
     rules: list,
@@ -123,6 +126,16 @@ def apply_portfolio_constraints(
     budget: RiskBudget
 ) -> PortfolioConstraintResult:
     """Pure functional deterministic portfolio-wide constraints matching C++ exactly."""
+    bounded(budget.max_portfolio_risk, "max_portfolio_risk")
+    for rule in rules:
+        bounded(rule.max_long_exposure, "max_long_exposure")
+        bounded(rule.max_short_exposure, "max_short_exposure")
+    for sector in sectors:
+        bounded(sector.max_sector_exposure, "max_sector_exposure")
+    for correlation in correlations:
+        bounded(correlation.correlation_score, "correlation_score", -1.0, 1.0)
+    for allocation in proposed_allocs:
+        bounded(allocation.risk_score, "risk_score")
     result = PortfolioConstraintResult()
     result.allocations = [
         AssetAllocation(a.asset_id, a.allocation, a.risk_score) for a in proposed_allocs
@@ -234,7 +247,9 @@ def apply_portfolio_constraints(
     if budget.is_active and current_risk > budget.max_portfolio_risk and current_risk > 0.0:
         scale = budget.max_portfolio_risk / current_risk
         for alloc in result.allocations:
-            if alloc.asset_id != AssetId.CASH:
+            # Cash with nonzero supplied risk must consume the same budget;
+            # excluding it could leave an advertised enforced budget exceeded.
+            if alloc.risk_score > 0.0:
                 before = alloc.allocation
                 alloc.allocation *= scale
                 add_trace_step(alloc.asset_id, ConstraintStage.RISK_BUDGET_ENFORCE, ConstraintAction.SCALED, before, alloc.allocation, "Risk budget scaling applied")

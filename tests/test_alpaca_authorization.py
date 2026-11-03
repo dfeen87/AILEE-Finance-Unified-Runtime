@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 
 import pytest
+from cpp_toolchain import tls_platform_flags
 
 from test_alpaca_transport import ACTIONS, FAILURE, SUCCESS, adapter, certificates
 
@@ -17,7 +18,7 @@ def authorization_driver(tmp_path_factory):
         "g++", "-std=c++17", "-O2", "-DNDEBUG", "-pthread",
         str(ROOT / "tests/alpaca_authorization_driver.cpp"),
         str(ROOT / "ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp"),
-        "-lssl", "-lcrypto", "-o", str(binary),
+        "-lssl", "-lcrypto", *tls_platform_flags(), "-o", str(binary),
     ], check=True, capture_output=True, text=True, timeout=120)
     return binary
 

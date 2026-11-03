@@ -99,7 +99,7 @@ def test_ledger_operator():
     res = op.execute(input_data)
     assert res["status"] == "recorded"
     assert "hash" in res
-    assert len(res["hash"]) == 16  # hex representation of 64-bit int
+    assert len(res["hash"]) == 64  # complete SHA-256 of canonical chained evidence
 
     record = res["record"]
     assert record["ledger_id"] == "ledger-1"

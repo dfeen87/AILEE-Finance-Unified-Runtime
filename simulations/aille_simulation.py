@@ -16,152 +16,16 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 
-@dataclass
-class ModelSignal:
-    value: float
-    confidence: float
-    model_id: int
-
-
-@dataclass
-class Decision:
-    final_value: float
-    status: str
-    confidence: float
-    models_agreed: int
-    fallback_used: bool
-    reasoning: str
-
-
-@dataclass
-class AILLEConfig:
-    min_confidence_threshold: float = 0.35
-    grace_confidence_threshold: float = 0.25
-    min_models_required: int = 2
-    sign_agreement_threshold: float = 0.66
-    fallback_window_size: int = 50
-    fallback_position_scale: float = 0.1
-    max_model_count: int = 10
-
-    # Dynamic rule options
-    enable_dynamic_fallback: bool = False
-    fallback_alpha: float = 0.5
-    fallback_beta: float = 0.1
-    config_version: str = "4.1.0"
-
-
-def smooth_position(signal: float, scale: float = 100.0) -> float:
-    return math.tanh(signal * scale)
-
-
-def apply_safety_layer(signals: List[ModelSignal], config: AILLEConfig) -> List[ModelSignal]:
-    valid: List[ModelSignal] = []
-    for sig in signals:
-        if sig.confidence < 0.0 or sig.confidence > 1.0:
-            continue  # Signal rejected: confidence out of range [0,1]
-        if sig.confidence >= config.min_confidence_threshold:
-            valid.append(sig)
-        elif sig.confidence >= config.grace_confidence_threshold:
-            valid.append(ModelSignal(sig.value, sig.confidence * 0.8, sig.model_id))
-    return valid
-
-
-def check_consensus(
-    valid: List[ModelSignal], config: AILLEConfig
-) -> Optional[Tuple[float, int]]:
-    if len(valid) < config.min_models_required:
-        return None
-
-    values = [sig.value for sig in valid]
-    median = statistics.median(values)
-    median_sign = 1.0 if median >= 0 else -1.0
-
-    agree_values = [v for v in values if (1.0 if v >= 0 else -1.0) == median_sign]
-    models_agreed = len(agree_values)
-    ratio = models_agreed / len(values)
-
-    if ratio >= config.sign_agreement_threshold and models_agreed >= config.min_models_required:
-        consensus_value = sum(agree_values) / models_agreed
-        return consensus_value, models_agreed
-
-    return None
-
-
-class AILLEEngine:
-    def __init__(self, config: Optional[AILLEConfig] = None) -> None:
-        self.config = config or AILLEConfig()
-        self.fallback_buffer: List[float] = []
-        self.confidence_buffer: List[float] = []
-
-    def _calculate_fallback_value(self) -> float:
-        if not self.fallback_buffer:
-            return 0.0
-        return sum(self.fallback_buffer) / len(self.fallback_buffer)
-
-    def _update_fallback_buffer(self, value: float, confidence: float) -> None:
-        self.fallback_buffer.append(value)
-        self.confidence_buffer.append(confidence)
-        if len(self.fallback_buffer) > self.config.fallback_window_size:
-            self.fallback_buffer.pop(0)
-            self.confidence_buffer.pop(0)
-
-    def _get_fallback_value(self, current_confidence: float = 0.0) -> float:
-        if not self.fallback_buffer:
-            return 0.0
-        fallback_mean = self._calculate_fallback_value()
-        sign = 1.0 if fallback_mean >= 0 else -1.0
-
-        if self.config.enable_dynamic_fallback:
-            ma_conf = sum(self.confidence_buffer) / len(self.confidence_buffer) if self.confidence_buffer else current_confidence
-            scale = self.config.fallback_alpha * ma_conf + self.config.fallback_beta
-            scale = max(0.1, min(0.5, scale))
-        else:
-            scale = self.config.fallback_position_scale
-
-        return sign * scale
-
-    def make_decision(self, model_signals: List[ModelSignal]) -> Decision:
-        if not model_signals:
-            return Decision(0.0, "ERROR_NO_MODELS", 0.0, 0, False, "No model inputs available")
-
-        max_models = max(self.config.max_model_count, 1)
-        scoped = model_signals[:max_models]
-        valid = apply_safety_layer(scoped, self.config)
-
-        if not valid:
-            return Decision(
-                final_value=self._get_fallback_value(0.1),
-                status="REJECTED_LOW_CONFIDENCE",
-                confidence=0.1,
-                models_agreed=0,
-                fallback_used=True,
-                reasoning="All models failed confidence threshold – fallback activated",
-            )
-
-        consensus = check_consensus(valid, self.config)
-        if consensus is None:
-            return Decision(
-                final_value=self._get_fallback_value(0.2),
-                status="REJECTED_NO_CONSENSUS",
-                confidence=0.2,
-                models_agreed=0,
-                fallback_used=True,
-                reasoning="Models failed to reach consensus – fallback activated",
-            )
-
-        consensus_value, models_agreed = consensus
-        final_value = smooth_position(consensus_value)
-        avg_confidence = sum(sig.confidence for sig in valid) / len(valid)
-        decision = Decision(
-            final_value=final_value,
-            status="DECISION_VALID",
-            confidence=avg_confidence,
-            models_agreed=models_agreed,
-            fallback_used=False,
-            reasoning=f"Consensus achieved with {models_agreed} models",
-        )
-        self._update_fallback_buffer(final_value, avg_confidence)
-        return decision
+# The same dependency-free implementation is shipped in the installed SDK.
+# Make the root importable when this file is executed directly as a CLI.
+import os
+import sys
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.finance_kernel.model_pipeline import (
+    ModelSignal, Decision, AILLEConfig, AILLEEngine,
+    apply_safety_layer, check_consensus, smooth_position,
+)
 
 
 @dataclass

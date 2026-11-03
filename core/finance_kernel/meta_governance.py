@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 14 — Deterministic Meta‑Governance Lock."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 from typing import Tuple, List
 
 # ============================================================================
@@ -55,6 +57,7 @@ class MetaGovernanceTraceStep:
 # CORE ALGORITHM
 # ============================================================================
 
+@finite_governance(mutating=False)
 def apply_meta_governance_lock(
     decision,
     constraints,
@@ -63,6 +66,23 @@ def apply_meta_governance_lock(
     temporal_state
 ) -> Tuple[MetaGovernanceState, List[MetaGovernanceTraceStep]]:
     """Pure functional deterministic meta-governance lock matching C++ exactly."""
+    def required(container, field):
+        if isinstance(container, dict) and field in container:
+            return container[field]
+        if hasattr(container, field):
+            return getattr(container, field)
+        raise ValueError(f"Missing governing evidence: {field}")
+
+    decision_summary = (required(decision, "summary") if hasattr(decision, "summary") or
+                        (isinstance(decision, dict) and "summary" in decision) else decision)
+    required(decision_summary, "total_residual")
+    constraints_summary = required(constraints, "summary")
+    for name in ("remaining_violations", "final_portfolio_risk", "max_risk_budget"):
+        required(constraints_summary, name)
+    required(stress_state, "stress_level")
+    required(temporal_state, "residual_sum")
+    if stress_trace is None:
+        raise ValueError("Missing governing stress trace")
     trace_steps = []
 
     # 1. Resolve summaries/fields based on object types or dicts
@@ -97,7 +117,9 @@ def apply_meta_governance_lock(
 
     # Stress trace
     stress_trace_count = 0
-    if hasattr(stress_trace, "count"):
+    if isinstance(stress_trace, (list, tuple)):
+        stress_trace_count = len(stress_trace)
+    elif hasattr(stress_trace, "count"):
         stress_trace_count = stress_trace.count
     elif hasattr(stress_trace, "steps"):
         stress_trace_count = len(stress_trace.steps)
@@ -112,6 +134,15 @@ def apply_meta_governance_lock(
         residual_sum = temporal_state.get("residual_sum", 0.0)
 
     # 2. Meta-checks
+    for name, value in (("total_residual", total_residual), ("final_portfolio_risk", final_portfolio_risk),
+                        ("max_risk_budget", max_risk_budget), ("residual_sum", residual_sum)):
+        bounded(value, name)
+    if type(stress_level) is not int or stress_level not in (0, 1, 2):
+        raise ValueError("unsupported stress_level")
+    if type(remaining_violations) is not int or remaining_violations < 0:
+        raise ValueError("remaining_violations must be a non-negative integer")
+    if type(stress_trace_count) is not int or stress_trace_count < 0:
+        raise ValueError("stress trace count must be a non-negative integer")
     governor_conflict = (total_residual > META_GOVERNANCE_RESIDUAL_THRESHOLD)
     constraint_violation = (remaining_violations > 0 or final_portfolio_risk > max_risk_budget)
     stress_override_missing = (stress_level >= 1 and stress_trace_count == 0)

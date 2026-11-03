@@ -7,6 +7,19 @@ volatility grace adjustments, and consensus feed validation.
 import math
 
 
+def _finite_nonnegative(value, name):
+    """Validate evidence before comparisons/clamps can hide malformed numbers."""
+    try:
+        if isinstance(value, (bool, str, bytes, bytearray)):
+            raise ValueError
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"{name} must be finite and non-negative") from error
+    if not math.isfinite(number) or number < 0.0:
+        raise ValueError(f"{name} must be finite and non-negative")
+    return number
+
+
 def validate_sell_intent(signals):
     """
     Ensure SELL trigger is legitimate by validating market context, liquidity,
@@ -22,19 +35,22 @@ def validate_sell_intent(signals):
     if not signals.get("intent_flag", True):
         return {"intent_valid": False, "reason": signals.get("intent_reason", "SELL trigger explicitly invalidated")}
 
-    position_size = signals.get("position_size", 0.0)
+    try:
+        position_size = _finite_nonnegative(signals.get("position_size", 0.0), "position_size")
+        market = signals.get("market", {})
+        if not isinstance(market, dict):
+            raise ValueError("market must be a dictionary")
+        liquidity = _finite_nonnegative(market.get("liquidity", signals.get("liquidity", 1.0)), "liquidity")
+        _finite_nonnegative(signals.get("volatility", 0.0), "volatility")
+    except ValueError as error:
+        return {"intent_valid": False, "reason": str(error)}
+
     if position_size <= 0.0:
         return {"intent_valid": False, "reason": "Non-positive position size for SELL operation"}
 
     # Market context check
-    market = signals.get("market", {})
-    liquidity = market.get("liquidity", signals.get("liquidity", 1.0)) if isinstance(market, dict) else 1.0
     if liquidity <= 0.01:
         return {"intent_valid": False, "reason": "Critical bid liquidity collapse detected; SELL intent invalid"}
-
-    volatility = signals.get("volatility", 0.0)
-    if volatility < 0.0:
-        return {"intent_valid": False, "reason": "Invalid negative volatility value"}
 
     return {
         "intent_valid": True,
@@ -58,12 +74,22 @@ def compute_sell_ceiling(trust_level, position_size, bullish_active=False, bulli
     """
     ceilings = {0: 1.0, 1: 0.6, 2: 0.3, 3: 0.1}
     cap_ratio = ceilings.get(trust_level, 0.1)
-    allowed = max(0.0, float(position_size) * cap_ratio)
+    try:
+        position = _finite_nonnegative(position_size, "position_size")
+    except ValueError:
+        return 0.0
+    allowed = position * cap_ratio
 
     if bullish_active and trust_level != 3:
-        allowed *= float(bullish_sell_ceiling_factor)
+        try:
+            factor = _finite_nonnegative(bullish_sell_ceiling_factor, "bullish_sell_ceiling_factor")
+        except ValueError:
+            return 0.0
+        if factor > 1.0:
+            return 0.0
+        allowed *= factor
 
-    return max(0.0, allowed)
+    return max(0.0, min(position, allowed))
 
 
 def detect_sell_manipulation(market_data):
@@ -123,8 +149,11 @@ def grace_layer_sell_adjustment(volatility, sell_amount):
     Returns:
         float: Adjusted sell amount
     """
-    sell_amt = max(0.0, float(sell_amount))
-    vol = max(0.0, float(volatility))
+    try:
+        sell_amt = _finite_nonnegative(sell_amount, "sell_amount")
+        vol = _finite_nonnegative(volatility, "volatility")
+    except ValueError:
+        return 0.0
 
     if vol <= 0.20:
         # Normal volatility - no grace reduction needed
@@ -156,12 +185,20 @@ def consensus_validation(feeds):
         if isinstance(item, dict):
             price = item.get("price")
             conf = item.get("confidence", 1.0)
-            if price is not None and isinstance(price, (int, float)) and price > 0:
-                valid_prices.append(float(price))
-                confidences.append(float(conf))
-        elif isinstance(item, (int, float)) and item > 0:
-            valid_prices.append(float(item))
-            confidences.append(1.0)
+        else:
+            price, conf = item, 1.0
+        try:
+            if (isinstance(price, bool) or not isinstance(price, (int, float)) or
+                    isinstance(conf, (bool, str, bytes, bytearray))):
+                return 0.0
+            price, conf = float(price), float(conf)
+        except (TypeError, ValueError, OverflowError):
+            return 0.0
+        if not math.isfinite(price) or not math.isfinite(conf):
+            return 0.0
+        if price > 0:
+            valid_prices.append(price)
+            confidences.append(conf)
 
     if not valid_prices:
         return 0.0

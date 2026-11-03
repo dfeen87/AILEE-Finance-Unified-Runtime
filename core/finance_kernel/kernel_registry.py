@@ -2,107 +2,18 @@
 # Licensed under the MIT License.
 """Operator registry and implementations for the AILEE Finance Runtime Kernel."""
 
-import sys
-import os
 import copy
+import hashlib
+import json
+import math
+import threading
+from dataclasses import asdict
 from core.finance_kernel.kernel_errors import KernelConfigurationError, OperatorNotFoundError, KernelContextError
 
-# Setup pathing to import simulations.aille_simulation
-_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _repo_root not in sys.path:
-    sys.path.insert(0, _repo_root)
-
-try:
-    from simulations.aille_simulation import (
-        ModelSignal,
-        Decision,
-        AILLEConfig,
-        AILLEEngine,
-        apply_safety_layer,
-        check_consensus
-    )
-except ImportError:
-    # Safe local fallback definitions if simulation harness is missing
-    class ModelSignal:
-        def __init__(self, value: float, confidence: float, model_id: int):
-            self.value = value
-            self.confidence = confidence
-            self.model_id = model_id
-
-    class Decision:
-        def __init__(self, final_value: float, status: str, confidence: float,
-                     models_agreed: int, fallback_used: bool, reasoning: str):
-            self.final_value = final_value
-            self.status = status
-            self.confidence = confidence
-            self.models_agreed = models_agreed
-            self.fallback_used = fallback_used
-            self.reasoning = reasoning
-
-    class AILLEConfig:
-        def __init__(self, min_confidence_threshold=0.35, grace_confidence_threshold=0.25,
-                     min_models_required=2, sign_agreement_threshold=0.66,
-                     fallback_window_size=50, fallback_position_scale=0.1,
-                     max_model_count=10, enable_dynamic_fallback=False,
-                     fallback_alpha=0.5, fallback_beta=0.1):
-            self.min_confidence_threshold = min_confidence_threshold
-            self.grace_confidence_threshold = grace_confidence_threshold
-            self.min_models_required = min_models_required
-            self.sign_agreement_threshold = sign_agreement_threshold
-            self.fallback_window_size = fallback_window_size
-            self.fallback_position_scale = fallback_position_scale
-            self.max_model_count = max_model_count
-            self.enable_dynamic_fallback = enable_dynamic_fallback
-            self.fallback_alpha = fallback_alpha
-            self.fallback_beta = fallback_beta
-            self.config_version = "4.1.0"
-
-    def apply_safety_layer(signals, config):
-        valid = []
-        for sig in signals:
-            if sig.confidence < 0.0 or sig.confidence > 1.0:
-                continue
-            if sig.confidence >= config.min_confidence_threshold:
-                valid.append(sig)
-            elif sig.confidence >= config.grace_confidence_threshold:
-                valid.append(ModelSignal(sig.value, sig.confidence * 0.8, sig.model_id))
-        return valid
-
-    def check_consensus(valid, config):
-        if len(valid) < config.min_models_required:
-            return None
-        import statistics
-        values = [sig.value for sig in valid]
-        median = statistics.median(values)
-        median_sign = 1.0 if median >= 0 else -1.0
-        agree_values = [v for v in values if (1.0 if v >= 0 else -1.0) == median_sign]
-        models_agreed = len(agree_values)
-        ratio = models_agreed / len(values)
-        if ratio >= config.sign_agreement_threshold and models_agreed >= config.min_models_required:
-            consensus_value = sum(agree_values) / models_agreed
-            return consensus_value, models_agreed
-        return None
-
-    class AILLEEngine:
-        def __init__(self, config=None):
-            self.config = config or AILLEConfig()
-            self.fallback_buffer = []
-            self.confidence_buffer = []
-
-        def make_decision(self, model_signals):
-            import math
-            if not model_signals:
-                return Decision(0.0, "ERROR_NO_MODELS", 0.0, 0, False, "No model inputs available")
-            scoped = model_signals[:self.config.max_model_count]
-            valid = apply_safety_layer(scoped, self.config)
-            if not valid:
-                return Decision(0.1, "REJECTED_LOW_CONFIDENCE", 0.1, 0, True, "All models failed confidence threshold")
-            consensus = check_consensus(valid, self.config)
-            if consensus is None:
-                return Decision(0.2, "REJECTED_NO_CONSENSUS", 0.2, 0, True, "No consensus")
-            val, agreed = consensus
-            final_val = math.tanh(val * 100.0)
-            return Decision(final_val, "DECISION_VALID", sum(s.confidence for s in valid)/len(valid), agreed, False, "Consensus achieved")
+from core.finance_kernel.model_pipeline import (
+    ModelSignal, Decision, AILLEConfig, AILLEEngine,
+    apply_safety_layer, check_consensus, snapshot_signals,
+)
 
 
 class BaseOperator:
@@ -153,16 +64,7 @@ class RiskOperator(BaseOperator):
         else:
             cfg = AILLEConfig()
 
-        signals = []
-        for sig in raw_signals:
-            if isinstance(sig, dict):
-                signals.append(ModelSignal(
-                    value=float(sig.get("value", 0.0)),
-                    confidence=float(sig.get("confidence", 0.0)),
-                    model_id=int(sig.get("model_id", 0))
-                ))
-            else:
-                signals.append(sig)
+        signals = snapshot_signals(raw_signals)
 
         valid_signals = apply_safety_layer(signals, cfg)
 
@@ -193,16 +95,7 @@ class GovernorOperator(BaseOperator):
         else:
             cfg = AILLEConfig()
 
-        signals = []
-        for sig in raw_signals:
-            if isinstance(sig, dict):
-                signals.append(ModelSignal(
-                    value=float(sig.get("value", 0.0)),
-                    confidence=float(sig.get("confidence", 0.0)),
-                    model_id=int(sig.get("model_id", 0))
-                ))
-            else:
-                signals.append(sig)
+        signals = snapshot_signals(raw_signals)
 
         consensus = check_consensus(signals, cfg)
         if consensus is None:
@@ -234,16 +127,7 @@ class TransactionOperator(BaseOperator):
             engine = AILLEEngine(cfg)
 
         raw_signals = input_data.get("signals", [])
-        signals = []
-        for sig in raw_signals:
-            if isinstance(sig, dict):
-                signals.append(ModelSignal(
-                    value=float(sig.get("value", 0.0)),
-                    confidence=float(sig.get("confidence", 0.0)),
-                    model_id=int(sig.get("model_id", 0))
-                ))
-            else:
-                signals.append(sig)
+        signals = snapshot_signals(raw_signals)
 
         decision = engine.make_decision(signals)
 
@@ -263,51 +147,115 @@ class TransactionOperator(BaseOperator):
 
 
 class LedgerOperator(BaseOperator):
-    """Logs transactions to a secure, immutable representation using a deterministic SplitMix64 hash chain."""
+    """Canonical SHA-256 audit chain scoped to this operator instance.
+
+    Records are snapshotted and linked in memory. Persistence, external anchors
+    and authenticated storage are deployment responsibilities, not supplied by
+    an unkeyed digest or by the ordinary per-call kernel factory.
+    """
     role = "ledger"
 
+    def __init__(self, context=None, config=None):
+        super().__init__(context, config)
+        self._records = []
+        self._ledger_lock = threading.Lock()
+
+    @staticmethod
+    def _canonical(value):
+        # Reject unsupported objects, cycles, ambiguous non-string map keys,
+        # and non-finite nested evidence rather than stringify unknown data.
+        def validate(item):
+            if item is None or type(item) in (str, bool, int):
+                return
+            if type(item) is float:
+                if not math.isfinite(item):
+                    raise ValueError("ledger numeric evidence must be finite")
+                return
+            if isinstance(item, list):
+                for child in item:
+                    validate(child)
+                return
+            if isinstance(item, dict) and all(type(key) is str for key in item):
+                for child in item.values():
+                    validate(child)
+                return
+            raise ValueError("ledger evidence must use JSON values with string map keys")
+        try:
+            validate(value)
+            return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+        except (TypeError, ValueError, OverflowError, RecursionError) as error:
+            raise ValueError("ledger evidence must have a finite canonical JSON encoding") from error
+
+    @classmethod
+    def _verify(cls, records):
+        previous = "0" * 64
+        try:
+            for sequence, record in enumerate(records, 1):
+                evidence = {key: value for key, value in record.items() if key != "hash"}
+                if evidence["sequence"] != sequence or evidence["previous_hash"] != previous:
+                    return False
+                digest = hashlib.sha256(cls._canonical(evidence).encode("utf-8")).hexdigest()
+                if record["hash"] != digest:
+                    return False
+                previous = digest
+            return True
+        except (ValueError, TypeError, KeyError):
+            return False
+
+    def verify_integrity(self):
+        with self._ledger_lock:
+            return self._verify(self._records)
+
+    def get_audit_trail(self):
+        with self._ledger_lock:
+            return copy.deepcopy(self._records)
+
     def execute(self, input_data: dict) -> dict:
+        if not isinstance(input_data, dict):
+            raise ValueError("ledger input must be a dictionary")
         decision = input_data.get("decision")
-        ctx = input_data.get("context") or {}
-
-        if hasattr(decision, "final_value"):
-            final_value = decision.final_value
-            status = decision.status
-            confidence = decision.confidence
-        elif isinstance(decision, dict):
-            final_value = decision.get("final_value", 0.0)
-            status = decision.get("status", "UNKNOWN")
-            confidence = decision.get("confidence", 0.0)
-        else:
-            final_value = 0.0
-            status = "UNKNOWN"
-            confidence = 0.0
-
-        # Non-cryptographic deterministic avalanche: SplitMix64 style hash mixing
-        a = int(final_value * 10000) & 0xFFFFFFFF
-        b = sum(ord(c) for c in status) & 0xFFFFFFFF
-        c = int(confidence * 10000) & 0xFFFFFFFF
-
-        MASK = 0xFFFFFFFFFFFFFFFF
-        # (a * 0x9E3779B185EBCA87) ^ (b * 0xC2B2AE3D27D4EB4F) ^ c
-        h = ((a * 0x9E3779B185EBCA87) & MASK) ^ ((b * 0xC2B2AE3D27D4EB4F) & MASK) ^ c
-        h_hex = f"{h & MASK:016x}"
-
-        record = {
-            "ledger_id": ctx.get("ledger_id", "default-ledger"),
-            "session_id": ctx.get("session_id", "default-session"),
-            "environment": ctx.get("environment", "dev"),
-            "final_value": final_value,
-            "status": status,
-            "confidence": confidence,
-            "hash": h_hex
-        }
-
-        return {
-            "status": "recorded",
-            "hash": h_hex,
-            "record": record
-        }
+        if isinstance(decision, Decision):
+            decision = asdict(decision)
+        if not isinstance(decision, dict):
+            raise ValueError("ledger requires a decision object or dictionary")
+        ctx = input_data.get("context")
+        if ctx is None:
+            ctx = {}
+        if not isinstance(ctx, dict):
+            raise ValueError("ledger context must be a dictionary")
+        # JSON round-trip snapshots all supplied evidence before history access.
+        evidence = json.loads(self._canonical({"decision": decision, "context": ctx}))
+        decision, ctx = evidence["decision"], evidence["context"]
+        for field in ("final_value", "confidence"):
+            value = decision.get(field)
+            if type(value) not in (float, int):
+                raise ValueError(f"ledger decision {field} must be a finite number")
+            try:
+                valid = math.isfinite(value)
+            except OverflowError:
+                valid = False
+            if not valid:
+                raise ValueError(f"ledger decision {field} must be a finite number")
+        if not 0 <= decision["confidence"] <= 1:
+            raise ValueError("ledger confidence must be in [0, 1]")
+        if type(decision.get("status")) is not str or not decision["status"]:
+            raise ValueError("ledger decision status must be a non-empty string")
+        with self._ledger_lock:
+            if not self._verify(self._records):
+                raise ValueError("ledger chain integrity failure")
+            record = {
+                "ledger_id": ctx.get("ledger_id", "default-ledger"),
+                "session_id": ctx.get("session_id", "default-session"),
+                "environment": ctx.get("environment", "dev"),
+                "final_value": decision["final_value"], "status": decision["status"],
+                "confidence": decision["confidence"], "decision": decision, "context": ctx,
+                "schema": "ailee-finance-ledger/v2", "sequence": len(self._records) + 1,
+                "previous_hash": self._records[-1]["hash"] if self._records else "0" * 64,
+            }
+            digest = hashlib.sha256(self._canonical(record).encode("utf-8")).hexdigest()
+            record["hash"] = digest
+            self._records.append(copy.deepcopy(record))
+            return {"status": "recorded", "hash": digest, "record": record}
 
 
 class KernelRegistry:

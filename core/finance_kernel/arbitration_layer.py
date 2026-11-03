@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Layer 8 — Cross-Asset Deterministic Arbitration Layer."""
 
+from core.finance_kernel.governance_validation import finite_governance, bounded
+
 import math
 
 class AssetId:
@@ -102,8 +104,11 @@ class ScalingRules:
     def normalize_regulatory(level: float) -> float:
         return ScalingRules.clamp(level, 0.0, 1.0)
 
+@finite_governance(mutating=False)
 def arbitrate(advisories: list, ladder: Ladder, rules: ScalingRules) -> ArbitrationResult:
     """Pure functional deterministic arbitration matching C++ equivalent."""
+    if sorted(ladder.dimensions) != list(range(5)):
+        raise ValueError("arbitration ladder must contain each governing dimension exactly once")
     result = ArbitrationResult()
     if not advisories:
         return result

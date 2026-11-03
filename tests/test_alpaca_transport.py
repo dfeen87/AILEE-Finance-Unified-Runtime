@@ -10,6 +10,7 @@ import subprocess
 import threading
 
 import pytest
+from cpp_toolchain import tls_platform_flags
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,7 @@ def driver(tmp_path_factory):
         "g++", "-std=c++17", "-O2", "-DNDEBUG", "-pthread",
         str(ROOT / "tests/alpaca_transport_driver.cpp"),
         str(ROOT / "ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp"),
-        "-lssl", "-lcrypto", "-o", str(binary),
+        "-lssl", "-lcrypto", *tls_platform_flags(), "-o", str(binary),
     ], check=True, capture_output=True, text=True, timeout=120)
     return binary
 
@@ -115,7 +116,7 @@ def test_tls_trusted_adapter_acknowledgment(driver, certificates, action):
             "flatten": ("DELETE", "/v2/positions/SPY"), "equity": ("GET", "/v2/account"),
         }[action]
         if action == "submit":
-            assert json.loads(body) == {"symbol": "SPY", "qty": 2, "side": "buy", "type": "market", "time_in_force": "day"}
+            assert json.loads(body) == {"symbol": "SPY", "qty": 2, "side": "buy", "type": "limit", "limit_price": 100, "time_in_force": "day", "client_order_id": "synthetic-transport-intent"}
 
 
 @pytest.mark.parametrize("action", ACTIONS)

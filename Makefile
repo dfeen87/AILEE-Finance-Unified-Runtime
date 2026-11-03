@@ -9,10 +9,14 @@ SYSTEM_INCLUDES = -isystem ./external
 
 HTTPLIB_INCLUDES = -isystem ./external
 SSL_FLAGS = -lssl -lcrypto
+ifeq ($(shell uname -s),Darwin)
+SSL_FLAGS += -framework Security -framework CoreFoundation
+endif
 THREAD_FLAGS = -pthread $(SSL_FLAGS)
 WEBSOCKET_FLAGS = -std=c++17 -isystem ./external/websocketpp -isystem ./external/asio/asio/include -DASIO_STANDALONE -pthread
 
 COMMON_INCLUDES = -I. -I./extensions -I./telemetry -I./ailee_plugins -I./examples -I./src -I./include
+RUNTIME_HEADERS = $(wildcard *.hpp extensions/*.hpp include/*.hpp ailee_plugins/*.hpp ailee_plugins/detail/*.hpp ailee_plugins/plugins/execution/alpaca/*.hpp)
 
 # ANSI Colors
 COLOR_GREEN  = \033[32m
@@ -71,6 +75,8 @@ SPIRE_DEMO_SRC   = examples/v7_4_spire_demo.cpp
         check_deps release provenance test_v24
 
 all: demo provenance
+
+demo test_suite rest_api_server rest_lifecycle_test dashboard_server websocket_server benchmark fs_gateway unified_runtime_demo wnfs_demo: $(RUNTIME_HEADERS) external/httplib.h
 
 deps:
 	@./setup_rest_api.sh

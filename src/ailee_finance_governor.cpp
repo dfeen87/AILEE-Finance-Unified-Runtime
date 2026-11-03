@@ -28,6 +28,17 @@ AileeFinanceGovernor::~AileeFinanceGovernor() {
 }
 
 SellGovernanceDecisionCpp AileeFinanceGovernor::evaluateSell(const RawSellSignals& signals) {
+    // Validate the quantity/context before either backend can clamp away bad
+    // evidence or manufacture an unbounded protective fallback.
+    const bool valid_position = std::isfinite(signals.position_size) && signals.position_size >= 0.0;
+    const bool valid_volatility = std::isfinite(signals.volatility) && signals.volatility >= 0.0;
+    if (!valid_position || !valid_volatility) {
+        SellGovernanceDecisionCpp decision;
+        decision.allowed_sell_amount = valid_position ? signals.position_size * 0.1 : 0.0;
+        decision.reason = !valid_position ? "Invalid position_size: finite non-negative quantity required"
+                                          : "Invalid volatility: finite non-negative evidence required";
+        return decision;
+    }
 #if HAS_PYTHON_H
     if (Py_IsInitialized()) {
         PyObject* pName = PyUnicode_DecodeFSDefault("ailee_finance.core_min");
