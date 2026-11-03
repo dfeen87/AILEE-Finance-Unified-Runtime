@@ -2,7 +2,7 @@
 
 Clone: `git clone https://github.com/dfeen87/AILEE-Finance-Unified-Runtime.git && cd AILEE-Finance-Unified-Runtime`
 Docker: `docker-compose up --build`
-Dockerfile: build with `docker build -t ailee-finance-unified-runtime:24.0.0 .`, then run with `docker run --rm ailee-finance-unified-runtime:24.0.0`.
+Dockerfile: build with `docker build -t ailee-finance-unified-runtime:25.0.0 .`, then run with `docker run --rm ailee-finance-unified-runtime:25.0.0`.
 Without Docker: `make deps && make build && make test`
 
 > Mitigating Risk and Sustaining Growth Software
@@ -14,7 +14,7 @@ Without Docker: `make deps && make build && make test`
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-deployment%20validation%20required-yellow.svg)]()
-[![Version](https://img.shields.io/badge/version-24.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-25.0.0-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
@@ -24,16 +24,27 @@ Without Docker: `make deps && make build && make test`
 
 ---
 
-## v24.0.0: BEDROCK Engineering Baseline
+## v25.0.0 — Trust Layer Integrity (unreleased review candidate)
 
-The unreleased [Trust Layer comparison and hardening pass](docs/releases/trust-layer-finance-hardening.md)
-strengthens numeric evidence, replay state, audit recovery, bounded broker execution
-and dependency checks. Non-mock execution now requires explicit bounded BUY LIMIT
-orders and a durable journal; unknown or unsupported execution fails closed.
-The new [sampled mathematical engine](docs/MATHEMATICAL_ENGINE.md) implements the
-canonical Δv equation as audited evidence, with no independent trading authority.
-Read the migration requirements before enabling execution. Local regression
-evidence does not establish production or regulatory approval.
+This major version aligns the active distribution and runtime version metadata with
+PR #108's intentional execution-contract changes. The Trust Layer comparison and
+hardening pass adds finite evidence validation, bounded SELL decisions, replay and
+configuration integrity, durable broker intent journaling and recoverable native
+audit records. Non-mock execution requires explicit bounded BUY LIMIT orders and
+an adequately durable private journal; unknown broker outcomes are not reported
+as fills. The canonical [sampled mathematical engine](docs/MATHEMATICAL_ENGINE.md)
+produces deterministic evidence but **does not authorize trading**.
+
+Read the [v25 release candidate contract](docs/releases/25.0.0-trust-layer-integrity.md),
+[hardening verification report](docs/releases/trust-layer-finance-hardening.md)
+and [execution migration guide](docs/releases/execution-integrity-hardening.md).
+**v25.0.0 is not tagged or published by this pull request.** Hosted CI,
+independent integration review and deployment validation are still required;
+no live broker, fill reconciliation, regulatory or production certification is claimed.
+
+---
+
+## v24.0.0: BEDROCK Engineering Baseline
 
 Version 24.0.0 preserves the existing layered architecture while making foundational
 configuration, atomicity, and trust-evidence guarantees explicit. Configuration
@@ -833,9 +844,9 @@ Before compiling the runtime servers, you must retrieve the external header depe
 ./setup_websocket.sh
 ```
 
-### Production Release (Recommended)
+### Release build (deployment validation required)
 
-To compile all runtime components, run the unified test suite, and generate a stamped, production-ready release package:
+To compile all runtime components, run the unified test suite, and generate a stamped candidate release package (not a production certification):
 
 ```bash
 # Compile and package everything
@@ -847,7 +858,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `24.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `25.0.0`).
 
 ### For Quantitative Researchers
 

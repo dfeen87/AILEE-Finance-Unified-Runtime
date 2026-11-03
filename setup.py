@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="aille",
-    version="24.0.0",
+    version="25.0.0",
     description="AILLE: AI-Load Integrity and Layered Evaluation",
     author="Don Michael Feeney Jr",
     author_email="dfeen87@gmail.com",

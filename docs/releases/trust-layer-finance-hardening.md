@@ -3,7 +3,7 @@
 Review date: 2026-11-02. Finance baseline:
 `73921d2f9ec09fe7a401fdcc4c9c604680564c2a` (merged Pass D). Reference:
 Trust Layer `de238cd4a9edd53f978bc33a02f77f891887f263` (v10.0.2).
-This is an unreleased review branch; active release metadata remains 24.0.0.
+This is an unreleased v25.0.0 review candidate (PR #108). The v24.0.0 BEDROCK release remains historical; source metadata on this branch now targets v25.0.0 without publishing a tag or deployment artifact.
 
 ## Comparison and corrected boundaries
 
@@ -150,5 +150,6 @@ claimed to have been enabled. Hosted CI is separate from local evidence and
 must complete before merge. This branch is left unmerged.
 
 These changes include intentional compatibility restrictions and a new ledger
-hash contract. A reviewed major release is recommended rather than silently
-publishing them as a drop-in production patch. Historical reports are preserved.
+hash contract. The changes are staged for reviewed major release v25.0.0, not a drop-in
+production patch. Publish only after hosted CI, migration and deployment
+validation. Historical reports are preserved.

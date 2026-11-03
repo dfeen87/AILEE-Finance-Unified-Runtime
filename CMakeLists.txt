@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(AILLE VERSION 24.0.0 LANGUAGES CXX)
+project(AILLE VERSION 25.0.0 LANGUAGES CXX)
 
 # The public engine calls out-of-line advisory methods even when no advisory is
 # bound. Export their implementations rather than an unusable header-only target.

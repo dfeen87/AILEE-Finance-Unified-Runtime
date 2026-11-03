@@ -1,5 +1,5 @@
 """
-AILEE Finance Domain Module - Version 24.0.0
+AILEE Finance Domain Module - Version 25.0.0
 Implements SELL Governance evaluation pipeline, decision structure, governance level thresholds,
 and audit logging.
 """
@@ -90,7 +90,7 @@ class AileeFinanceDomain:
     """
     AILEE Finance Domain logic evaluator
     """
-    VERSION = "24.0.0"
+    VERSION = "25.0.0"
 
     def __init__(self, log_path="logs/ailee_finance_sell_audit.log", hft_bias_config=None):
         self.log_path = log_path

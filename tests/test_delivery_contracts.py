@@ -49,7 +49,7 @@ import ailee_finance
 from ailee_finance.core_min import AileeFinanceTrustPipeline
 from core.finance_kernel import FinanceKernelConfig
 from core.finance_kernel.kernel_errors import KernelConfigurationError
-if ailee_finance.__version__ != '24.0.0':
+if ailee_finance.__version__ != '25.0.0':
     raise RuntimeError('incorrect wheel version')
 FinanceKernelConfig()
 pipeline = AileeFinanceTrustPipeline()
