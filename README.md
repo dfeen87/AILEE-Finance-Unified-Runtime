@@ -1,5 +1,15 @@
 # AILEE Finance Unified Runtime
 
+## Project Scope and Builder Responsibilities
+
+AILEE Finance Unified Runtime is an **MIT-licensed, open-source research and engineering foundation** for deterministic governance, decision validation, risk evaluation, and auditable algorithmic trading controls. It is **not an out-of-the-box, independently validated autonomous trading agent**.
+
+The repository includes optional reference components, execution adapters, plugins, and trading runners for experimentation and integration. Their inclusion, successful builds, passing tests, or configured safety controls do not establish production readiness or independent validation of an end-to-end trading system.
+
+Cloners and builders are responsible for their own market data, models, brokerage integrations, execution implementation, security, testing, and operational and applicable regulatory validation. This includes validating any bundled components they choose to use in their intended environment before deploying them.
+
+Reliability, safety, determinism, and performance statements below describe design goals, documented component contracts, or results under specified test conditions; they do not guarantee trading outcomes, uninterrupted operation, or regulatory compliance. The software remains provided "AS IS" under the [MIT License](LICENSE).
+
 Clone: `git clone https://github.com/dfeen87/AILEE-Finance-Unified-Runtime.git && cd AILEE-Finance-Unified-Runtime`
 Docker: `docker-compose up --build`
 Dockerfile: build with `docker build -t ailee-finance-unified-runtime:25.0.0 .`, then run with `docker run --rm ailee-finance-unified-runtime:25.0.0`.
@@ -7,7 +17,7 @@ Without Docker: `make deps && make build && make test`
 
 > Mitigating Risk and Sustaining Growth Software
 
-**The Algorithmic Safety System That Transforms Risk into Reliability**
+**A Research and Engineering Foundation for Algorithmic Governance and Risk Validation**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
@@ -68,6 +78,7 @@ statements below are not evidence of regulatory approval.
 
 ## Table of Contents
 
+- [Project Scope and Builder Responsibilities](#project-scope-and-builder-responsibilities)
 - [The Problem: Algorithmic Fragility](#the-problem-algorithmic-fragility)
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
 - [Proven Performance](#proven-performance)
@@ -143,16 +154,18 @@ Model → Output                1. Model Layer (Multiple Sources)
                                        ↓
                                3. Consensus Layer (Agreement Check)
                                        ↓
-                               4. Fallback Mechanism (Stability Guarantee)
+                               4. Fallback Mechanism (Stability Controls)
                                        ↓
                                5. Final Decision (Auditable Output)
 ```
 
-**Result:** Continuous operation even during model failures, data corruption, or extreme market events.
+**Design goal:** Controlled fallback during supported model failures and invalid-input conditions; resilience to market events and operational faults requires deployment-specific validation.
 
 ---
 
 ## Proven Performance
+
+The results below are reported simulation and benchmark observations under the stated assumptions, not independently validated live-trading performance, expected returns, or guarantees of safety or profitability.
 
 ### Simulation Results (2000 Timesteps, Seed 7, Optimized Hyperparameters)
 
@@ -201,7 +214,7 @@ Measured Gains
   - Seed 42: 5.765 → 6.837 (+18.59%)
   - Seed 100: 5.845 → 6.947 (+18.85%)
   - Seed 2026: 6.106 → 7.413 (+21.41%)
-- **Zero Catastrophic Breaks**: Retained 0 catastrophic trades across all seeds, demonstrating absolute protection.
+- **Zero Catastrophic Breaks**: Retained 0 catastrophic trades across the tested seeds; this observation does not establish absolute protection.
 
 These improvements were confirmed through out‑of‑sample testing, stress scenarios, and multi‑seed robustness checks.
 
@@ -293,14 +306,14 @@ Requires multiple independent models to agree:
 
 **No single model can force a decision.**
 
-### 4. Fallback Mechanism - Stability Guarantee
+### 4. Fallback Mechanism - Stability Controls
 
 When consensus fails or confidence is insufficient:
 - Uses **Rolling Historical Mean** of validated decisions
 - Provides conservative, stable position
-- Guarantees continuous operation
+- Supports continued decision evaluation within documented fallback conditions
 
-**The system never "crashes" — it gracefully degrades.**
+**Designed to degrade gracefully under supported model failures; uninterrupted operation is not guaranteed.**
 
 ### 5. Final Decision + Audit Trail
 
@@ -311,7 +324,7 @@ Every decision is logged with:
 - Reasoning (human-readable)
 - Cryptographic hash (blockchain-style integrity)
 
-**Full regulatory compliance and accountability.**
+**Audit evidence to support accountability and deployment-specific compliance review; regulatory compliance is not certified.**
 
 ---
 
@@ -322,7 +335,7 @@ AILEE Version 17.0.0 introduces **Layer 19: Unified Cohesive Runtime & Resilienc
 ### Core Highlights
 - **Cohesive Master Execution Cycle**: Deterministically coordinates WNFS streaming transport (Layer 18), Anomaly Detection (Layer 16), Real-Time Chart Intelligence (Layer 17), Cross-Asset Arbitration (Layer 8), Liquidity Routing (Layer 9), Multi-Governor Reconciliation (Layer 10), Portfolio Constraints (Layer 11), Temporal Consistency (Layer 12), Stress Regime Override (Layer 13), Meta-Governance Lock (Layer 14), and Deformable Membrane (Layer 15).
 - **Fail-Closed Fault Escalation**: Automatically cascades streaming gaps, out-of-order ticks, or extreme anomaly spikes into Layer 13 Stress Override (CRISIS mode) and Layer 14 Meta-Governance Lock, freezing portfolio exposure and freezing HFT impulses instantly.
-- **Sub-Microsecond Latency SLAs**: Achieves < 70 ns p50 / p99 master cycle execution latency inside the AILEE C++ engine and < 7 µs in Python under 250k+ cycle stress benchmarks.
+- **Sub-Microsecond Benchmark Latency**: Achieves < 70 ns p50 / p99 master cycle execution latency inside the AILEE C++ engine and < 7 µs in Python under 250k+ cycle stress benchmarks.
 - **Strictly 64-Byte Cache-Aligned Structs**: Zero heap allocations using `alignas(64)` structs (`UnifiedRuntimeState`, `UnifiedRuntimeMetrics`, `UnifiedRuntimeTraceStep`, `UnifiedRuntimeAdvisory`, `UnifiedRuntimeConfig`).
 - **Unified Observability & Spire Integration**: Full exposure via `aillee_spire::get_unified_runtime_advisory()`, `aillee_spire::get_unified_runtime_metrics()`, and Python operator `UnifiedRuntimeOperator`.
 
@@ -334,7 +347,7 @@ AILEE Version 18 introduces **Layer 18: WaveNativeFinanceStream (WNFS)** (`WAVE_
 
 ### Core Highlights
 - **High-Throughput Wave Ingestion**: Direct binary zero-copy struct mapping (`WNFSFrame`), lock-free ring-buffer channels (`WNFSChannel`), and wave phase alignment.
-- **Sub-Microsecond Latency SLAs**: Achieves < 350 ns p50 (measured ~55 ns) and < 900 ns p99 (measured ~71 ns) inside the AILEE runtime under 250k–1M+ ticks/sec bursts.
+- **Sub-Microsecond Benchmark Latency**: Achieves < 350 ns p50 (measured ~55 ns) and < 900 ns p99 (measured ~71 ns) inside the AILEE runtime under 250k–1M+ ticks/sec bursts.
 - **Fail-Closed Multi-Clone Escalation**: Detects sequence gaps, out-of-order frames, and corruption, automatically triggering Layer 13 Stress Override and Layer 14 Meta-Governance Lock.
 - **Zero Heap Allocations**: Strictly `alignas(64)` cache-aligned structs (`WNFSFrame`, `WNFSState`, `WNFSAdvisory`, `WNFSObservabilityMetrics`, `WNFSTraceStep`, `WNFSConfig`).
 
@@ -369,6 +382,8 @@ AILEE Version 13.0.0 introduces **Layer 16: Real-Time Market Condition Intellige
 ## v12.0.0: Optional Autonomous Trade Execution Plugin & Governance
 
 AILEE Version 12.0.0 introduces an **OPTIONAL** trade execution plugin and autonomous trading daemon designed to translate Volume Advisory Module (VAM) intraday signals on **SPY** and **QQQ** into automated equity trades.
+
+These bundled integration and execution components remain subject to the [project scope and builder responsibilities](#project-scope-and-builder-responsibilities). Paper/live mode options, opt-in flags, and governance checks are component controls, not independent validation of broker behavior, operational reliability, or production readiness. Review the current [execution migration guide](docs/releases/execution-integrity-hardening.md) before using the historical runner examples below.
 
 ### Architectural Highlights & Safety Posture
 - **Alpaca REST Execution Adapter**: Integrated C++ plugin (`ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp/.hpp`) communicating with Alpaca REST v2 endpoints (`/v2/orders`, `/v2/positions`, `/v2/account`) using `cpp-httplib`.
@@ -791,7 +806,7 @@ Traditional algorithms halt or crash when encountering:
 - Model divergence
 - Network latency spikes
 
-**AILLE's fallback mechanism ensures continuous operation.** Even if all models fail, the system provides a stable, historically-validated output.
+**AILLE's fallback mechanism is designed to continue decision evaluation when model consensus fails.** Fallback uses historical decision values within documented conditions; its suitability and operational reliability require validation in the target environment.
 
 ### Safety Through Layered Validation
 
@@ -801,7 +816,7 @@ Each layer acts as an independent check:
 2. **Consensus Layer** prevents single-model bias
 3. **Fallback Layer** catches edge cases
 
-This creates **defense in depth** — multiple failure modes must occur simultaneously for the system to produce poor output.
+This provides **defense in depth** intended to reduce failure risk; it cannot rule out poor outputs or shared failure modes.
 
 ### Transparency & Auditability
 
@@ -811,7 +826,7 @@ Every decision includes:
 - What the confidence level was
 - Whether fallback was triggered
 
-This satisfies regulatory requirements for:
+These audit features can support deployment-specific review of obligations under the following frameworks; they do not establish applicability or compliance:
 - EU AI Act
 - SEC Algorithmic Trading Rules
 - MiFID II Transaction Reporting
@@ -820,6 +835,8 @@ This satisfies regulatory requirements for:
 ---
 
 ## Implications for Financial Markets
+
+The following are research hypotheses and design goals, not established live-market outcomes or guarantees.
 
 ### Reduced Systemic Volatility
 
@@ -830,14 +847,14 @@ The Safety and Fallback layers suppress catastrophic algorithmic failures:
 
 ### Enhanced Market Confidence
 
-When major institutions adopt provably safe algorithms:
+When major institutions adopt independently evaluated algorithmic controls:
 - Investor trust increases
 - Capital flows more freely
 - Market efficiency improves
 
 ### Sustainable Alpha Generation
 
-The Consensus Layer ensures winning strategies are robustly validated:
+The Consensus Layer evaluates model agreement; potential research goals include:
 - Higher quality alpha (excess returns)
 - More predictable performance
 - Less strategy decay over time
@@ -866,6 +883,8 @@ Don Michael Feeney Jr., November 2025
 
 ## Deployment Guide
 
+This guide covers building and evaluating the foundation. A successful build or release package does not validate an integrated trading system. Builders must independently validate data, brokerage and execution behavior, security, testing, and operational and applicable regulatory requirements for their intended deployment.
+
 ### Dependency Preparation (Required)
 
 Before compiling the runtime servers, you must retrieve the external header dependencies. The build system will fail loudly if these are missing:
@@ -890,7 +909,7 @@ make release
 This target performs the following actions:
 1. Validates that all external dependencies are correctly configured in the `external/` directory.
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
-3. Automatically runs the complete unit-test suite to guarantee framework integrity (the build will abort if any test fails).
+3. Automatically runs the complete unit-test suite to check covered framework invariants (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
 2. Stamps the deployment version in `release/VERSION` (containing `25.0.0`).
 
@@ -927,17 +946,19 @@ This target performs the following actions:
 
 ### For Trading Desks
 
-1. **Sandbox Testing** (Recommended: 2-4 weeks)
+The durations, rollout percentages, and monitoring targets below are illustrative planning examples, not sufficient criteria for production readiness.
+
+1. **Sandbox Testing** (Illustrative: 2-4 weeks)
    - Run AILLE in parallel with existing systems
    - Compare decisions and performance
    - Calibrate thresholds for your risk profile
 
-2. **Paper Trading** (Recommended: 1-2 months)
+2. **Paper Trading** (Illustrative: 1-2 months)
    - Deploy with simulated execution
    - Validate audit trail generation
    - Stress test with historical extreme events
 
-3. **Production Deployment**
+3. **Production Deployment (only after independent validation)**
    - Gradual rollout (10% → 50% → 100% of volume)
    - Monitor fallback activation rate (target: <5%)
    - Daily compliance reports
@@ -975,15 +996,17 @@ CI runs a lightweight workflow that installs dependencies, checks that the simul
 
 ## Compliance and Regulatory
 
-### Built-In Compliance Features
+### Audit and Compliance Support Features
 
 ✅ **Audit Trail**: Every decision is timestamped and logged  
 ✅ **Reasoning Transparency**: Human-readable explanation for each output  
 ✅ **Model Attribution**: Tracks which models contributed to decisions  
-✅ **Integrity Verification**: Cryptographic hash chain prevents tampering  
+✅ **Integrity Verification**: Cryptographic hash chain supports detection of changes to recorded audit data\
 ✅ **Regulatory Reporting**: Automated report generation
 
-### Satisfies Requirements For:
+### Deployment-Specific Regulatory Review
+
+The following are reference frameworks for review, not claims of certification or compliance. Builders must determine applicability and independently validate their complete implementation and operations against applicable requirements.
 
 - **SEC Rule 15c3-5** (Market Access Rule)
 - **MiFID II** (Transaction Reporting)
@@ -1048,13 +1071,15 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 
 ### What AILLE Is
 
+✅ An MIT-licensed research and engineering foundation\
 ✅ A decision validation framework  
 ✅ A risk mitigation system  
 ✅ An auditability layer  
-✅ A stability guarantee mechanism  
+✅ A fallback and stability-control mechanism\
 
 ### What AILLE Is NOT
 
+❌ An out-of-the-box, independently validated autonomous trading agent\
 ❌ A trading strategy (you provide the models)  
 ❌ A guarantee of profitability  
 ❌ A replacement for human oversight  
@@ -1066,7 +1091,7 @@ aggressive.fallback_position_scale = 0.15f;      // Larger fallback positions
 2. **Model Quality**: AILLE validates decisions, but cannot fix bad models
 3. **Market Regime Changes**: Fallback values are historically-derived and may lag regime shifts
 4. **Transaction Costs**: Simulations do not include slippage, commissions, or market impact
-5. **Live Testing Required**: Always paper trade before production deployment
+5. **Deployment Validation Required**: Paper trading is one evaluation stage; it does not establish live execution reliability or production readiness. Builders remain responsible for independent integration, security, testing, operational and applicable regulatory validation.
 
 ---
 
@@ -1126,7 +1151,7 @@ Model layer → untrusted predictions
 Advisory layer → deterministic risk posture  
 Safety layer → confidence filtering  
 Consensus layer → agreement validation  
-Fallback layer → stability guarantee  
+Fallback layer → stability controls\
 
 Advisory modules never replace models — they **validate and contextualize** them.
 
@@ -1183,7 +1208,7 @@ These constraints ensure:
 - Reproducible outputs  
 - Cross‑platform consistency  
 - Zero nondeterministic behavior  
-- Full auditability and safety compliance  
+- Traceability to support auditability and safety review\
 
 AILLEE is engineered to behave identically across compilers, machines, and environments.
 
@@ -1306,7 +1331,7 @@ Advisory modules provide context — not votes.
 
 ## Deterministic Test Suite
 
-AILLEE’s test suite validates every deterministic and safety invariant:
+AILLEE’s test suite checks documented deterministic and safety invariants within its covered cases:
 
 ### **Struct size asserts**
 ```
@@ -1335,7 +1360,7 @@ Identical inputs must always produce identical outputs across:
 ### **ABI stability tests**
 Binary layout is validated across GCC, Clang, and MSVC.
 
-This suite ensures AILLEE is not just code — it is a verified deterministic system.
+This suite provides evidence for the tested deterministic properties; it does not independently validate an integrated production trading system.
 
 ---
 
@@ -1358,10 +1383,10 @@ This gives newcomers a clear view of AILLEE’s evolution.
 AILLEE is built on six core principles:
 
 - **Determinism** — identical behavior across all environments  
-- **Safety** — layered validation prevents catastrophic failures  
+- **Safety** — layered validation aims to reduce catastrophic failure risk\
 - **Auditability** — every decision is explainable and logged  
 - **Zero trust in models** — models propose, AILLEE validates  
-- **Defense‑in‑depth** — multiple layers must fail simultaneously  
+- **Defense‑in‑depth** — layered controls reduce failure risk\
 - **Advisory‑only boundaries** — no execution logic inside the engine  
 
 This philosophy is the foundation of AILLEE’s reliability.
@@ -1380,7 +1405,7 @@ AILLEE is designed for institutional deployment:
 - REST API and C++ integration paths  
 - Deterministic behavior across distributed systems  
 
-This positions AILLEE as a production‑grade risk mitigation framework.
+These interfaces provide a foundation for institutional integration; production readiness requires independent validation of the complete deployment.
 
 ---
 
@@ -1404,7 +1429,7 @@ AILLEE continues to evolve toward hardware determinism and multi‑asset advisor
 > **“Safety is not a feature. It is the architecture.”**
 
 These statements capture the ethos of AILLEE:  
-In a world of fragile algorithms, AILLEE is engineered to remain stable, predictable, and auditable under all conditions.
+In a world of fragile algorithms, AILLEE aims for stability, predictability, and auditability within documented component contracts and validated deployment conditions.
 
 ---
 
