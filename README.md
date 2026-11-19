@@ -27,14 +27,14 @@ Without Docker: `make deps && make build && make test`
 [![Version](https://img.shields.io/badge/version-25.0.1-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml)
 
-[Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
+[Release History](#versioning-and-release-notes) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
 
 <img src="bull/america.jpeg" width="420">
 
 
 ---
 
-## v25.0.1 — Foundation Integrity (unreleased)
+## v25.0.1 — Foundation Integrity (released November 19, 2026)
 
 - Native standalone synchronization seeds its initial timestamp from the system
   clock's Unix epoch. Subsequent ticks retain their existing deterministic cadence;
@@ -43,8 +43,7 @@ Without Docker: `make deps && make build && make test`
   finite numeric representations before logging or appending. Valid record bytes
   and the audit schema are unchanged; failures retain the existing rollback and lockout.
 
-Source version metadata targets 25.0.1. No release tag or updater artifact is
-published by this candidate.
+[v25.0.1 was published on November 19, 2026](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/tag/v25.0.1). This source release does not by itself establish a published updater artifact, validated broker deployment, or production certification.
 
 ---
 
@@ -81,21 +80,36 @@ failure semantics, and real-world validation boundaries.
 
 [Post-BEDROCK Pass C](docs/releases/24.0.0-post-bedrock-pass-c.md) corrects the
 Alpaca adapter's HTTPS transport and verifies certificate rejection using local
-simulated adapters. This does not certify live execution: Python volume execution
-currently produces mock IDs in every mode, broker response/replay semantics still
-need independent validation, and audit integrity covers in-memory records rather
-than durable recovery. The installed CMake SDK requires C++20; some networking
+simulated adapters. This does not certify live execution: the v24-era Python volume-execution behavior and broker response/replay semantics
+required additional validation, while audit recovery still had documented gaps.
+Subsequent improvements are described in the v25.0.0 and v25.0.1 sections above. The installed CMake SDK requires C++20; some networking
 components retain C++17 builds. Historical compliance and production-readiness
 statements below are not evidence of regulatory approval.
+
+---
+
+## Current Engineering Snapshot (v25.0.1)
+
+AILEE Finance has progressed from an early model-signal and five-stage decision concept into a layered research runtime with native C++, Python, integration interfaces, reproducible tests, and explicit governance boundaries. The **five-stage decision flow** below describes a conceptual entry point, not the full scope of the current layered implementation.
+
+- **Validated decision boundaries:** Finite and typed financial evidence checks, bounded SELL and fallback decisions, and fail-closed responses to malformed inputs. [v25 engineering record](docs/releases/25.0.0-trust-layer-integrity.md).
+- **Atomic configuration:** Validate-before-commit updates preserve prior state when proposed configurations are invalid. [BEDROCK contract](docs/releases/24.0.0-bedrock.md).
+- **Constrained execution interfaces:** Non-mock adapter requests require explicitly bounded BUY LIMIT intent and durable identity journaling; unknown broker outcomes remain reserved rather than being represented as confirmed fills. These are component contracts, not proof of live execution safety. [Execution-integrity guide](docs/releases/execution-integrity-hardening.md).
+- **Auditable evidence:** Native audit-chain recovery, deterministic replay safeguards, and versioned `ailee-delta-v/v1` mathematical evidence, which remains **non-authorizing**. [Mathematical evidence contract](docs/MATHEMATICAL_ENGINE.md).
+- **Synchronization and audit-record correctness:** v25.0.1 adds checked Unix-epoch initialization for native standalone ticks and strict JSON audit validation before logging or append.
+- **Verification and distribution:** CI exercises Python tests (including optimized mode), native/CMake trust-boundary tests, SDK consumer relocation, C++ regression tests, deterministic simulation, and REST lifecycle checks. [Workflow](.github/workflows/ci.yml).
+
+These are documented source-level engineering capabilities and tested behaviors within specified environments. **They do not establish forecasting accuracy, profitability, independent live-broker validation, regulatory compliance, or production readiness.**
 
 ---
 
 ## Table of Contents
 
 - [Project Scope and Builder Responsibilities](#project-scope-and-builder-responsibilities)
+- [Current Engineering Snapshot (v25.0.1)](#current-engineering-snapshot-v2501)
 - [The Problem: Algorithmic Fragility](#the-problem-algorithmic-fragility)
 - [The Solution: AILLE Framework](#the-solution-aille-framework)
-- [Proven Performance](#proven-performance)
+- [Historical Simulation and Benchmark Results](#historical-simulation-and-benchmark-results)
 - [Architecture: Five Layers of Safety](#architecture-five-layers-of-safety)
 - [v17.0.0: Unified Cohesive Runtime & Resiliency Engine (Layer 19)](#v1700-unified-cohesive-runtime--resiliency-engine-layer-19)
 - [v16.0.0: WaveNativeFinanceStream (WNFS) Streaming Ingestion (Layer 18)](#v1600-wavenativefinancestream-wnfs-streaming-ingestion-layer-18)
@@ -177,9 +191,9 @@ Model → Output                1. Model Layer (Multiple Sources)
 
 ---
 
-## Proven Performance
+## Historical Simulation and Benchmark Results
 
-The results below are reported simulation and benchmark observations under the stated assumptions, not independently validated live-trading performance, expected returns, or guarantees of safety or profitability.
+The figures in this section are **historical v4.1–v8.4 simulation and benchmark observations**, retained for reproducibility and project history. They are **not v25.0.1 performance measurements**, independently validated live-trading results, expected returns, or guarantees of safety or profitability. Newer releases emphasize verifiable correctness and governance contracts rather than adopting these historical figures as deployment claims.
 
 ### Simulation Results (2000 Timesteps, Seed 7, Optimized Hyperparameters)
 
@@ -1004,7 +1018,7 @@ The durations, rollout percentages, and monitoring targets below are illustrativ
 
 ## Continuous Integration
 
-CI runs a lightweight workflow that installs dependencies, checks that the simulation module imports, and executes the deterministic simulation harness in a clean environment. It validates buildability and repeatable execution, but **does not** assert economic correctness or forecasting accuracy. The goal is a stable, deterministic safety net that confirms the code runs without runtime errors. 
+The [GitHub Actions CI workflow](.github/workflows/ci.yml) installs declared dependencies, audits dependencies, exercises Python unit/integration tests in normal and optimized modes, builds and verifies a relocated CMake SDK consumer, runs native trust-boundary and C++ regression suites, executes a deterministic simulation, and checks REST startup and lifecycle behavior. Passing CI supports the covered software contracts; it **does not** establish economic correctness, forecasting accuracy, live-broker safety, or production readiness. 
 
 ---
 
@@ -1380,15 +1394,16 @@ This suite provides evidence for the tested deterministic properties; it does no
 
 ## Versioning and Release Notes
 
-```
-### Version History
-- 6.0.0 — Unified Macro-Aware Advisory Engine
-- 5.1.0 — ABI Stabilization & SafetyState Hardening
-- 5.0.0 — Deterministic Consensus & Fallback Architecture
-- 4.x.x — Early Model-Signal Safety Framework
-```
+| Milestone | Published / historical status | Engineering focus |
+|---|---|---|
+| [v25.0.1](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/tag/v25.0.1) | November 19, 2026 | Foundation Integrity: UTC fallback clock correctness, audit JSON validation, synthetic regressions and version alignment |
+| [v25.0.0](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/tag/v25.0.0) | November 3, 2026 | Trust-layer evidence, bounded execution contracts, durable intent, audit recovery and mathematical provenance |
+| [v24.0.1](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/tag/v24.0.1) | October 13, 2026 | Execution and transport integrity hardening |
+| [v24.0.0](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/tag/v24.0.0) | October 3, 2026 | BEDROCK: atomic configuration, explicit numeric domains and regression coverage |
+| v17–v23 | Historical releases | Layered runtime integration, streaming, governance, and resiliency |
+| v4–v6 | Historical development | Model-signal filtering, deterministic consensus/fallback, and advisory structures |
 
-This gives newcomers a clear view of AILLEE’s evolution.
+Earlier milestones remain documented in [CHANGELOG.md](CHANGELOG.md) and [GitHub Releases](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases). A GitHub source release is not certification of a complete deployment.
 
 ---
 
@@ -1425,14 +1440,24 @@ These interfaces provide a foundation for institutional integration; production 
 
 ## Roadmap
 
-```
-6.1 — Advisory normalization layer
-6.2 — Multi-asset exposure balancer
-6.3 — Deterministic observability dashboards
-7.0 — Hardware-accelerated advisory kernels (FPGA/ASIC)
-```
+The former 6.x/7.0 milestone list described an earlier stage of development and is retained in repository history. Following the v24 BEDROCK and v25 Trust Layer Integrity releases, the current direction is **evidence-led maintenance and validation** rather than a list of promised version numbers.
 
-AILLEE continues to evolve toward hardware determinism and multi‑asset advisory intelligence.
+### Established engineering baseline
+
+- Layered advisory, consensus, fallback, governance, and integration architecture.
+- Atomic configuration and typed, finite validation at documented trust boundaries.
+- More restrictive execution-intent, audit-recovery, and mathematical-evidence contracts.
+- Tested native synchronization and Python audit serialization in v25.0.1.
+
+### Potential research and maintenance priorities
+
+- Extend adversarial, malformed-input, replay/restart, and failure-recovery regression coverage.
+- Improve cross-platform build and interface compatibility evidence, including installed SDK consumers.
+- Expand reproducible audit and observability documentation with explicit uncertainty and authorization boundaries.
+- Evaluate optional performance and hardware-oriented advisory techniques **separately** from governance and execution authorization; these remain research directions, not deployment claims.
+- Maintain clear migration notes, test evidence, and limitations alongside subsequent changes.
+
+These are proposed areas for investigation, **not scheduled releases or claims of completed independent validation**. See [the CI workflow](.github/workflows/ci.yml), [release history](#versioning-and-release-notes), and [limitations](#limitations-and-disclaimers) for the current supported evidence and boundaries.
 
 ---
 
