@@ -49,7 +49,7 @@ import ailee_finance
 from ailee_finance.core_min import AileeFinanceTrustPipeline
 from core.finance_kernel import FinanceKernelConfig
 from core.finance_kernel.kernel_errors import KernelConfigurationError
-if ailee_finance.__version__ != '25.0.0':
+if ailee_finance.__version__ != '25.0.1':
     raise RuntimeError('incorrect wheel version')
 FinanceKernelConfig()
 pipeline = AileeFinanceTrustPipeline()
@@ -132,9 +132,15 @@ def test_docker_context_excludes_nested_secrets_and_keeps_build_inputs(tmp_path)
     ("CITATION.cff", r'^version: ([0-9.]+)$'),
     ("docker-compose.yml", r'image: ailee-finance-unified-runtime:([0-9.]+)'),
     ("ailee_runtime/fs_gateway/fs_gateway.hpp", r'FS_GATEWAY_VERSION = "([0-9.]+)"'),
+    ("ailee_runtime/fs_gateway/main.cpp", r'Runtime v([0-9.]+) - FS-Gateway'),
     ("ailee_plugins/plugins/dashboard/index.html", r'class="v-tag">V([0-9.]+)</span>'),
     ("diagnostics.py", r'VERSION_HEADER = "AILLEE Diagnostics v([0-9.]+)"'),
+    ("diagnostics.py", r'Runtime version identifier: ([0-9.]+)'),
     ("update.py", r'^VERSION = "([0-9.]+)"'),
+    ("ailee_hft_config.yaml", r'^version: "([0-9.]+)"'),
+    ("ailee_finance/domains/finance/ailee_finance_domain.py", r'^\s+VERSION = "([0-9.]+)"'),
+    ("scripts/verify_cmake_consumer.sh", r'find_package\(AILLE ([0-9.]+) CONFIG REQUIRED\)'),
+    ("simulations/run_bitcoin_sync_simulation.py", r'Runtime \(v([0-9.]+)\)'),
 ))
 def test_active_delivery_versions_match_runtime(filename, pattern):
     from ailee_finance import __version__

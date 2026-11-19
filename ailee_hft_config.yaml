@@ -1,4 +1,4 @@
-version: "25.0.0"
+version: "25.0.1"
 hft_bias:
   enabled: true
   bullishness_mode: "STANDARD"
