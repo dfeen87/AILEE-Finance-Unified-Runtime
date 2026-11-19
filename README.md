@@ -12,7 +12,7 @@ Reliability, safety, determinism, and performance statements below describe desi
 
 Clone: `git clone https://github.com/dfeen87/AILEE-Finance-Unified-Runtime.git && cd AILEE-Finance-Unified-Runtime`
 Docker: `docker-compose up --build`
-Dockerfile: build with `docker build -t ailee-finance-unified-runtime:25.0.0 .`, then run with `docker run --rm ailee-finance-unified-runtime:25.0.0`.
+Dockerfile: build with `docker build -t ailee-finance-unified-runtime:25.0.1 .`, then run with `docker run --rm ailee-finance-unified-runtime:25.0.1`.
 Without Docker: `make deps && make build && make test`
 
 > Mitigating Risk and Sustaining Growth Software
@@ -24,13 +24,27 @@ Without Docker: `make deps && make build && make test`
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 
 [![Status](https://img.shields.io/badge/status-deployment%20validation%20required-yellow.svg)]()
-[![Version](https://img.shields.io/badge/version-25.0.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-25.0.1-blue.svg)]()
 [![CI](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/actions/workflows/ci.yml)
 
 [Documentation](#documentation) • [Quick Start](#deployment-guide) • [Examples](#integration-example) • [Research Paper](https://www.linkedin.com/pulse/how-algorithmic-software-improved-aille-don-feeney-6izve/)
 
 <img src="bull/america.jpeg" width="420">
 
+
+---
+
+## v25.0.1 — Foundation Integrity (unreleased)
+
+- Native standalone synchronization seeds its initial timestamp from the system
+  clock's Unix epoch. Subsequent ticks retain their existing deterministic cadence;
+  an invalid or unrepresentable initial timestamp follows the existing rejection path.
+- Python volume-audit records are checked for unambiguous JSON object members and
+  finite numeric representations before logging or appending. Valid record bytes
+  and the audit schema are unchanged; failures retain the existing rollback and lockout.
+
+Source version metadata targets 25.0.1. No release tag or updater artifact is
+published by this candidate.
 
 ---
 
@@ -48,8 +62,8 @@ produces deterministic evidence but **does not authorize trading**.
 Read the [v25 release candidate contract](docs/releases/25.0.0-trust-layer-integrity.md),
 [hardening verification report](docs/releases/trust-layer-finance-hardening.md)
 and [execution migration guide](docs/releases/execution-integrity-hardening.md).
-**v25.0.0 is tagged or published by this pull request.** Hosted CI,
-independent integration review and deployment validation are still required;
+**v25.0.0 was [published on November 3, 2026](https://github.com/dfeen87/AILEE-Finance-Unified-Runtime/releases/tag/v25.0.0).**
+Independent integration review and deployment validation are still required;
 no live broker, fill reconciliation, regulatory or production certification is claimed.
 
 ---
@@ -911,7 +925,7 @@ This target performs the following actions:
 2. Compiles all core runtime binaries: `demo`, `rest_api_server`, `websocket_server`, `dashboard_server`, `benchmark`, and `test_suite`.
 3. Automatically runs the complete unit-test suite to check covered framework invariants (the build will abort if any test fails).
 4. Populates a fresh `release/` directory containing all compiled binaries.
-2. Stamps the deployment version in `release/VERSION` (containing `25.0.0`).
+2. Stamps the deployment version in `release/VERSION` (containing `25.0.1`).
 
 ### For Quantitative Researchers
 

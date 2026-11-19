@@ -5,7 +5,19 @@ All notable changes to the AILLE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [25.0.0] - Unreleased (PR #108)
+## [25.0.1] - Unreleased (PR #122)
+### Fixed
+- Seed native standalone synchronization from the system clock's Unix epoch, rejecting invalid or unrepresentable initial timestamps.
+- Reject ambiguous JSON object members and non-finite audit representations before logging or appending, preserving valid audit records and existing rollback behavior.
+
+### Tests
+- Added isolated native clock-boundary and synthetic Python audit-serialization regressions.
+- Synchronized active distribution, runtime and delivery version checks at 25.0.1.
+
+### Release status
+- Source version metadata targets 25.0.1. No tag, published updater artifact, GitHub Release or deployment certification is created by this candidate.
+
+## [25.0.0] - 2026-11-03
 ### Changed — breaking contracts
 - Hardened numerical evidence, bounded SELL ceilings and fallback behavior across Python and native governance.
 - Required durable, private intent journaling and bounded BUY LIMIT evidence for non-mock broker requests. Unknown outcomes stay reserved; broker acceptance does not imply a fill.
@@ -16,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Migration / release status
 - Breaking restrictions intentionally reject previously tolerated malformed or unsupported execution inputs and legacy lossy audit recovery; see `docs/releases/execution-integrity-hardening.md`.
-- The version bump stages source metadata only: **no v25 tag, updater artifact, public release, production approval or live-broker certification is created**.
-- Hosted CI and independent integration/deployment checks must complete before publication.
+- The v25.0.0 source release was tagged and published on November 3, 2026. Publication does not establish an updater artifact, production approval or live-broker certification.
+- Independent integration and deployment validation remain required.
 
 ## [24.0.0] - 2026-10-03
 ### Changed
