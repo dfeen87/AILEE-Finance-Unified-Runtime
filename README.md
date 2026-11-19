@@ -52,6 +52,15 @@ and [execution migration guide](docs/releases/execution-integrity-hardening.md).
 independent integration review and deployment validation are still required;
 no live broker, fill reconciliation, regulatory or production certification is claimed.
 
+### Foundation integrity maintenance (unreleased)
+
+- Native standalone synchronization seeds its initial timestamp from the system
+  clock's Unix epoch. Subsequent ticks retain their existing deterministic cadence;
+  an invalid or unrepresentable initial timestamp follows the existing rejection path.
+- Python volume-audit records are checked for unambiguous JSON object members and
+  finite numeric representations before logging or appending. Valid record bytes
+  and the audit schema are unchanged; failures retain the existing rollback and lockout.
+
 ---
 
 ## v24.0.0: BEDROCK Engineering Baseline

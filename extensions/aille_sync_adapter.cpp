@@ -11,9 +11,56 @@
  */
 
 #include "aille_sync_adapter.hpp"
+#include <chrono>
 #include <limits>
+#include <ratio>
+#include <type_traits>
 
 namespace AILLE {
+
+namespace {
+
+// Check the signed nanosecond domain before scaling a wall-clock count.
+// Integral clock units (including ns, microseconds, and 100 ns) retain exact
+// precision at the boundary without an overflowing duration_cast.
+template <typename Duration>
+constexpr std::uint64_t checked_epoch_ns(Duration elapsed) noexcept {
+    using Scale = std::ratio_divide<typename Duration::period, std::nano>;
+    constexpr auto maximum = std::numeric_limits<std::int64_t>::max();
+    const auto ticks = elapsed.count();
+    if constexpr (std::is_integral_v<typename Duration::rep> && Scale::den == 1) {
+        if (ticks <= 0 || ticks > maximum / Scale::num) {
+            return 0;
+        }
+        return static_cast<std::uint64_t>(ticks) * static_cast<std::uint64_t>(Scale::num);
+    } else if constexpr (std::is_integral_v<typename Duration::rep> && Scale::num == 1) {
+        const auto ns = ticks / Scale::den;
+        return ns > 0 && ns <= maximum ? static_cast<std::uint64_t>(ns) : 0;
+    } else {
+        // For other clock representations, a checked wide conversion avoids
+        // overflowing a signed integer intermediate.
+        using WideNanoseconds = std::chrono::duration<long double, std::nano>;
+        constexpr long double limit = static_cast<long double>(maximum) + 1.0L;
+        const auto ns = WideNanoseconds(elapsed).count();
+        return ns >= 1.0L && ns < limit ? static_cast<std::uint64_t>(ns) : 0;
+    }
+}
+
+static_assert(checked_epoch_ns(std::chrono::nanoseconds{-1}) == 0);
+static_assert(checked_epoch_ns(std::chrono::nanoseconds{0}) == 0);
+static_assert(checked_epoch_ns(std::chrono::nanoseconds{1}) == 1);
+static_assert(checked_epoch_ns(std::chrono::nanoseconds{
+    std::numeric_limits<std::int64_t>::max()}) ==
+    static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()));
+static_assert(checked_epoch_ns(std::chrono::microseconds{1}) == 1000);
+static_assert(checked_epoch_ns(std::chrono::microseconds{
+    std::numeric_limits<std::int64_t>::max() / 1000 + 1}) == 0);
+static_assert(checked_epoch_ns(std::chrono::seconds{
+    std::numeric_limits<std::int64_t>::max() / 1000000000 + 1}) == 0);
+static_assert(checked_epoch_ns(std::chrono::duration<std::int64_t, std::pico>{999}) == 0);
+static_assert(checked_epoch_ns(std::chrono::duration<std::int64_t, std::pico>{1000}) == 1);
+
+} // namespace
 
 SyncAdapter::SyncAdapter() noexcept
     : state_(), config_(), metrics_(), current_tick_() {
@@ -127,14 +174,17 @@ SyncTick SyncAdapter::ingest_protocol_clock(
 }
 
 SyncTick SyncAdapter::advance_tick() noexcept {
-    const auto maximum = std::numeric_limits<std::uint64_t>::max();
-    if (config_.target_cadence_ns == 0 || state_.current_tick_index == maximum ||
-        state_.last_timestamp_ns > maximum - config_.target_cadence_ns || !std::isfinite(state_.current_wave_phase) ||
-        !std::isfinite(config_.min_confidence_threshold) || config_.min_confidence_threshold < 0 || config_.min_confidence_threshold > 1) {
+    const auto reject_tick = [this]() noexcept {
         current_tick_ = SyncTick();
         current_tick_.confidence = 0;
         current_tick_.degraded = current_tick_.escalate_stress = current_tick_.escalate_meta_lock = 1;
         return current_tick_;
+    };
+    const auto maximum = std::numeric_limits<std::uint64_t>::max();
+    if (config_.target_cadence_ns == 0 || state_.current_tick_index == maximum ||
+        state_.last_timestamp_ns > maximum - config_.target_cadence_ns || !std::isfinite(state_.current_wave_phase) ||
+        !std::isfinite(config_.min_confidence_threshold) || config_.min_confidence_threshold < 0 || config_.min_confidence_threshold > 1) {
+        return reject_tick();
     }
     SyncTick tick;
     tick.tick_index = state_.current_tick_index + 1;
@@ -142,9 +192,13 @@ SyncTick SyncAdapter::advance_tick() noexcept {
     if (state_.last_timestamp_ns > 0) {
         tick.timestamp_ns = state_.last_timestamp_ns + config_.target_cadence_ns;
     } else {
-        tick.timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::high_resolution_clock::now().time_since_epoch()
-        ).count();
+        // Seed the standalone clock in the Unix epoch, not an unspecified
+        // high-resolution clock epoch. Later ticks retain deterministic cadence.
+        tick.timestamp_ns = checked_epoch_ns(
+            std::chrono::system_clock::now().time_since_epoch());
+        if (tick.timestamp_ns == 0) {
+            return reject_tick();
+        }
     }
 
     tick.drift_ns = 0; // Standalone zero jitter cadence

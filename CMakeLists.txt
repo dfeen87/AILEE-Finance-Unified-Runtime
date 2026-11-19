@@ -58,6 +58,14 @@ if(AILLE_BUILD_TESTS)
     foreach(case engine_config engine_fallback engine_reconfigure sell_governor unified_evidence bound_governance native_governance unified_replay durable_audit canonical_math)
         add_test(NAME trust_${case} COMMAND trust_boundary_hardening ${case})
     endforeach()
+
+    # Clock compatibility is tested independently of the execution runtime.
+    add_executable(sync_adapter_clock_tests tests/sync_adapter_clock.cpp extensions/aille_sync_adapter.cpp)
+    target_compile_features(sync_adapter_clock_tests PRIVATE cxx_std_20)
+    target_include_directories(sync_adapter_clock_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    foreach(case epoch cadence external rejection)
+        add_test(NAME sync_clock_${case} COMMAND sync_adapter_clock_tests ${case})
+    endforeach()
 endif()
 
 include(GNUInstallDirs)
