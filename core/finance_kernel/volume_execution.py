@@ -22,6 +22,34 @@ from core.finance_kernel.kernel_registry import BaseOperator
 from core.finance_kernel.hft_bias import is_bullish_mode_allowed
 from core.finance_kernel.kernel_config import validate_hft_bias_config
 
+
+def _validate_audit_json(line: str) -> None:
+    """Reject ambiguous or non-finite JSON before any audit side effects."""
+    def finite_float(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError("audit JSON contains a non-finite number")
+        return value
+
+    def reject_constant(_text):
+        raise ValueError("audit JSON contains a nonstandard numeric constant")
+
+    def unique_members(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("audit JSON contains duplicate member names")
+            result[key] = value
+        return result
+
+    parsed = json.loads(
+        line, parse_float=finite_float, parse_constant=reject_constant,
+        object_pairs_hook=unique_members,
+    )
+    if not isinstance(parsed, dict):
+        raise ValueError("audit JSON must be an object")
+
+
 class VolumeExecutionOperator(BaseOperator):
     role = "transaction"
     """
@@ -152,6 +180,7 @@ class VolumeExecutionOperator(BaseOperator):
             "reason": details
         }
         log_line = json.dumps(record, allow_nan=False)
+        _validate_audit_json(log_line)
         logger.info(f"[AUDIT] {log_line}")
 
         with open(self.audit_log_file, "a", encoding="utf-8") as f:

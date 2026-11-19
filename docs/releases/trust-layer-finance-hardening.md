@@ -3,7 +3,7 @@
 Review date: 2026-11-02. Finance baseline:
 `73921d2f9ec09fe7a401fdcc4c9c604680564c2a` (merged Pass D). Reference:
 Trust Layer `de238cd4a9edd53f978bc33a02f77f891887f263` (v10.0.2).
-This is an unreleased v25.0.0 review candidate (PR #108). The v24.0.0 BEDROCK release remains historical; source metadata on this branch now targets v25.0.0 without publishing a tag or deployment artifact.
+This is the historical pre-publication review of the v25.0.0 candidate (PR #108), which was tagged and published on November 3, 2026. The evidence and publication gates below record that original review. The v24.0.0 BEDROCK release remains historical.
 
 ## Comparison and corrected boundaries
 

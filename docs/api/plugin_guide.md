@@ -6,7 +6,7 @@
 
 ## Overview
 
-AILLE is designed to be extended through well-defined interfaces without touching core decision logic. There are three categories of plugin:
+AILLE is designed to be extended through well-defined interfaces without touching core decision logic. There are four categories of plugin:
 
 | Plugin Type     | Purpose                                 | Hook Point                      |
 |-----------------|-----------------------------------------|---------------------------------|
@@ -16,6 +16,11 @@ AILLE is designed to be extended through well-defined interfaces without touchin
 | **Analytics**   | Observe decisions for metrics/alerting  | After `makeDecision()` (passive)|
 
 The AILLE core (`aille.hpp`) exposes three stable data structures that form the plugin contract: `ModelSignal`, `Decision`, and `AILLEConfig`. Plugins depend only on these types — not on internal engine methods.
+
+For Robinhood, Alpaca, local simulation and other broker integrations, see the
+[trading-platform flow guide](../integrations/trading-platforms.md). An alert
+adapter, an authenticated data adapter and an execution provider have different
+permissions and responsibilities.
 
 ---
 
@@ -146,13 +151,14 @@ public:
 void execute(const AILLE::Decision& decision) {
     switch (decision.status) {
         case AILLE::DECISION_VALID:
-            // Full confidence — execute at stated position size
-            sendOrder(decision.final_value, decision.confidence);
+            // Application hook: apply sizing, account and broker admission checks.
+            // This is not an order submission API.
+            queueForExecutionReview(decision);
             break;
 
         case AILLE::FALLBACK_ACTIVATED:
-            // Reduced confidence — use conservative sizing
-            sendOrder(decision.final_value, decision.confidence * 0.5f);
+            // Fallback does not authorize an order.
+            logSkip(decision.reasoning);
             break;
 
         case AILLE::REJECTED_LOW_CONFIDENCE:
@@ -172,7 +178,9 @@ void execute(const AILLE::Decision& decision) {
 
 - Execution plugins must **not** modify the `Decision` object.
 - `decision.final_value` reflects the consensus-smoothed position direction after `tanh` normalisation. It is not a raw monetary amount; scaling to position size is the execution plugin's responsibility.
-- Always check `decision.fallback_used` when `status == DECISION_VALID` is not set to determine whether a conservative fallback value was used.
+- Fallback, rejected and invalid decisions must not submit orders. Passive
+  warning alerts may still describe them. A valid status is a prerequisite;
+  the execution provider must also enforce its own bounded request contract.
 
 ---
 
@@ -345,12 +353,17 @@ The default `routeDecision()` applies the standard pattern:
 
 | Status                    | Action                              |
 |---------------------------|-------------------------------------|
-| `DECISION_VALID`          | `submitOrder()` at full confidence  |
-| `FALLBACK_ACTIVATED`      | `submitOrder()` at `confidence × 0.5` |
+| `DECISION_VALID`          | Validate finite nonzero direction, confidence and size; submit only if the provider accepts the constructed request |
+| `FALLBACK_ACTIVATED`      | No order placed; fallback is not authorization |
 | `REJECTED_LOW_CONFIDENCE` | No order placed                     |
 | `REJECTED_NO_CONSENSUS`   | No order placed                     |
 
 See the bundled example: `ailee_plugins/plugins/execution/alpaca/AlpacaExecution.cpp`
+
+The generic helper constructs a market request without a client reference.
+That is insufficient for non-mock Alpaca directional submission, which requires
+an explicitly bounded BUY LIMIT request, client identity and durable reservation.
+See the [execution migration contract](../releases/execution-integrity-hardening.md).
 
 ---
 
@@ -398,7 +411,9 @@ PluginRegistry::instance().registerMarketData(
 PluginRegistry::instance().registerExecutionProvider(
     "alpaca",
     []() -> std::unique_ptr<IExecutionProvider> {
-        return std::make_unique<Alpaca::AlpacaExecution>("AAPL", /*base_qty=*/100.0f);
+        Alpaca::AlpacaConfig config;
+        config.mock_mode = true; // Local mock, not a hosted paper account.
+        return std::make_unique<Alpaca::AlpacaExecution>(config);
     }
 );
 
@@ -432,6 +447,9 @@ Bundled plugins support **link-time self-registration**: linking a plugin `.cpp`
 file into the application automatically calls `registerMarketData()` /
 `registerExecutionProvider()` / `registerAnalyticsObserver()` at static-init time,
 before `main()` runs.
+
+The explicit Alpaca factory above selects local mock execution. Broker-hosted
+paper mode requires its own credentials, destination and admission checks.
 
 See [plugin_registry.md](plugin_registry.md) for the full registry reference.
 
