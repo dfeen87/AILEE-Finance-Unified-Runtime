@@ -25,7 +25,7 @@ python-dotenv==1.2.4
 # Simulation dependencies
 numpy>=2.2.6
 pandas>=2.3.3
-pyyaml>=6.0.3
+pyyaml>=6.0.4
 # NumPy 2 requires compatible pandas and Matplotlib binary extensions.
 matplotlib>=3.9.0
 # Patched image dependency; the development/CI environment requires Python >=3.11.
