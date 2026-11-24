@@ -3,7 +3,7 @@ requests==2.34.2
 urllib3==2.8.0
 
 # JSON + serialization helpers
-simplejson==3.19.2
+simplejson==4.3.0
 
 # Optional: local dashboard helpers (safe for Render)
 flask==3.1.3
